@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northstar Bank — Qali Demo</title>
+    <style>
+      :root {
+        color: #172033;
+        background: #eef2f7;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        color: white;
+        background: #102447;
+      }
+      .badge {
+        align-self: center;
+        padding: 0.35rem 0.7rem;
+        border: 1px solid #fbbf24;
+        border-radius: 999px;
+        color: #fbbf24;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      main {
+        width: min(42rem, calc(100% - 2rem));
+        margin: 3rem auto;
+      }
+      .card {
+        padding: 2rem;
+        border-radius: 1rem;
+        background: white;
+        box-shadow: 0 0.8rem 2rem rgb(16 36 71 / 12%);
+      }
+      label,
+      input,
+      button {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      label {
+        margin-top: 1rem;
+        font-weight: 700;
+      }
+      input,
+      button {
+        margin-top: 0.4rem;
+        padding: 0.8rem;
+        border: 1px solid #9aa7bc;
+        border-radius: 0.5rem;
+        font: inherit;
+      }
+      button {
+        margin-top: 1.25rem;
+        border: 0;
+        color: white;
+        background: #176b5b;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .error {
+        color: #b42318;
+        font-weight: 700;
+      }
+      .balance {
+        font-size: 2.5rem;
+        font-weight: 800;
+      }
+      li {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.8rem 0;
+        border-bottom: 1px solid #d8dee9;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Northstar Bank</strong>
+      <span class="badge" aria-label="Application is using synthetic data">MOCK MODE</span>
+    </header>
+    <main>
+      <section id="login" class="card" aria-labelledby="login-title">
+        <h1 id="login-title">Welcome back</h1>
+        <p>Demo credentials: alex@example.test / demo123</p>
+        <form id="login-form">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required />
+          <label for="password">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <p id="login-error" class="error" role="alert" hidden></p>
+          <button type="submit">Sign in</button>
+        </form>
+      </section>
+      <section id="dashboard" class="card" aria-labelledby="dashboard-title" hidden>
+        <h1 id="dashboard-title">Good morning, Alex Morgan</h1>
+        <p>Available balance</p>
+        <p class="balance" data-testid="balance">$12,480.50</p>
+        <h2>Recent activity</h2>
+        <ul>
+          <li><span>Coffee House</span><span>-$4.80</span></li>
+          <li><span>Payroll</span><span>+$3,200.00</span></li>
+          <li><span>Metro Pass</span><span>-$75.00</span></li>
+        </ul>
+        <button id="sign-out" type="button">Sign out</button>
+      </section>
+    </main>
+    <script>
+      const login = document.querySelector('#login');
+      const dashboard = document.querySelector('#dashboard');
+      const error = document.querySelector('#login-error');
+
+      document.querySelector('#login-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        const valid =
+          data.get('email') === 'alex@example.test' && data.get('password') === 'demo123';
+        error.hidden = valid;
+        error.textContent = valid ? '' : 'Email or password is incorrect.';
+        login.hidden = valid;
+        dashboard.hidden = !valid;
+        if (valid) document.querySelector('#sign-out').focus();
+      });
+
+      document.querySelector('#sign-out').addEventListener('click', () => {
+        dashboard.hidden = true;
+        login.hidden = false;
+        document.querySelector('#login-form').reset();
+        document.querySelector('#email').focus();
+      });
+    </script>
+  </body>
+</html>

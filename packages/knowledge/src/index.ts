@@ -1,3 +1,8 @@
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 export const EVIDENCE_STATUSES = [
   'confirmed',
   'observed',
@@ -134,6 +139,172 @@ export function validateProjectKnowledge(markdown: string): KnowledgeValidationR
       code: 'placeholder',
       message: `unresolved placeholder: ${placeholder}`
     });
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+export interface ScaffoldProjectOptions {
+  projectsRoot: string | URL;
+  templateRoot: string | URL;
+  date?: string;
+}
+
+export interface ScaffoldProjectResult {
+  projectId: string;
+  projectRoot: string;
+}
+
+const localPath = (path: string | URL): string =>
+  path instanceof URL ? fileURLToPath(path) : path;
+
+const generatedHeader = '<!-- qali:generated owner=qali sha256={{CONTENT_SHA256}} -->';
+const generatedHeaderPattern =
+  /^<!-- qali:generated owner=qali sha256=([a-f0-9]{64}) -->([\s\S]*)$/;
+
+export const REQUIRED_PROJECT_PATHS = [
+  'sources/project-context.md',
+  'sources/reference/requirements.md',
+  'sources/reference/journeys.md',
+  'sources/reference/risks.md',
+  'sources/questions.md',
+  'sources/decisions.md',
+  'sources/reference/test-data.md',
+  'sources/autonomy-policy.md',
+  'observations/exploration.md',
+  'observations/known-issues.md',
+  'observations/evidence/index.md',
+  'derived/strategy.md',
+  'derived/plan.md',
+  'derived/scenarios/.generated.md',
+  'derived/coverage/.generated.md',
+  'derived/reports/.generated.md',
+  'derived/tasks/.generated.md',
+  'derived/jobs/.generated.md',
+  'derived/workflow-state/.generated.md',
+  'tests/README.md'
+] as const;
+
+const GENERATED_PROJECT_PATHS = REQUIRED_PROJECT_PATHS.filter((path) =>
+  path.startsWith('derived/')
+);
+
+export interface ProjectValidationIssue {
+  code:
+    | 'missing-required-file'
+    | 'invalid-generated-marker'
+    | 'modified-generated-file'
+    | 'generated-marker-in-source';
+  path: string;
+  message: string;
+}
+
+export interface ProjectValidationResult {
+  valid: boolean;
+  issues: ProjectValidationIssue[];
+}
+
+function renderProjectTree(directory: string, projectId: string, date: string): void {
+  for (const entry of readdirSync(directory)) {
+    const path = join(directory, entry);
+    if (statSync(path).isDirectory()) {
+      renderProjectTree(path, projectId, date);
+      continue;
+    }
+
+    let content = readFileSync(path, 'utf8')
+      .replaceAll('{{PROJECT_ID}}', projectId)
+      .replaceAll('{{DATE}}', date);
+    if (content.startsWith(generatedHeader)) {
+      const body = content.slice(generatedHeader.length);
+      const hash = createHash('sha256').update(body).digest('hex');
+      content = content.replace('{{CONTENT_SHA256}}', hash);
+    }
+    writeFileSync(path, content);
+  }
+}
+
+function filesBelow(directory: string): string[] {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry);
+    return statSync(path).isDirectory() ? filesBelow(path) : [path];
+  });
+}
+
+export function scaffoldProject(
+  projectId: string,
+  options: ScaffoldProjectOptions
+): ScaffoldProjectResult {
+  if (projectId.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
+    throw new Error(
+      'invalid project id: use 1-64 lowercase letters, numbers, or single hyphen-separated words'
+    );
+  }
+
+  const projectsRoot = localPath(options.projectsRoot);
+  const projectRoot = join(projectsRoot, projectId);
+  if (existsSync(projectRoot)) {
+    throw new Error(`project already exists: ${projectId}`);
+  }
+  cpSync(localPath(options.templateRoot), projectRoot, { recursive: true });
+  renderProjectTree(projectRoot, projectId, options.date ?? new Date().toISOString().slice(0, 10));
+  return { projectId, projectRoot };
+}
+
+export function validateProjectDirectory(projectRoot: string | URL): ProjectValidationResult {
+  const root = localPath(projectRoot);
+  const issues: ProjectValidationIssue[] = [];
+
+  for (const relativePath of REQUIRED_PROJECT_PATHS) {
+    if (!existsSync(join(root, relativePath))) {
+      issues.push({
+        code: 'missing-required-file',
+        path: relativePath,
+        message: `missing required project file: ${relativePath}`
+      });
+    }
+  }
+
+  const generatedPaths = new Set([
+    ...GENERATED_PROJECT_PATHS,
+    ...filesBelow(join(root, 'derived'))
+      .map((path) => relative(root, path))
+      .filter((path) => /\.(?:md|json|ya?ml)$/.test(path))
+  ]);
+
+  for (const relativePath of generatedPaths) {
+    const path = join(root, relativePath);
+    if (!existsSync(path)) continue;
+    const content = readFileSync(path, 'utf8');
+    const match = generatedHeaderPattern.exec(content);
+    if (!match) {
+      issues.push({
+        code: 'invalid-generated-marker',
+        path: relativePath,
+        message: `missing or invalid Qali generated marker: ${relativePath}`
+      });
+      continue;
+    }
+    const expectedHash = createHash('sha256').update(match[2]!).digest('hex');
+    if (match[1] !== expectedHash) {
+      issues.push({
+        code: 'modified-generated-file',
+        path: relativePath,
+        message: `generated file content changed without regeneration: ${relativePath}`
+      });
+    }
+  }
+
+  for (const path of filesBelow(join(root, 'sources'))) {
+    if (readFileSync(path, 'utf8').startsWith('<!-- qali:generated ')) {
+      const relativePath = relative(root, path);
+      issues.push({
+        code: 'generated-marker-in-source',
+        path: relativePath,
+        message: `governed source must not be marked as generated: ${relativePath}`
+      });
+    }
   }
 
   return { valid: issues.length === 0, issues };

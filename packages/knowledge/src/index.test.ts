@@ -1,7 +1,15 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { once } from 'node:events';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assessPromotion,
   classifyMutation,
+  scaffoldProject,
+  validateProjectDirectory,
   validateProjectKnowledge,
   type KnowledgeFact
 } from './index.js';
@@ -92,5 +100,206 @@ describe('project knowledge validation', () => {
 
   it('accepts a complete context', () => {
     expect(validateProjectKnowledge(complete)).toEqual({ valid: true, issues: [] });
+  });
+});
+
+describe('canonical project template', () => {
+  it('contains every workflow-owned physical area and governed knowledge artifact', () => {
+    const required = [
+      'sources/project-context.md',
+      'sources/reference/requirements.md',
+      'sources/reference/journeys.md',
+      'sources/reference/risks.md',
+      'sources/questions.md',
+      'sources/decisions.md',
+      'sources/reference/test-data.md',
+      'sources/autonomy-policy.md',
+      'observations/exploration.md',
+      'observations/known-issues.md',
+      'observations/evidence/index.md',
+      'derived/strategy.md',
+      'derived/plan.md',
+      'derived/scenarios/.generated.md',
+      'derived/coverage/.generated.md',
+      'derived/reports/.generated.md',
+      'derived/tasks/.generated.md',
+      'derived/jobs/.generated.md',
+      'derived/workflow-state/.generated.md',
+      'tests/README.md'
+    ];
+
+    expect(required.filter((path) => !existsSync(`projects/_template/${path}`))).toEqual([]);
+  });
+
+  it('scaffolds an isolated project and renders its identity', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const result = scaffoldProject('merchant-portal', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      const contextPath = join(result.projectRoot, 'sources/project-context.md');
+
+      expect(readFileSync(contextPath, 'utf8')).toContain('merchant-portal');
+      expect(readFileSync(contextPath, 'utf8')).not.toContain('{{PROJECT_ID}}');
+
+      writeFileSync(contextPath, '# changed copy\n');
+      expect(readFileSync(new URL('sources/project-context.md', templateRoot), 'utf8')).toContain(
+        '{{PROJECT_ID}}'
+      );
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsafe project IDs and refuses to overwrite an existing project', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      for (const projectId of [
+        '../escape',
+        '/absolute',
+        'MixedCase',
+        '_reserved',
+        'two words',
+        'two--words',
+        'a'.repeat(65)
+      ]) {
+        expect(() => scaffoldProject(projectId, { projectsRoot, templateRoot })).toThrow(
+          /project id/i
+        );
+      }
+
+      scaffoldProject('safe-project', { projectsRoot, templateRoot, date: '2026-08-10' });
+      expect(() => scaffoldProject('safe-project', { projectsRoot, templateRoot })).toThrow(
+        /already exists/i
+      );
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('validates a freshly scaffolded project as complete', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('complete-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+
+      expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('detects direct edits to Qali-owned derived files', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('tampered-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      const planPath = join(projectRoot, 'derived/plan.md');
+      writeFileSync(planPath, `${readFileSync(planPath, 'utf8')}\nManual change.\n`);
+
+      expect(validateProjectDirectory(projectRoot)).toEqual({
+        valid: false,
+        issues: [
+          expect.objectContaining({
+            code: 'modified-generated-file',
+            path: 'derived/plan.md'
+          })
+        ]
+      });
+
+      writeFileSync(join(projectRoot, 'derived/reports/manual.md'), '# Manual report\n');
+      expect(validateProjectDirectory(projectRoot).issues).toContainEqual(
+        expect.objectContaining({
+          code: 'invalid-generated-marker',
+          path: 'derived/reports/manual.md'
+        })
+      );
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps governed sources human-editable and generated ownership confined to derived files', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('ownership-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      const contextPath = join(projectRoot, 'sources/project-context.md');
+      writeFileSync(
+        contextPath,
+        `<!-- qali:generated owner=qali sha256=${'0'.repeat(64)} -->\n${readFileSync(contextPath, 'utf8')}`
+      );
+
+      expect(validateProjectDirectory(projectRoot).issues).toContainEqual(
+        expect.objectContaining({
+          code: 'generated-marker-in-source',
+          path: 'sources/project-context.md'
+        })
+      );
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('mock-mode demo project', () => {
+  it('is a valid self-contained target with observable login and dashboard behavior', () => {
+    const demoRoot = new URL('../../../projects/_demo/', import.meta.url);
+    const context = readFileSync(new URL('sources/project-context.md', demoRoot), 'utf8');
+    const app = readFileSync(new URL('app/public/index.html', demoRoot), 'utf8');
+
+    expect(validateProjectDirectory(demoRoot)).toEqual({ valid: true, issues: [] });
+    expect(context).not.toMatch(/\{\{[^}]+\}\}/);
+    expect(app).toContain('MOCK MODE');
+    expect(app).toMatch(/<form[^>]+id="login-form"/);
+    expect(app).toMatch(/id="dashboard"/);
+    expect(existsSync(new URL('app/server.mjs', demoRoot))).toBe(true);
+  });
+
+  it('serves the mock experience and exposes its mode through health', async () => {
+    const moduleUrl = new URL('../../../projects/_demo/app/server.mjs', import.meta.url).href;
+    const { createDemoServer } = (await import(moduleUrl)) as {
+      createDemoServer: () => Server;
+    };
+    const server = createDemoServer();
+
+    try {
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      const { port } = server.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${port}`;
+
+      await expect(fetch(`${origin}/health`).then((response) => response.json())).resolves.toEqual({
+        ok: true,
+        mode: 'mock'
+      });
+      await expect(fetch(origin).then((response) => response.text())).resolves.toContain(
+        'MOCK MODE'
+      );
+    } finally {
+      server.close();
+      await once(server, 'close');
+    }
   });
 });

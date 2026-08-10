@@ -11,5 +11,11 @@ playwright-report/
 test-results/
 projects/*/evidence/runtime/
 projects/*/derived/reports/
+!projects/*/derived/reports/
+projects/*/derived/reports/*
+!projects/*/derived/reports/.generated.md
+!projects/*/derived/coverage/
+projects/*/derived/coverage/*
+!projects/*/derived/coverage/.generated.md
 
 .DS_Store
