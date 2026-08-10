@@ -17,6 +17,7 @@
     "test": "vitest run --exclude \"projects/**/tests/**/*.spec.ts\"",
     "test:watch": "vitest",
     "demo:test": "playwright test projects/_demo/tests",
+    "demo:loop": "tsx scripts/demo-loop.ts",
     "execute": "tsx scripts/execute.ts"
   },
   "keywords": [

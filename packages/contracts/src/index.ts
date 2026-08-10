@@ -35,6 +35,7 @@ export const ARTIFACT_CLASSES = [
   'questions',
   'decisions',
   'known-issues',
+  'exploration',
   'scenarios',
   'tests',
   'evidence',
@@ -88,8 +89,8 @@ export type SlackCorrelationContext = z.infer<typeof SlackCorrelationContextSche
 
 export const ProjectMetadataSchema = z
   .object({
-    id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
-    root: z.string().regex(/^projects\/[a-z0-9][a-z0-9-]*$/),
+    id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
+    root: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*$/),
     environment: z.string().min(1).optional()
   })
   .strict();

@@ -2,6 +2,7 @@ import type { NormalizedCommand } from '@qali/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { signHmacForTest } from './security.js';
 import { createWorker } from './index.js';
+import { SlackWebClient } from './slack.js';
 import type {
   ControlStore,
   Correlation,
@@ -132,6 +133,57 @@ const eventBody = {
 };
 
 describe('Slack control worker', () => {
+  it('spans signed intake, queue normalization, dispatch, callback, and compact rendering', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const slackRequests: Array<Record<string, unknown>> = [];
+    const slack = new SlackWebClient('xoxb-mock', async (_url, init) => {
+      slackRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({ ok: true, ts: '2.2' });
+    });
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => command(work) },
+      github: { dispatch: async () => ({ runId: '42' }) },
+      slack,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+
+    expect((await worker.fetch(await slackEvent(eventBody), baseEnv(queue))).status).toBe(200);
+    const message = { body: queue[0]!, ack: vi.fn(), retry: vi.fn() };
+    await worker.queue({ messages: [message] }, baseEnv(queue));
+    expect(store.correlations.get('Ev1')).toMatchObject({
+      workflowId: 'run-test-suite',
+      runId: '42'
+    });
+
+    const callbackBody = JSON.stringify({
+      action: 'completed',
+      workflow_run: {
+        id: 42,
+        status: 'completed',
+        conclusion: 'success',
+        html_url: 'https://github.test/runs/42',
+        artifacts_url: 'https://github.test/runs/42/report'
+      },
+      qali_summary: { total: 3, passed: 2, failed: 0, skipped: 1 }
+    });
+    const callbackSignature = await signHmacForTest('github-secret', callbackBody, 'sha256=');
+    const callback = new Request('https://worker.test/github/webhook', {
+      method: 'POST',
+      headers: {
+        'x-github-event': 'workflow_run',
+        'x-hub-signature-256': callbackSignature
+      },
+      body: callbackBody
+    });
+
+    expect((await worker.fetch(callback, baseEnv(queue))).status).toBe(200);
+    expect(slackRequests[0]?.text).toContain('2 passed');
+    expect(JSON.stringify(slackRequests[0]?.blocks)).toContain('triage_failures');
+    expect(JSON.stringify(slackRequests[0]?.blocks)).toContain('open_report');
+  });
+
   it('authenticates and ACKs before classifier or GitHub work', async () => {
     const queue: InboundWork[] = [];
     const classifier = { classify: vi.fn() };

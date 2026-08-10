@@ -1,20 +1,20 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime } from '../packages/agent-runtime/src/index.js';
 import {
   NormalizedCommandSchema,
-  type ArtifactReference,
   type NormalizedCommand,
   type WorkflowEvent,
   type WorkflowStep
 } from '../packages/contracts/src/index.js';
 import {
+  FileSystemOutputValidator,
   ROLE_PROFILES,
   executeWorkflow,
   loadWorkflowDirectory,
   routeCommand,
-  type OutputValidator,
   type PolicyEnforcer,
   type PreconditionChecker,
   type StepExecutor,
@@ -25,6 +25,11 @@ import { SpawnPlaywrightRunner } from '../packages/playwright/src/index.js';
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
   value.replaceAll('{projectId}', command.project.id);
+const generatedMarkdown = (body: string): string => {
+  const normalized = body.startsWith('\n') ? body : `\n${body}`;
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+};
 
 class FileEventStore implements WorkflowEventStore {
   constructor(private readonly path: string) {}
@@ -92,27 +97,6 @@ class WorkflowPolicy implements PolicyEnforcer {
   }
 }
 
-class DeclaredOutputValidator implements OutputValidator {
-  async validate(
-    step: WorkflowStep,
-    outputs: readonly ArtifactReference[],
-    command: NormalizedCommand
-  ) {
-    const expected = new Set(
-      step.outputs.map(({ artifact, path }) => `${artifact}:${expand(path, command)}`)
-    );
-    const actual = new Set(outputs.map(({ artifact, path }) => `${artifact}:${path}`));
-    const valid =
-      expected.size === actual.size && [...expected].every((value) => actual.has(value));
-    return valid
-      ? ({ valid: true } as const)
-      : ({
-          valid: false,
-          reason: `step ${step.id} returned undeclared or missing outputs`
-        } as const);
-  }
-}
-
 class RoutedStepExecutor implements StepExecutor {
   private readonly playwright = new SpawnPlaywrightRunner();
   private readonly agent = new CursorCliAgentRuntime();
@@ -137,6 +121,14 @@ class RoutedStepExecutor implements StepExecutor {
         projectId: command.project.id,
         reportPath: join(evidenceDir, 'results.json')
       });
+      const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
+      mkdirSync(dirname(jobPath), { recursive: true });
+      writeFileSync(
+        jobPath,
+        generatedMarkdown(
+          `\n# Test run job\n\nStatus: ${run.status}\nEvidence: \`${join(evidenceDir, 'results.json')}\`\n`
+        )
+      );
       return run.status === 'passed'
         ? ({ status: 'succeeded', outputs } as const)
         : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
@@ -181,7 +173,7 @@ const result = await executeWorkflow(command, {
   policy: new WorkflowPolicy(),
   executor: new RoutedStepExecutor(),
   events: new FileEventStore(eventPath),
-  outputValidator: new DeclaredOutputValidator()
+  outputValidator: new FileSystemOutputValidator(workspace)
 });
 console.log(JSON.stringify(result, null, 2));
 if (result.status !== 'succeeded') process.exitCode = 1;

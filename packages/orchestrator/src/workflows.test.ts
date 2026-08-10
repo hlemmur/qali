@@ -27,6 +27,7 @@ describe('workflow catalog', () => {
     const expectedRoot = {
       'project-context': 'sources',
       reference: 'sources',
+      exploration: 'observations',
       questions: 'sources',
       decisions: 'sources',
       'known-issues': 'observations',
@@ -48,6 +49,20 @@ describe('workflow catalog', () => {
         }
       }
     }
+  });
+
+  it('keeps observed exploration knowledge in its single observation owner', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const exploration = workflows.find(({ id }) => id === 'exploratory-testing')!;
+    const outputs = exploration.steps.flatMap((step) => step.outputs);
+
+    expect(outputs).toContainEqual({
+      artifact: 'exploration',
+      path: 'projects/{projectId}/observations/exploration.md'
+    });
+    expect(outputs).not.toContainEqual(
+      expect.objectContaining({ path: 'projects/{projectId}/sources/reference/exploration.md' })
+    );
   });
 
   it('rejects unknown role and skill references', () => {

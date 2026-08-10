@@ -251,12 +251,26 @@ async function githubWebhook(
   const runId = String(run.id);
   const correlation = await store.findByRunId(runId);
   if (!correlation) return new Response('Uncorrelated', { status: 202 });
+  const reportedCounts = record(payload.qali_summary);
+  const counts =
+    typeof reportedCounts.total === 'number' &&
+    typeof reportedCounts.passed === 'number' &&
+    typeof reportedCounts.failed === 'number' &&
+    typeof reportedCounts.skipped === 'number'
+      ? {
+          total: reportedCounts.total,
+          passed: reportedCounts.passed,
+          failed: reportedCounts.failed,
+          skipped: reportedCounts.skipped
+        }
+      : undefined;
   const summary: SlackRunSummary = {
     runId,
     status: typeof run.status === 'string' ? run.status : String(payload.action ?? 'updated'),
     ...(typeof run.conclusion === 'string' ? { conclusion: run.conclusion } : {}),
     ...(typeof run.html_url === 'string' ? { htmlUrl: run.html_url } : {}),
-    ...(typeof run.artifacts_url === 'string' ? { reportUrl: run.artifacts_url } : {})
+    ...(typeof run.artifacts_url === 'string' ? { reportUrl: run.artifacts_url } : {}),
+    ...(counts ? { counts } : {})
   };
   if (correlation.responseTs) {
     await slack.updateResult(correlation, correlation.responseTs, summary);

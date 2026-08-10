@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assessPromotion,
   classifyMutation,
+  renderGeneratedJson,
   scaffoldProject,
   validateProjectDirectory,
   validateProjectKnowledge,
@@ -228,6 +229,34 @@ describe('canonical project template', () => {
         expect.objectContaining({
           code: 'invalid-generated-marker',
           path: 'derived/reports/manual.md'
+        })
+      );
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('validates generated JSON markers and semantic hashes', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('json-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      const reportPath = join(projectRoot, 'derived/reports/run.json');
+      writeFileSync(reportPath, renderGeneratedJson({ status: 'passed', total: 2 }));
+      expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
+
+      const edited = JSON.parse(readFileSync(reportPath, 'utf8')) as { total: number };
+      edited.total = 99;
+      writeFileSync(reportPath, JSON.stringify(edited, null, 2));
+      expect(validateProjectDirectory(projectRoot).issues).toContainEqual(
+        expect.objectContaining({
+          code: 'modified-generated-file',
+          path: 'derived/reports/run.json'
         })
       );
     } finally {

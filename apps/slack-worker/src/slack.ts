@@ -1,3 +1,4 @@
+import { renderSlackRunSummary } from '@qali/reporting';
 import type { Correlation, SlackPort, SlackRunSummary } from './types.js';
 
 interface SlackResponse {
@@ -6,41 +7,20 @@ interface SlackResponse {
   error?: string;
 }
 
-function blocks(correlation: Correlation, summary: SlackRunSummary): unknown[] {
-  const outcome = summary.conclusion ?? summary.status;
-  const actions: unknown[] = [];
-  if (summary.htmlUrl) {
-    actions.push({
-      type: 'button',
-      action_id: 'run_details',
-      text: { type: 'plain_text', text: 'Details' },
-      url: summary.htmlUrl
-    });
-  }
-  actions.push({
-    type: 'button',
-    action_id: 'rerun_workflow',
-    text: { type: 'plain_text', text: 'Rerun' },
-    value: JSON.stringify({ requestId: correlation.requestId, runId: summary.runId })
-  });
-  if (summary.reportUrl) {
-    actions.push({
-      type: 'button',
-      action_id: 'open_report',
-      text: { type: 'plain_text', text: 'Report' },
-      url: summary.reportUrl
-    });
-  }
-  return [
+function payload(correlation: Correlation, summary: SlackRunSummary) {
+  return renderSlackRunSummary(
     {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*Qali run ${summary.runId}* · ${outcome}`
-      }
+      runId: summary.runId,
+      status: summary.conclusion ?? summary.status,
+      ...(summary.counts ?? {})
     },
-    { type: 'actions', elements: actions }
-  ];
+    {
+      ...(summary.htmlUrl ? { detailsUrl: summary.htmlUrl } : {}),
+      ...(summary.reportUrl ? { reportUrl: summary.reportUrl } : {}),
+      rerunValue: JSON.stringify({ requestId: correlation.requestId, runId: summary.runId }),
+      triageValue: JSON.stringify({ requestId: correlation.requestId, runId: summary.runId })
+    }
+  );
 }
 
 export class SlackWebClient implements SlackPort {
@@ -66,11 +46,11 @@ export class SlackWebClient implements SlackPort {
   }
 
   async postResult(correlation: Correlation, summary: SlackRunSummary): Promise<string> {
+    const rendered = payload(correlation, summary);
     const result = await this.call('chat.postMessage', {
       channel: correlation.channelId,
       thread_ts: correlation.threadTs,
-      text: `Qali run ${summary.runId}: ${summary.conclusion ?? summary.status}`,
-      blocks: blocks(correlation, summary)
+      ...rendered
     });
     if (!result.ts) throw new Error('Slack did not return a message timestamp');
     return result.ts;
@@ -81,11 +61,11 @@ export class SlackWebClient implements SlackPort {
     responseTs: string,
     summary: SlackRunSummary
   ): Promise<void> {
+    const rendered = payload(correlation, summary);
     await this.call('chat.update', {
       channel: correlation.channelId,
       ts: responseTs,
-      text: `Qali run ${summary.runId}: ${summary.conclusion ?? summary.status}`,
-      blocks: blocks(correlation, summary)
+      ...rendered
     });
   }
 }

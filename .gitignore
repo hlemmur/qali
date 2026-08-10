@@ -10,10 +10,16 @@ coverage/
 playwright-report/
 test-results/
 projects/*/evidence/runtime/
+projects/*/observations/evidence/*
+!projects/*/observations/evidence/index.md
 projects/*/derived/reports/
 !projects/*/derived/reports/
 projects/*/derived/reports/*
 !projects/*/derived/reports/.generated.md
+projects/*/derived/jobs/*
+!projects/*/derived/jobs/.generated.md
+projects/*/derived/workflow-state/*
+!projects/*/derived/workflow-state/.generated.md
 !projects/*/derived/coverage/
 projects/*/derived/coverage/*
 !projects/*/derived/coverage/.generated.md

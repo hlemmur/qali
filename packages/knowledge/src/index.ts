@@ -162,6 +162,22 @@ const generatedHeader = '<!-- qali:generated owner=qali sha256={{CONTENT_SHA256}
 const generatedHeaderPattern =
   /^<!-- qali:generated owner=qali sha256=([a-f0-9]{64}) -->([\s\S]*)$/;
 
+const generatedJsonHash = (value: Record<string, unknown>): string =>
+  createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
+export function renderGeneratedJson(value: object): string {
+  const body: Record<string, unknown> = { ...value };
+  delete body._qali;
+  return `${JSON.stringify(
+    {
+      _qali: { generated: 'owner=qali', sha256: generatedJsonHash(body) },
+      ...body
+    },
+    null,
+    2
+  )}\n`;
+}
+
 export const REQUIRED_PROJECT_PATHS = [
   'sources/project-context.md',
   'sources/reference/requirements.md',
@@ -277,6 +293,41 @@ export function validateProjectDirectory(projectRoot: string | URL): ProjectVali
     const path = join(root, relativePath);
     if (!existsSync(path)) continue;
     const content = readFileSync(path, 'utf8');
+    if (relativePath.endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        const marker = parsed._qali as Record<string, unknown> | undefined;
+        const body = { ...parsed };
+        delete body._qali;
+        if (
+          marker?.generated !== 'owner=qali' ||
+          typeof marker.sha256 !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(marker.sha256)
+        ) {
+          throw new Error('invalid marker');
+        }
+        if (marker.sha256 !== generatedJsonHash(body)) {
+          issues.push({
+            code: 'modified-generated-file',
+            path: relativePath,
+            message: `generated file content changed without regeneration: ${relativePath}`
+          });
+        }
+      } catch {
+        if (
+          !issues.some(
+            (issue) => issue.path === relativePath && issue.code === 'modified-generated-file'
+          )
+        ) {
+          issues.push({
+            code: 'invalid-generated-marker',
+            path: relativePath,
+            message: `missing or invalid Qali generated marker: ${relativePath}`
+          });
+        }
+      }
+      continue;
+    }
     const match = generatedHeaderPattern.exec(content);
     if (!match) {
       issues.push({

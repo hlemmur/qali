@@ -1,6 +1,14 @@
-import type { NormalizedCommand, WorkflowDescriptor } from '../../contracts/src/index.js';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type {
+  NormalizedCommand,
+  WorkflowDescriptor,
+  WorkflowStep
+} from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
 import {
+  FileSystemOutputValidator,
   FakeEventStore,
   FakeOutputValidator,
   FakePolicyEnforcer,
@@ -125,5 +133,23 @@ describe('workflow execution', () => {
     const invalid = await executeWorkflow(command, invalidPorts);
     expect(invalid.status).toBe('failed');
     expect(invalidPorts.executor.steps).toEqual(['execute']);
+  });
+
+  it('rejects declared outputs that were not materialized on disk', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-output-'));
+    const validator = new FileSystemOutputValidator(workspace);
+    const step = workflow.steps[0] as WorkflowStep;
+    const output = {
+      artifact: 'evidence' as const,
+      path: 'projects/demo/observations/evidence/run'
+    };
+
+    await expect(validator.validate(step, [output], command)).resolves.toMatchObject({
+      valid: false
+    });
+
+    mkdirSync(join(workspace, output.path), { recursive: true });
+    writeFileSync(join(workspace, output.path, 'result.json'), '{}');
+    await expect(validator.validate(step, [output], command)).resolves.toEqual({ valid: true });
   });
 });

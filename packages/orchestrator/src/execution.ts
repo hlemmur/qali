@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import {
   NormalizedCommandSchema,
   WorkflowDescriptorSchema,
@@ -60,6 +62,45 @@ export interface WorkflowExecutionPorts {
   outputValidator: OutputValidator;
   now?: () => Date;
   id?: () => string;
+}
+
+const expandOutputPath = (path: string, command: NormalizedCommand): string =>
+  path.replaceAll('{projectId}', command.project.id);
+
+export class FileSystemOutputValidator implements OutputValidator {
+  constructor(private readonly workspace: string) {}
+
+  async validate(
+    step: WorkflowStep,
+    outputs: readonly ArtifactReference[],
+    command: NormalizedCommand
+  ): Promise<{ valid: true } | { valid: false; reason: string }> {
+    const expected = new Set(
+      step.outputs.map(({ artifact, path }) => `${artifact}:${expandOutputPath(path, command)}`)
+    );
+    const actual = new Set(outputs.map(({ artifact, path }) => `${artifact}:${path}`));
+    if (expected.size !== actual.size || [...expected].some((value) => !actual.has(value))) {
+      return { valid: false, reason: `step ${step.id} returned undeclared or missing outputs` };
+    }
+
+    const workspaceRoot = resolve(this.workspace);
+    for (const { path } of outputs) {
+      const outputPath = resolve(workspaceRoot, path);
+      if (outputPath !== workspaceRoot && !outputPath.startsWith(`${workspaceRoot}${sep}`)) {
+        return {
+          valid: false,
+          reason: `step ${step.id} returned output outside workspace: ${path}`
+        };
+      }
+      if (!existsSync(outputPath)) {
+        return { valid: false, reason: `step ${step.id} did not materialize output: ${path}` };
+      }
+      if (statSync(outputPath).isDirectory() && readdirSync(outputPath).length === 0) {
+        return { valid: false, reason: `step ${step.id} materialized an empty output: ${path}` };
+      }
+    }
+    return { valid: true };
+  }
 }
 
 export async function executeWorkflow(

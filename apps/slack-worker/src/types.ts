@@ -101,4 +101,10 @@ export interface SlackRunSummary {
   conclusion?: string;
   htmlUrl?: string;
   reportUrl?: string;
+  counts?: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
 }

@@ -22,8 +22,8 @@ steps:
     outputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/exploration
-      - artifact: reference
-        path: projects/{projectId}/sources/reference/exploration.md
+      - artifact: exploration
+        path: projects/{projectId}/observations/exploration.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
     requiredTools: [file-read, file-write, browser]
@@ -38,6 +38,8 @@ steps:
     inputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/exploration
+      - artifact: exploration
+        path: projects/{projectId}/observations/exploration.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
     outputs:

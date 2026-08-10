@@ -69,7 +69,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
     displayName: 'Explorer',
     permissions: {
       readableArtifacts: ['project-context', 'reference', 'scenarios', 'known-issues'],
-      writableArtifacts: ['evidence', 'reference', 'questions', 'known-issues'],
+      writableArtifacts: ['evidence', 'exploration', 'reference', 'questions', 'known-issues'],
       tools: ['file-read', 'file-write', 'browser'],
       mutations: ['append-observation', 'append-evidence']
     }
@@ -138,6 +138,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'questions',
         'decisions',
         'known-issues',
+        'exploration',
         'scenarios',
         'tests',
         'evidence',
@@ -159,6 +160,7 @@ const ARTIFACT_PATHS: Record<ArtifactClass, RegExp> = {
   questions: /^projects\/\{projectId\}\/sources\/questions\.md$/,
   decisions: /^projects\/\{projectId\}\/sources\/decisions\.md$/,
   'known-issues': /^projects\/\{projectId\}\/observations\/known-issues\.md$/,
+  exploration: /^projects\/\{projectId\}\/observations\/exploration\.md$/,
   scenarios: /^projects\/\{projectId\}\/derived\/scenarios(?:\/|$)/,
   tests: /^projects\/\{projectId\}\/tests(?:\/|$)/,
   evidence: /^projects\/\{projectId\}\/observations\/evidence(?:\/|$)/,
