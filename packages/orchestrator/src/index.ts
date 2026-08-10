@@ -5,6 +5,7 @@ import {
 } from '../../knowledge/src/index.js';
 
 export * from './workflows.js';
+export * from './execution.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 

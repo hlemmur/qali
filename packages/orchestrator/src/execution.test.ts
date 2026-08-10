@@ -1,0 +1,129 @@
+import type { NormalizedCommand, WorkflowDescriptor } from '../../contracts/src/index.js';
+import { describe, expect, it } from 'vitest';
+import {
+  FakeEventStore,
+  FakeOutputValidator,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FakeStepExecutor,
+  FakeWorkflowLoader,
+  executeWorkflow
+} from './index.js';
+
+const command: NormalizedCommand = {
+  intent: 'run-test-suite',
+  project: { id: 'demo', root: 'projects/demo' },
+  requestedBy: 'U1',
+  receivedAt: '2026-08-10T20:00:00.000Z',
+  parameters: {}
+};
+
+const workflow: WorkflowDescriptor = {
+  version: 1,
+  id: 'run-test-suite',
+  title: 'Run',
+  description: 'Run deterministic checks',
+  executable: true,
+  triggers: [{ type: 'command', intent: 'run-test-suite' }],
+  preconditions: ['project-exists', 'execution-unblocked'],
+  steps: [
+    {
+      id: 'execute',
+      role: 'executor',
+      skill: 'playwright-automation',
+      needs: [],
+      inputs: [],
+      outputs: [{ artifact: 'evidence', path: 'projects/{projectId}/observations/evidence/run' }],
+      requiredTools: ['playwright'],
+      mutations: ['append-evidence'],
+      policyGates: ['execution'],
+      retries: 0,
+      timeoutMs: 10_000
+    },
+    {
+      id: 'report',
+      role: 'reporter',
+      skill: 'qa-report-humanizer',
+      needs: ['execute'],
+      inputs: [],
+      outputs: [{ artifact: 'reports', path: 'projects/{projectId}/derived/reports/run.md' }],
+      requiredTools: ['report-renderer'],
+      mutations: ['render-derived-report'],
+      policyGates: [],
+      retries: 0,
+      timeoutMs: 10_000
+    }
+  ]
+};
+
+const dependencies = () => ({
+  loader: new FakeWorkflowLoader(workflow),
+  preconditions: new FakePreconditionChecker(),
+  policy: new FakePolicyEnforcer(),
+  executor: new FakeStepExecutor([
+    {
+      status: 'succeeded' as const,
+      outputs: [{ artifact: 'evidence' as const, path: 'projects/demo/observations/evidence/run' }]
+    },
+    {
+      status: 'succeeded' as const,
+      outputs: [{ artifact: 'reports' as const, path: 'projects/demo/derived/reports/run.md' }]
+    }
+  ]),
+  events: new FakeEventStore(),
+  outputValidator: new FakeOutputValidator(),
+  now: () => new Date('2026-08-10T20:00:00.000Z'),
+  id: (() => {
+    let id = 0;
+    return () => `id-${++id}`;
+  })()
+});
+
+describe('workflow execution', () => {
+  it('loads, executes, validates, and persists ordered state transitions', async () => {
+    const ports = dependencies();
+    const result = await executeWorkflow(command, ports);
+
+    expect(result.status).toBe('succeeded');
+    expect(ports.executor.steps).toEqual(['execute', 'report']);
+    expect(ports.outputValidator.steps).toEqual(['execute', 'report']);
+    expect(ports.events.events.map(({ type }) => type)).toEqual([
+      'workflow-started',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
+      'workflow-succeeded'
+    ]);
+    expect(result.outputs).toHaveLength(2);
+  });
+
+  it('stops before execution when a precondition or policy blocks work', async () => {
+    const preconditionPorts = dependencies();
+    preconditionPorts.preconditions.blocked = 'execution-unblocked';
+    const preconditionResult = await executeWorkflow(command, preconditionPorts);
+    expect(preconditionResult.status).toBe('blocked');
+    expect(preconditionPorts.executor.steps).toEqual([]);
+
+    const policyPorts = dependencies();
+    policyPorts.policy.blockedStep = 'execute';
+    const policyResult = await executeWorkflow(command, policyPorts);
+    expect(policyResult.status).toBe('blocked');
+    expect(policyPorts.executor.steps).toEqual([]);
+    expect(policyResult.events.at(-1)?.type).toBe('workflow-blocked');
+  });
+
+  it('stops on step failure and invalid output', async () => {
+    const failedPorts = dependencies();
+    failedPorts.executor.results[0] = { status: 'failed', error: 'browser unavailable' };
+    const failed = await executeWorkflow(command, failedPorts);
+    expect(failed.status).toBe('failed');
+    expect(failedPorts.executor.steps).toEqual(['execute']);
+
+    const invalidPorts = dependencies();
+    invalidPorts.outputValidator.invalidStep = 'execute';
+    const invalid = await executeWorkflow(command, invalidPorts);
+    expect(invalid.status).toBe('failed');
+    expect(invalidPorts.executor.steps).toEqual(['execute']);
+  });
+});

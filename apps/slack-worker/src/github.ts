@@ -94,6 +94,10 @@ export class GitHubAppClient implements GitHubPort {
         return_run_details: true,
         inputs: {
           request_id: requestId,
+          correlation_json: JSON.stringify(trustedCommand.slack ?? {}),
+          project_json: JSON.stringify(trustedCommand.project),
+          intent: trustedCommand.intent,
+          parameters_json: JSON.stringify(trustedCommand.parameters),
           command_json: JSON.stringify(trustedCommand)
         }
       })

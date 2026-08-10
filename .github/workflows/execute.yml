@@ -1,0 +1,88 @@
+name: Execute Qali workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Control-plane request identifier
+        required: true
+        type: string
+      correlation_json:
+        description: Serialized Slack correlation context
+        required: true
+        default: '{}'
+        type: string
+      project_json:
+        description: Serialized project metadata
+        required: true
+        type: string
+      intent:
+        description: Normalized Qali intent
+        required: true
+        type: string
+      parameters_json:
+        description: Serialized command parameters
+        required: true
+        default: '{}'
+        type: string
+      command_json:
+        description: Complete normalized command from the control plane
+        required: true
+        type: string
+  schedule:
+    - cron: '17 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Validate repository and policy
+        run: npm run check
+      - name: Execute requested workflow
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          COMMAND_JSON: ${{ inputs.command_json }}
+          CURSOR_MODEL: ${{ vars.CURSOR_MODEL }}
+        run: npm run execute
+      - name: Run scheduled demo smoke scaffold
+        if: github.event_name == 'schedule'
+        run: npm run demo:test
+      - name: Write job summary
+        if: always()
+        env:
+          SUMMARY_REQUEST_ID: ${{ inputs.request_id || 'scheduled-demo-smoke' }}
+          SUMMARY_INTENT: ${{ inputs.intent || 'run-test-suite' }}
+          SUMMARY_PROJECT: ${{ inputs.project_json || '{"id":"_demo"}' }}
+        run: |
+          {
+            echo "## Qali execution"
+            printf '%s\n' "- Request: \`$SUMMARY_REQUEST_ID\`"
+            printf '%s\n' "- Intent: \`$SUMMARY_INTENT\`"
+            printf '%s\n' "- Project: \`$SUMMARY_PROJECT\`"
+            echo "- Result: \`${{ job.status }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Playwright and workflow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qali-${{ inputs.request_id || 'scheduled-demo-smoke' }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            playwright-report/
+            test-results/
+            projects/*/observations/evidence/
+            projects/*/derived/workflow-state/

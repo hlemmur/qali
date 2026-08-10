@@ -1,5 +1,7 @@
 import type { NormalizedCommand } from '@qali/contracts';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import { GitHubAppClient } from './github.js';
 
 function pem(bytes: ArrayBuffer): string {
@@ -13,6 +15,16 @@ function pem(bytes: ArrayBuffer): string {
 
 describe('GitHub App workflow dispatch', () => {
   it('exchanges a JWT for an installation token and sends only structured inputs', async () => {
+    const wrangler = JSON.parse(
+      readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
+    ) as {
+      vars: { GITHUB_WORKFLOW_FILE: string };
+    };
+    const workflow = parseYaml(
+      readFileSync(new URL('../../../.github/workflows/execute.yml', import.meta.url), 'utf8')
+    ) as {
+      on: { workflow_dispatch: { inputs: Record<string, unknown> } };
+    };
     const keys = await crypto.subtle.generateKey(
       {
         name: 'RSASSA-PKCS1-v1_5',
@@ -40,7 +52,7 @@ describe('GitHub App workflow dispatch', () => {
         installationId: '456',
         owner: 'qali',
         repo: 'control',
-        workflowFile: 'run.yml',
+        workflowFile: wrangler.vars.GITHUB_WORKFLOW_FILE,
         ref: 'main',
         apiUrl: 'https://api.github.test'
       },
@@ -65,12 +77,20 @@ describe('GitHub App workflow dispatch', () => {
       /^Bearer [^.]+\.[^.]+\.[^.]+$/
     );
     const dispatchRequest = request.mock.calls[1]!;
+    expect(dispatchRequest[0]).toContain('/actions/workflows/execute.yml/dispatches');
     const body = JSON.parse(String(dispatchRequest[1]?.body));
     expect(body.return_run_details).toBe(true);
     expect(body.inputs).toEqual({
       request_id: 'request-1',
+      correlation_json: '{}',
+      project_json: JSON.stringify(command.project),
+      intent: command.intent,
+      parameters_json: JSON.stringify(command.parameters),
       command_json: JSON.stringify(command)
     });
+    expect(Object.keys(body.inputs).sort()).toEqual(
+      Object.keys(workflow.on.workflow_dispatch.inputs).sort()
+    );
     expect(dispatchRequest[1]).not.toHaveProperty('shell');
     expect(dispatchRequest[1]).not.toHaveProperty('command');
   });
