@@ -1,0 +1,55 @@
+version: 1
+id: generate-test-suite
+title: Generate test suite
+description: Design approved scenarios and generate deterministic Playwright tests.
+executable: true
+triggers:
+  - type: command
+    intent: generate-test-suite
+preconditions:
+  [project-exists, project-context-present, execution-unblocked, approved-scenario-present]
+steps:
+  - id: design-coverage
+    role: test-architect
+    skill: test-planning
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
+    outputs:
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/coverage-map.md
+    requiredTools: [file-read, file-write]
+    mutations: [format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 180000
+  - id: generate-tests
+    role: test-generator
+    skill: ai-test-generation
+    needs: [design-coverage]
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
+    outputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-generation
+    requiredTools: [file-read, file-write, shell, playwright]
+    mutations: [create-test, append-evidence]
+    policyGates: [execution, approved-scenario]
+    retries: 1
+    timeoutMs: 900000

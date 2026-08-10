@@ -1,0 +1,39 @@
+version: 1
+id: knowledge-maintenance
+title: Knowledge maintenance
+description: Reconcile evidence into governed project knowledge without silent promotion.
+executable: false
+triggers:
+  - type: command
+    intent: maintain-knowledge
+  - type: event
+    event: knowledge-changed
+preconditions: [project-exists, project-context-present]
+steps:
+  - id: curate
+    role: knowledge-curator
+    skill: qa-project-context
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence
+    outputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+    requiredTools: [file-read, file-write]
+    mutations: [append-observation, append-evidence, format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000

@@ -1,0 +1,67 @@
+version: 1
+id: run-test-suite
+title: Run test suite
+description: Execute approved deterministic tests, analyze failures, and report results.
+executable: true
+triggers:
+  - type: command
+    intent: run-test-suite
+preconditions: [project-exists, execution-unblocked, test-suite-present]
+steps:
+  - id: execute
+    role: executor
+    skill: playwright-automation
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: tests
+        path: projects/{projectId}/tests
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+      - artifact: jobs
+        path: projects/{projectId}/derived/jobs/test-run.md
+    requiredTools: [file-read, file-write, shell, playwright]
+    mutations: [append-evidence]
+    policyGates: [execution]
+    retries: 1
+    timeoutMs: 1800000
+  - id: analyze-failures
+    role: failure-analyst
+    skill: ai-bug-triage
+    needs: [execute]
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/failure-analysis
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [append-evidence, append-observation]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
+  - id: report
+    role: reporter
+    skill: qa-report-humanizer
+    needs: [analyze-failures]
+    inputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/test-run.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 120000

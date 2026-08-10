@@ -1,0 +1,54 @@
+version: 1
+id: triage-and-reproduce
+title: Triage and reproduce
+description: Classify a failure, produce a minimal reproduction, and report evidence.
+executable: true
+triggers:
+  - type: command
+    intent: triage-failure
+  - type: event
+    event: test-run-failed
+preconditions: [project-exists, failure-evidence-present]
+steps:
+  - id: reproduce
+    role: failure-analyst
+    skill: bug-reproduction
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+    requiredTools: [file-read, file-write, shell, playwright]
+    mutations: [append-observation, append-evidence]
+    policyGates: [execution]
+    retries: 1
+    timeoutMs: 1200000
+  - id: report
+    role: reporter
+    skill: qa-report-humanizer
+    needs: [reproduce]
+    inputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/triage.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 120000

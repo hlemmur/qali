@@ -1,0 +1,39 @@
+version: 1
+id: suite-maintenance
+title: Suite maintenance
+description: Diagnose suite reliability and propose policy-gated repairs.
+executable: false
+triggers:
+  - type: command
+    intent: maintain-suite
+  - type: event
+    event: suite-changed
+preconditions: [project-exists, execution-unblocked, approved-scenario-present, test-suite-present]
+steps:
+  - id: maintain
+    role: suite-maintainer
+    skill: test-reliability
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+    outputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/suite-maintenance
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/suite-maintenance.md
+    requiredTools: [file-read, file-write, shell, playwright, report-renderer]
+    mutations: [modify-test, append-evidence, render-derived-report]
+    policyGates: [execution, approved-scenario]
+    retries: 1
+    timeoutMs: 1200000

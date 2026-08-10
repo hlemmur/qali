@@ -1,0 +1,61 @@
+version: 1
+id: project-onboarding
+title: Project onboarding
+description: Establish governed project context, risks, and an initial QA plan.
+executable: true
+triggers:
+  - type: command
+    intent: onboard-project
+preconditions: []
+steps:
+  - id: plan-intake
+    role: intake-planner
+    skill: qa-start
+    needs: []
+    inputs: []
+    outputs:
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+      - artifact: tasks
+        path: projects/{projectId}/derived/tasks/onboarding.md
+    requiredTools: [file-read, file-write]
+    mutations: [append-observation]
+    policyGates: []
+    retries: 0
+    timeoutMs: 120000
+  - id: build-context
+    role: knowledge-curator
+    skill: qa-project-context
+    needs: [plan-intake]
+    inputs:
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+    outputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference/discovery.md
+    requiredTools: [file-read, file-write]
+    mutations: [append-observation, format-document]
+    policyGates: []
+    retries: 1
+    timeoutMs: 300000
+  - id: design-foundation
+    role: test-architect
+    skill: risk-based-testing
+    needs: [build-context]
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+    outputs:
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/smoke-proposal.md
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/risk-assessment.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report, format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000

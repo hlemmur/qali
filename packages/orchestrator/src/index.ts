@@ -4,6 +4,8 @@ import {
   type MutationKind
 } from '../../knowledge/src/index.js';
 
+export * from './workflows.js';
+
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 
 export interface OpenItem {

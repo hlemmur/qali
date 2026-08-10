@@ -1,6 +1,6 @@
 # Operating Model
 
-Qali is a supervised QA harness. Deterministic test output and captured evidence outrank model judgment. A human owns expected behavior, scope, risk acceptance, and external communication.
+Qali is a governed QA harness that authors and maintains project sources by default. Humans may edit sources and supply authority, but routine source authorship does not depend on a human editor. Deterministic test output and captured evidence outrank model judgment. Expected behavior must come from an accepted authoritative source or recorded decision; observation alone never defines it. Risk acceptance and external communication remain authority-gated.
 
 ## Runtime loop
 
@@ -16,4 +16,4 @@ Qali is a supervised QA harness. Deterministic test output and captured evidence
 - **Architect:** proposes context, risk, strategy, plans, scenarios, and scope.
 - **Executor:** runs approved work and records evidence; adds observations only.
 - **Analyst:** classifies results and drafts reports without hiding uncertainty.
-- **Human QA Lead:** confirms intent, approves authority-changing mutations, and accepts risk.
+- **Human QA Lead (optional):** may edit sources, confirm intent, approve authority-changing mutations, and accept risk.

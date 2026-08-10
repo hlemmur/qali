@@ -2,6 +2,10 @@
 
 Use `classifyMutation` and `decideAutonomy` before applying governed changes.
 
+## Source authorship
+
+Qali authors and maintains governed project sources by default. Humans are optional editors and may provide authority through recorded decisions. Writing a source is not the same as confirming its claims: provenance and evidence status remain mandatory, and observation alone cannot redefine expected behavior.
+
 ## Auto-merge
 
 Evidence-preserving, reversible changes may auto-merge: append observations or evidence, render derived reports, and formatting-only edits.

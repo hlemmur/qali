@@ -1,0 +1,37 @@
+version: 1
+id: quality-pulse
+title: Quality pulse
+description: Render a concise quality pulse from deterministic evidence and open decisions.
+executable: false
+triggers:
+  - type: command
+    intent: quality-pulse
+  - type: schedule
+    cron: '0 9 * * 1'
+preconditions: [project-exists]
+steps:
+  - id: report
+    role: reporter
+    skill: qa-report-humanizer
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence
+      - artifact: jobs
+        path: projects/{projectId}/derived/jobs
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/quality-pulse.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report, format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 180000

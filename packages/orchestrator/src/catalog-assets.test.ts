@@ -76,4 +76,17 @@ describe('runtime policy assets', () => {
 
     expect(required.filter((path) => !existsSync(path))).toEqual([]);
   });
+
+  it('makes Qali the default source author without treating observations as authority', () => {
+    const operatingModel = readFileSync('core/policies/operating-model.md', 'utf8');
+    const authorityPolicy = readFileSync('core/policies/authority-and-autonomy.md', 'utf8');
+
+    expect(`${operatingModel}\n${authorityPolicy}`).toMatch(
+      /Qali (?:is a governed QA harness that )?authors and maintains .*sources by default/i
+    );
+    expect(`${operatingModel}\n${authorityPolicy}`).toMatch(
+      /observation alone (?:never|cannot) (?:defines?|redefine)/i
+    );
+    expect(operatingModel).not.toMatch(/a human owns expected behavior/i);
+  });
 });
