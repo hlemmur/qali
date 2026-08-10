@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "description": "Qali-owned concise runtime bindings adapted from the locked upstream QA skills. These instructions are standalone; upstream paths are provenance only.",
+  "skills": [
+    {
+      "id": "qa-project-context",
+      "category": "foundation",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/qa-project-context/SKILL.md",
+        "hash": "ad566b175958230a8f3c3b508d8dfbc07e575634e8fc4f226402acc39a5a6e24",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Create or refresh the shared project QA context.",
+        "workflow": [
+          "Detect facts before asking.",
+          "Fill Product, Tech Stack, Test Stack, CI/CD, Environments, Quality Goals, Risk Areas, Team, and Conventions.",
+          "Validate completeness and provenance."
+        ],
+        "guardrails": [
+          "Record current reality, not aspirations.",
+          "Do not invent unknown stack or product facts."
+        ]
+      }
+    },
+    {
+      "id": "qa-start",
+      "category": "foundation",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/qa-start/SKILL.md",
+        "hash": "03a78e35e28a83f8f6b50cc99959582200d3a58486b46e8604fa47a3009f8ce5",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Bootstrap QA where no foundation exists.",
+        "workflow": [
+          "Create project context.",
+          "Build risk-informed strategy.",
+          "Create the first bounded test plan."
+        ],
+        "guardrails": [
+          "Skip artifacts that already exist.",
+          "Do not start automation before scope and expected behavior are approved."
+        ]
+      }
+    },
+    {
+      "id": "qa-project-bootstrap",
+      "category": "process",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/qa-project-bootstrap/SKILL.md",
+        "hash": "7ad066a4de7add47542c86f97eb00a208d24f94c6c893c3fa77f094651ae37b4",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Onboard into an existing team and test suite.",
+        "workflow": [
+          "Confirm environment and access.",
+          "Audit coverage, reliability, CI, debt, and conventions.",
+          "Produce a progressive ramp with a first real test."
+        ],
+        "guardrails": [
+          "Capture missing tribal knowledge.",
+          "Keep findings short, owned, and actionable."
+        ]
+      }
+    },
+    {
+      "id": "journey-mapping",
+      "category": "research",
+      "provenance": {
+        "source": "rampstackco/claude-skills",
+        "path": "skills/journey-mapping/SKILL.md",
+        "hash": "dcbd8ee2f1b8f8f1e74182457568a003a54a2de348fd607ff7977cf58aed5feb",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Map one persona's end-to-end experience and friction.",
+        "workflow": [
+          "Define one persona and journey.",
+          "Map phases, steps, touchpoints, goals, pain, and evidence.",
+          "Connect front-stage behavior to supporting systems and opportunities."
+        ],
+        "guardrails": [
+          "Do not merge distinct personas.",
+          "Mark assumption-only journey steps as inferred."
+        ]
+      }
+    },
+    {
+      "id": "risk-based-testing",
+      "category": "strategy",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/risk-based-testing/SKILL.md",
+        "hash": "ef821d7214ab6db9fbc3439a4d28ea23f16bf9a1dc41c3d24d57080109d05647",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Prioritize testing by business impact and probability.",
+        "workflow": [
+          "Identify risks from journeys, incidents, dependencies, and change.",
+          "Score impact and probability from 1 to 5.",
+          "Map coverage and failure analysis to the resulting risk zone."
+        ],
+        "guardrails": [
+          "Keep score evidence visible.",
+          "Reassess after incidents and material changes."
+        ]
+      }
+    },
+    {
+      "id": "test-strategy",
+      "category": "strategy",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/test-strategy/SKILL.md",
+        "hash": "5ba58f1b0e0a389c46c1105f37e8b6f92c2c6c1e47f1ec931086e478855ef766",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Define the durable quality approach and gates.",
+        "workflow": [
+          "Read project context and risk matrix.",
+          "Choose test levels and environments by risk.",
+          "Define measurable gates, owners, and review triggers."
+        ],
+        "guardrails": [
+          "Avoid tool-first strategy.",
+          "Every target needs a measurable signal and cadence."
+        ]
+      }
+    },
+    {
+      "id": "test-planning",
+      "category": "strategy",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/test-planning/SKILL.md",
+        "hash": "01b1da11a6a9efde9cd49f79771ac08bb216ec8d0eb095c093fd6059b6afa372",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Plan one sprint, feature, or release.",
+        "workflow": [
+          "Decompose scope into observable scenarios.",
+          "Map every requirement to coverage and expose gaps.",
+          "Prioritize by risk and reserve explicit investigation buffer."
+        ],
+        "guardrails": [
+          "Never hide unmapped requirements.",
+          "Do not schedule all available capacity."
+        ]
+      }
+    },
+    {
+      "id": "exploratory-testing",
+      "category": "exploration",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/exploratory-testing/SKILL.md",
+        "hash": "da0c461f95642d67d621b550e73677094ed02990b51bf66fd9b927ade1a6ab2e",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Run time-boxed learning and bug discovery.",
+        "workflow": [
+          "Write a target-resource-information charter.",
+          "Explore for 45 to 90 minutes using risk and boundary heuristics.",
+          "Debrief observations, evidence, questions, and follow-ups."
+        ],
+        "guardrails": [
+          "An observation is not confirmed expected behavior.",
+          "Reproducible findings become regression candidates only after approval."
+        ]
+      }
+    },
+    {
+      "id": "agentic-browser-testing",
+      "category": "ai-qa",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/agentic-browser-testing/SKILL.md",
+        "hash": "4cdd703752d6db1a797ab67e64711689630ed46036516c4c2f43661ab380d2d1",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Explore a changing UI from a bounded natural-language goal.",
+        "workflow": [
+          "Use seeded state, a pinned model, zero temperature, and a step budget.",
+          "Navigate through the accessibility tree.",
+          "Evaluate explicit positive and forbidden-state oracles outside the model."
+        ],
+        "guardrails": [
+          "The model never grades itself.",
+          "Graduate stable critical flows to deterministic Playwright tests."
+        ]
+      }
+    },
+    {
+      "id": "playwright-automation",
+      "category": "automation",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/playwright-automation/SKILL.md",
+        "hash": "bbbb613ebc86099bac39a336ce6b72619503941718f928e23b9759aa22dd4976",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Implement approved deterministic browser scenarios.",
+        "workflow": [
+          "Start from an approved scenario.",
+          "Use isolated fixtures, user-facing locators, and web-first assertions.",
+          "Run type checks and the targeted suite with evidence on failure."
+        ],
+        "guardrails": [
+          "Never use fixed sleeps.",
+          "Do not author tests from unapproved observed behavior."
+        ]
+      }
+    },
+    {
+      "id": "ai-test-generation",
+      "category": "ai-qa",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/ai-test-generation/SKILL.md",
+        "hash": "5f959ce5c74607db46846fe9bdfe81ec17cd530a321634ac6b614e4303b0929c",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Draft new tests from approved requirements or defect evidence.",
+        "workflow": [
+          "Extract explicit requirements and flag inference.",
+          "Map risks, scenarios, and independent oracles.",
+          "Generate code only after coverage review, then verify imports, selectors, and execution."
+        ],
+        "guardrails": [
+          "Code before coverage is forbidden.",
+          "Human review is required before generated tests merge."
+        ]
+      }
+    },
+    {
+      "id": "visual-testing",
+      "category": "automation",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/visual-testing/SKILL.md",
+        "hash": "dfb593488d7064f5297eb0f851eab9fcc8bad4844cf917cd3c269b9413665872",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Protect approved visual appearance with repeatable comparisons.",
+        "workflow": [
+          "Choose critical surfaces and fixed viewports.",
+          "Freeze or mask dynamic content.",
+          "Store expected, actual, and diff artifacts for review."
+        ],
+        "guardrails": [
+          "Never update baselines automatically.",
+          "Generate baselines in the same rendering environment used by CI."
+        ]
+      }
+    },
+    {
+      "id": "test-data-management",
+      "category": "infrastructure",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/test-data-management/SKILL.md",
+        "hash": "55b675f3e0729215fc27c96c1e5cfdfbaed9caa1b95e3113855b06f3109dea2f",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Create deterministic, isolated, privacy-safe test data.",
+        "workflow": [
+          "Use factories for mutable entities and fixtures for static references.",
+          "Seed randomness and time.",
+          "Clean up per test and verify idempotent shared seeds."
+        ],
+        "guardrails": [
+          "Never copy production PII without irreversible anonymization.",
+          "Tests must not depend on shared mutable records."
+        ]
+      }
+    },
+    {
+      "id": "bug-reproduction",
+      "category": "ai-qa",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/bug-reproduction/SKILL.md",
+        "hash": "dfb76a206a5fbe4c80729185cf8e9e1043e7cee8366ed42e9d90dd9e9520379b",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Turn a vague defect into a deterministic minimal reproduction.",
+        "workflow": [
+          "Capture exact environment, inputs, expected, actual, and frequency.",
+          "Reproduce, minimize one variable at a time, isolate, and capture evidence.",
+          "Write the regression test red before the fix and verify red-green-revert."
+        ],
+        "guardrails": [
+          "Do not theorize before reproducing.",
+          "Do not weaken or disable the failing regression test."
+        ]
+      }
+    },
+    {
+      "id": "ai-bug-triage",
+      "category": "ai-qa",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/ai-bug-triage/SKILL.md",
+        "hash": "c3d84a9a4a0d7f63fd7f5c41d245cff34647a5e01861998d87f732f51751f0dd",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Classify, deduplicate, and route evidence-backed failures.",
+        "workflow": [
+          "Normalize volatile log data.",
+          "Fingerprint stable anchors deterministically.",
+          "Use model judgment only for explanation and routing, then request human approval."
+        ],
+        "guardrails": [
+          "Never use an LLM as the deduplication source of truth.",
+          "Never auto-close or merge tickets."
+        ]
+      }
+    },
+    {
+      "id": "test-reliability",
+      "category": "ai-qa",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/test-reliability/SKILL.md",
+        "hash": "d054f27e1216d5cd72b6453a0a290461e0317c6fe6e94a27c6ce7069eb9e001d",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Diagnose and stabilize one unreliable test.",
+        "workflow": [
+          "Reproduce under repeated and parallel runs.",
+          "Classify timing, data, order, environment, clock, visual, or external-service causes.",
+          "Apply the cause-specific fix and prove repeated stability."
+        ],
+        "guardrails": [
+          "Retries detect flakiness; they do not fix it.",
+          "Repairs must preserve intent and produce reviewable evidence."
+        ]
+      }
+    },
+    {
+      "id": "selector-drift-recovery",
+      "category": "automation",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/selector-drift-recovery/SKILL.md",
+        "hash": "c54187d72dbbf5fa22e09a893577330f3f58564f830b2b8cbd2a705bf55ccc80",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Recover many selectors after one known UI refactor.",
+        "workflow": [
+          "Compare old and new accessibility snapshots.",
+          "Infer each locator's intent and generate role-first unique candidates.",
+          "Apply only high-confidence candidates and validate the affected suite."
+        ],
+        "guardrails": [
+          "Do not repair semantic behavior changes as selector drift.",
+          "All bulk changes require human review; never auto-merge."
+        ]
+      }
+    },
+    {
+      "id": "qa-report-humanizer",
+      "category": "process",
+      "provenance": {
+        "source": "petrkindlmann/qa-skills",
+        "path": "skills/qa-report-humanizer/SKILL.md",
+        "hash": "f1f94112556e016466db1e74cef6db02b17a9a60274a29b65bb9712044bce331",
+        "license": "MIT"
+      },
+      "instructions": {
+        "when": "Rewrite QA communication for a specific audience without changing facts.",
+        "workflow": [
+          "Lead with failures, risk, or release decision.",
+          "Replace generic categories with sourced specifics.",
+          "Preserve numbers, severity, errors, and evidence links exactly."
+        ],
+        "guardrails": ["Never invent precision or impact.", "Name unknown impact as unknown."]
+      }
+    }
+  ]
+}
