@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.wrangler/
+
+.env
+.env.*
+!.env.example
+
+playwright-report/
+test-results/
+projects/*/evidence/runtime/
+projects/*/derived/reports/
+
+.DS_Store
