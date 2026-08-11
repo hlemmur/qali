@@ -66,6 +66,17 @@ function writePlaywrightSlackSummary(
   const reportDirectory = join(workspace, command.project.root, 'derived/reports');
   mkdirSync(reportDirectory, { recursive: true });
   mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const compactErrors = (summary.errors ?? [])
+    .map(
+      (error) =>
+        error
+          .replace(/\u001b\[[0-9;]*m/g, '')
+          .split('\n')
+          .map((line) => line.trim())
+          .find((line) => line.length > 0) ?? 'Test failed'
+    )
+    .map((line) => (line.length > 160 ? `${line.slice(0, 157)}…` : line))
+    .slice(0, 3);
   const runSummary = {
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
@@ -74,7 +85,15 @@ function writePlaywrightSlackSummary(
     intent: command.intent,
     projectId: command.project.id,
     suiteLabel: 'smoke',
-    ...summary
+    total: summary.total,
+    passed: summary.passed,
+    failed: summary.failed,
+    skipped: summary.skipped,
+    ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {}),
+    evidence: (summary.evidence ?? [])
+      .slice(0, 5)
+      .map((path) => path.split('/').slice(-2).join('/')),
+    errors: compactErrors
   };
   const report = renderRunReport(runSummary);
   writeFileSync(join(reportDirectory, 'test-run.md'), generatedMarkdown(report.markdown));

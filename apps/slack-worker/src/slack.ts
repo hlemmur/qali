@@ -17,9 +17,13 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
     ...(summary.projectId ? { projectId: summary.projectId } : {}),
     ...(summary.suiteLabel ? { suiteLabel: summary.suiteLabel } : {}),
     ...(summary.counts ?? {}),
-    ...(summary.errors ? { errors: summary.errors } : {}),
-    ...(summary.evidence ? { evidence: summary.evidence } : {}),
-    ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {}),
+    ...(summary.errors?.length
+      ? {
+          errors: summary.errors
+            .slice(0, 3)
+            .map((error) => (error.length > 120 ? `${error.slice(0, 117)}…` : error))
+        }
+      : {}),
     ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {})
   };
   const expandValue = JSON.stringify({
@@ -40,8 +44,13 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
       ...(summary.projectId ? { projectId: summary.projectId } : {}),
       ...(summary.suiteLabel ? { suiteLabel: summary.suiteLabel } : {}),
       ...(summary.counts ?? {}),
-      ...(summary.errors ? { errors: summary.errors } : {}),
-      ...(summary.evidence ? { evidence: summary.evidence } : {}),
+      ...(summary.errors?.length
+        ? {
+            errors: summary.errors
+              .slice(0, 3)
+              .map((error) => (error.length > 160 ? `${error.slice(0, 157)}…` : error))
+          }
+        : {}),
       ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {})
     },
     {
