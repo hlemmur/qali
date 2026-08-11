@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "qali-control",
-      "database_id": "replace-with-production-database-id",
+      "database_id": "4873e551-f0d6-4dcf-ac3b-4c91edbb8f4c",
       "migrations_dir": "migrations"
     }
   ],
@@ -20,7 +20,8 @@
     "GITHUB_WORKFLOW_FILE": "execute.yml",
     "SLACK_ALLOWED_TEAM_IDS": "",
     "SLACK_ALLOWED_CHANNEL_IDS": "",
-    "SLACK_ALLOWED_USER_IDS": ""
+    "SLACK_ALLOWED_USER_IDS": "U099MTX6423",
+    "SLACK_QA_LEAD_USER_IDS": "U099MTX6423"
   },
   "ai": {
     "binding": "AI"
