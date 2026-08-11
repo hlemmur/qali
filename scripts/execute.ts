@@ -342,7 +342,11 @@ class RoutedStepExecutor implements StepExecutor {
     });
     if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
     if (result.status === 'blocked') return { status: 'blocked', reason: result.output } as const;
-    if (/ENOENT|not found/i.test(result.error)) {
+    if (
+      /ENOENT|not found|usage limit|spend limit|not authenticated|api key|unauthorized/i.test(
+        result.error
+      )
+    ) {
       return this.deterministicAgentStep(step, command, outputs);
     }
     return { status: 'failed', error: result.error } as const;
