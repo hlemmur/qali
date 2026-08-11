@@ -99,9 +99,22 @@ describe('agent runtime', () => {
       'test-model',
       buildAgentPrompt(request())
     ]);
+    expect(options.env).toEqual({ PATH: '/bin', CURSOR_MODEL: 'test-model' });
     expect(options.shell).toBe(false);
     expect(options.env).not.toHaveProperty('GITHUB_TOKEN');
     expect(options.env).not.toHaveProperty('SLACK_BOT_TOKEN');
+  });
+
+  it('disables sandbox automatically in CI unless overridden', async () => {
+    const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"ok"}\n' }));
+    const runtime = new CursorCliAgentRuntime({
+      spawn,
+      env: { PATH: '/bin', CI: 'true', CURSOR_MODEL: 'sonnet-4' }
+    });
+    await runtime.execute(request());
+    expect(spawn.mock.calls[0]![1]).toEqual(
+      expect.arrayContaining(['--sandbox', 'disabled', '--model', 'sonnet-4'])
+    );
   });
 
   it('supports a configurable Agent CLI executable', async () => {

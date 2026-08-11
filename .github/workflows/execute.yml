@@ -66,6 +66,7 @@ jobs:
           COMMAND_JSON: ${{ inputs.command_json }}
           CURSOR_MODEL: ${{ vars.CURSOR_MODEL }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CURSOR_SANDBOX: disabled
         run: |
           if [ -n "${CURSOR_MODEL:-}" ] && [ -n "${CURSOR_API_KEY:-}" ] && command -v agent >/dev/null; then
             echo "Qali agent mode: live (model=${CURSOR_MODEL})"

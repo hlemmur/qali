@@ -110,6 +110,12 @@ export class CursorCliAgentRuntime implements AgentRuntime {
     const timeoutMs = request.timeoutMs ?? request.step.timeoutMs;
     const env = safeEnvironment(this.options.env ?? process.env);
     const model = this.options.model ?? env.CURSOR_MODEL;
+    const sandbox =
+      env.CURSOR_SANDBOX?.trim() === 'enabled' || env.CURSOR_SANDBOX?.trim() === 'disabled'
+        ? env.CURSOR_SANDBOX.trim()
+        : env.CI === 'true'
+          ? 'disabled'
+          : 'enabled';
     const args = [
       '-p',
       '--force',
@@ -118,7 +124,7 @@ export class CursorCliAgentRuntime implements AgentRuntime {
       '--workspace',
       request.workspace,
       '--sandbox',
-      'enabled'
+      sandbox
     ];
     if (model) args.push('--model', model);
     args.push(buildAgentPrompt(request));
