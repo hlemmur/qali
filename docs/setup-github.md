@@ -153,6 +153,7 @@ Secrets live on the **Worker**, not as GitHub Actions secrets — except:
 | `QALI_WORKER_BASE_URL` (variable) | Worker base URL, e.g. `https://qali-slack-control.<subdomain>.workers.dev`                      |
 | `QALI_PUBLISH_GITHUB_TOKEN`       | Optional publication job (§5)                                                                   |
 | `CURSOR_MODEL` (variable)         | Optional agent model (§6)                                                                       |
+| `CURSOR_API_KEY`                  | Cursor Agent CLI auth for Actions (§6)                                                          |
 
 ---
 
@@ -203,11 +204,30 @@ Unsafe mutations (assertion weakening, visual baseline updates, deletes, authori
 
 ---
 
-## 6. Cursor CLI (optional)
+## 6. Cursor CLI (live agent mode)
 
-When repository variable **`CURSOR_MODEL`** is set (**Settings → Secrets and variables → Actions → Variables**) **and** the Cursor Agent CLI (`agent`) is installed on the runner, agent workflow steps invoke that CLI.
+When both are configured, Qali uses the real Cursor Agent CLI for explore / generate / triage / maintenance steps instead of the deterministic fallback:
 
-Without `CURSOR_MODEL` (or without the `agent` binary), execution uses a **deterministic fallback** for analysis/report steps so smoke runs succeed. Install/auth of Cursor CLI on GitHub Actions is a separate setup step when you want live agent triage.
+| Name             | Where                | Purpose                                                                           |
+| ---------------- | -------------------- | --------------------------------------------------------------------------------- |
+| `CURSOR_MODEL`   | Actions **variable** | Model id, e.g. `sonnet-4` or `gpt-5`                                              |
+| `CURSOR_API_KEY` | Actions **secret**   | User API key from [Cursor Dashboard → API Keys](https://cursor.com/dashboard/api) |
+
+`execute.yml` installs the CLI on the runner when `CURSOR_MODEL` is set:
+
+```bash
+curl https://cursor.com/install -fsS | bash
+```
+
+Set them once:
+
+```bash
+gh variable set CURSOR_MODEL --repo <owner>/qali --body 'sonnet-4'
+gh secret set CURSOR_API_KEY --repo <owner>/qali
+# paste the key when prompted
+```
+
+Without either value (or if `agent` is missing), execution keeps using the **deterministic fallback** so smoke runs still succeed.
 
 Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
 
@@ -215,18 +235,19 @@ Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
 
 ## 7. Where each value lives
 
-| Name                                  | Where it goes                     | Purpose                         |
-| ------------------------------------- | --------------------------------- | ------------------------------- |
-| `GITHUB_APP_ID`                       | Worker secret (via `.env` + sync) | Dispatch App identity           |
-| `GITHUB_APP_PRIVATE_KEY`              | Worker secret                     | Sign installation tokens        |
-| `GITHUB_INSTALLATION_ID`              | Worker secret                     | Which install to act as         |
-| `GITHUB_OWNER` / `GITHUB_REPO`        | Worker secret                     | Target repository               |
-| `GITHUB_WEBHOOK_SECRET`               | Worker secret                     | Verify GitHub → Worker webhooks |
-| `GITHUB_WORKFLOW_FILE` / `GITHUB_REF` | Worker vars / `.env`              | Usually `execute.yml` / `main`  |
-| `QALI_WORKER_BASE_URL`                | GitHub Actions repo **variable**  | Worker URL for run-summary POST |
-| `QALI_CALLBACK_SECRET`                | **GitHub Actions** repo secret    | Same as `GITHUB_WEBHOOK_SECRET` |
-| `QALI_PUBLISH_GITHUB_TOKEN`           | **GitHub Actions** repo secret    | Controlled publication job only |
-| `CURSOR_MODEL`                        | GitHub Actions repo **variable**  | Optional agent model            |
+| Name                                  | Where it goes                     | Purpose                          |
+| ------------------------------------- | --------------------------------- | -------------------------------- |
+| `GITHUB_APP_ID`                       | Worker secret (via `.env` + sync) | Dispatch App identity            |
+| `GITHUB_APP_PRIVATE_KEY`              | Worker secret                     | Sign installation tokens         |
+| `GITHUB_INSTALLATION_ID`              | Worker secret                     | Which install to act as          |
+| `GITHUB_OWNER` / `GITHUB_REPO`        | Worker secret                     | Target repository                |
+| `GITHUB_WEBHOOK_SECRET`               | Worker secret                     | Verify GitHub → Worker webhooks  |
+| `GITHUB_WORKFLOW_FILE` / `GITHUB_REF` | Worker vars / `.env`              | Usually `execute.yml` / `main`   |
+| `QALI_WORKER_BASE_URL`                | GitHub Actions repo **variable**  | Worker URL for run-summary POST  |
+| `QALI_CALLBACK_SECRET`                | **GitHub Actions** repo secret    | Same as `GITHUB_WEBHOOK_SECRET`  |
+| `QALI_PUBLISH_GITHUB_TOKEN`           | **GitHub Actions** repo secret    | Controlled publication job only  |
+| `CURSOR_MODEL`                        | GitHub Actions repo **variable**  | Optional agent model             |
+| `CURSOR_API_KEY`                      | **GitHub Actions** repo secret    | Cursor Agent CLI auth in Actions |
 
 ---
 

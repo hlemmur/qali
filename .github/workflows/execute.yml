@@ -50,6 +50,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Install Cursor Agent CLI
+        if: github.event_name == 'workflow_dispatch' && vars.CURSOR_MODEL != ''
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          command -v agent
+          agent --version || true
       - name: Validate repository and policy
         run: npm run check
       - name: Execute requested workflow
@@ -57,7 +65,14 @@ jobs:
         env:
           COMMAND_JSON: ${{ inputs.command_json }}
           CURSOR_MODEL: ${{ vars.CURSOR_MODEL }}
-        run: npm run execute
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          if [ -n "${CURSOR_MODEL:-}" ] && [ -n "${CURSOR_API_KEY:-}" ] && command -v agent >/dev/null; then
+            echo "Qali agent mode: live (model=${CURSOR_MODEL})"
+          else
+            echo "Qali agent mode: deterministic-fallback (CURSOR_MODEL/API key/agent missing)"
+          fi
+          npm run execute
       - name: Validate generated state
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -118,6 +133,7 @@ jobs:
             .qali/generated.patch
             .qali/publication-request.json
             .qali/slack-summary.json
+            .qali/agent-mode.json
 
   publish-generated-changes:
     if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'

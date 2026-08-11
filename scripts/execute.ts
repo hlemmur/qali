@@ -196,7 +196,11 @@ class RoutedStepExecutor implements StepExecutor {
   );
 
   private shouldUseCursorCli(): boolean {
-    return Boolean(process.env.CURSOR_MODEL?.trim()) && agentCliAvailable();
+    return (
+      Boolean(process.env.CURSOR_MODEL?.trim()) &&
+      Boolean(process.env.CURSOR_API_KEY?.trim()) &&
+      agentCliAvailable()
+    );
   }
 
   private async deterministicAgentStep(
@@ -353,6 +357,25 @@ function commandInput(): NormalizedCommand {
 }
 
 const command = commandInput();
+mkdirSync(join(workspace, '.qali'), { recursive: true });
+const agentMode =
+  Boolean(process.env.CURSOR_MODEL?.trim()) &&
+  Boolean(process.env.CURSOR_API_KEY?.trim()) &&
+  agentCliAvailable()
+    ? 'live'
+    : 'deterministic-fallback';
+writeFileSync(
+  join(workspace, '.qali/agent-mode.json'),
+  `${JSON.stringify(
+    {
+      mode: agentMode,
+      model: process.env.CURSOR_MODEL?.trim() || null,
+      agentAvailable: agentCliAvailable()
+    },
+    null,
+    2
+  )}\n`
+);
 const workflows = loadWorkflowDirectory(
   join(workspace, 'workflows'),
   join(workspace, 'skills/catalog.json')

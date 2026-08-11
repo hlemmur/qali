@@ -112,6 +112,7 @@ export class CursorCliAgentRuntime implements AgentRuntime {
     const model = this.options.model ?? env.CURSOR_MODEL;
     const args = [
       '-p',
+      '--force',
       '--output-format',
       'json',
       '--workspace',

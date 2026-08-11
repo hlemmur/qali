@@ -88,6 +88,7 @@ describe('agent runtime', () => {
     expect(command).toBe('agent');
     expect(argv).toEqual([
       '-p',
+      '--force',
       '--output-format',
       'json',
       '--workspace',
