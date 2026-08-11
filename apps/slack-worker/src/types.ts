@@ -64,6 +64,7 @@ export interface Correlation {
   threadTs: string;
   requestTs: string;
   responseTs?: string;
+  lastError?: string;
 }
 
 export interface ControlStore {
@@ -72,7 +73,12 @@ export interface ControlStore {
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;
   findByRunId(runId: string): Promise<Correlation | null>;
-  markCompleted(requestId: string, status: string, responseTs?: string): Promise<void>;
+  markCompleted(
+    requestId: string,
+    status: string,
+    responseTs?: string,
+    lastError?: string
+  ): Promise<void>;
 }
 
 export interface IntentClassifier {

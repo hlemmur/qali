@@ -74,10 +74,19 @@ export class SlackWebClient implements SlackPort {
     threadTs: string;
     text: string;
   }): Promise<void> {
-    await this.call('chat.postMessage', {
-      channel: input.channelId,
-      thread_ts: input.threadTs,
-      text: input.text
-    });
+    try {
+      await this.call('chat.postMessage', {
+        channel: input.channelId,
+        thread_ts: input.threadTs,
+        text: input.text
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      // Private channels / missing thread context: still surface the message in-channel.
+      await this.call('chat.postMessage', {
+        channel: input.channelId,
+        text: `${input.text}\n_(Could not reply in-thread: ${detail.slice(0, 120)})_`
+      });
+    }
   }
 }

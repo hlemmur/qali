@@ -14,7 +14,8 @@ const rowToCorrelation = (row: Record<string, unknown>): Correlation => ({
   userId: String(row.user_id),
   threadTs: String(row.thread_ts),
   requestTs: String(row.request_ts),
-  ...(row.response_ts ? { responseTs: String(row.response_ts) } : {})
+  ...(row.response_ts ? { responseTs: String(row.response_ts) } : {}),
+  ...(row.last_error ? { lastError: String(row.last_error) } : {})
 });
 
 export class D1ControlStore implements ControlStore {
@@ -78,7 +79,7 @@ export class D1ControlStore implements ControlStore {
     await this.db
       .prepare(
         `UPDATE correlations
-         SET workflow_id = ?, run_id = ?, status = 'dispatched', updated_at = ?
+         SET workflow_id = ?, run_id = ?, status = 'dispatched', last_error = NULL, updated_at = ?
          WHERE request_id = ?`
       )
       .bind(command.intent, runId ?? null, new Date().toISOString(), requestId)
@@ -93,18 +94,27 @@ export class D1ControlStore implements ControlStore {
     return row ? rowToCorrelation(row) : null;
   }
 
-  async markCompleted(requestId: string, status: string, responseTs?: string): Promise<void> {
+  async markCompleted(
+    requestId: string,
+    status: string,
+    responseTs?: string,
+    lastError?: string
+  ): Promise<void> {
     let statement: D1PreparedStatement;
     if (responseTs) {
       statement = this.db
         .prepare(
-          'UPDATE correlations SET status = ?, response_ts = ?, updated_at = ? WHERE request_id = ?'
+          `UPDATE correlations
+           SET status = ?, response_ts = ?, last_error = ?, updated_at = ?
+           WHERE request_id = ?`
         )
-        .bind(status, responseTs, new Date().toISOString(), requestId);
+        .bind(status, responseTs, lastError ?? null, new Date().toISOString(), requestId);
     } else {
       statement = this.db
-        .prepare('UPDATE correlations SET status = ?, updated_at = ? WHERE request_id = ?')
-        .bind(status, new Date().toISOString(), requestId);
+        .prepare(
+          `UPDATE correlations SET status = ?, last_error = ?, updated_at = ? WHERE request_id = ?`
+        )
+        .bind(status, lastError ?? null, new Date().toISOString(), requestId);
     }
     await statement.run();
   }

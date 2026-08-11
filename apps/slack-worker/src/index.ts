@@ -1,4 +1,4 @@
-import { WorkersAiIntentClassifier } from './classifier.js';
+import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifier.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
 import { verifySignedRequest } from './security.js';
@@ -58,7 +58,7 @@ const slackService = (env: Env, overrides: WorkerDependencies): SlackPort =>
 function classifierService(env: Env, overrides: WorkerDependencies): IntentClassifier {
   if (overrides.classifier) return overrides.classifier;
   if (!env.AI) throw new Error('AI binding is required');
-  return new WorkersAiIntentClassifier(env.AI, env.INTENT_MODEL);
+  return new ResilientIntentClassifier(new WorkersAiIntentClassifier(env.AI, env.INTENT_MODEL));
 }
 
 const githubService = (env: Env, overrides: WorkerDependencies): GitHubPort =>
@@ -319,15 +319,33 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           continue;
         }
         try {
+          await slack.postThreadNotice({
+            channelId: message.body.slack.channelId,
+            threadTs: message.body.slack.threadTs,
+            text: `Working on it (\`${message.body.requestId}\`)…`
+          });
           const command = await classifier.classify(message.body);
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {
-            await store.markCompleted(message.body.requestId, 'rejected');
+            const reason = authorization.reason;
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: `Qali rejected this request (\`${message.body.requestId}\`): ${reason}`
+            });
+            await store.markCompleted(message.body.requestId, 'rejected', undefined, reason);
             message.ack();
             continue;
           }
           const dispatched = await github.dispatch(command, message.body.requestId);
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
+          await slack.postThreadNotice({
+            channelId: message.body.slack.channelId,
+            threadTs: message.body.slack.threadTs,
+            text: dispatched.htmlUrl
+              ? `Dispatched GitHub Actions: ${dispatched.htmlUrl}`
+              : `Dispatched GitHub Actions for \`${command.intent}\` (\`${message.body.requestId}\`).`
+          });
           message.ack();
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
@@ -342,9 +360,17 @@ export function createWorker(overrides: WorkerDependencies = {}) {
               text: `Qali could not start this request (\`${message.body.requestId}\`): ${detail.slice(0, 400)}`
             });
           } catch (notifyError) {
-            console.error('qali.queue.notify_failed', notifyError);
+            console.error(
+              'qali.queue.notify_failed',
+              notifyError instanceof Error ? notifyError.message : String(notifyError)
+            );
           }
-          await store.markCompleted(message.body.requestId, 'failed');
+          await store.markCompleted(
+            message.body.requestId,
+            'failed',
+            undefined,
+            detail.slice(0, 1000)
+          );
           message.ack();
         }
       }

@@ -66,10 +66,16 @@ class MemoryStore implements ControlStore {
     return requestId ? (this.correlations.get(requestId) ?? null) : null;
   }
 
-  async markCompleted(requestId: string, status: string, responseTs?: string): Promise<void> {
+  async markCompleted(
+    requestId: string,
+    status: string,
+    responseTs?: string,
+    lastError?: string
+  ): Promise<void> {
     const row = this.correlations.get(requestId)!;
     row.status = status;
     if (responseTs) row.responseTs = responseTs;
+    if (lastError) row.lastError = lastError;
   }
 }
 
@@ -180,9 +186,10 @@ describe('Slack control worker', () => {
     });
 
     expect((await worker.fetch(callback, baseEnv(queue))).status).toBe(200);
-    expect(slackRequests[0]?.text).toContain('2 passed');
-    expect(JSON.stringify(slackRequests[0]?.blocks)).toContain('triage_failures');
-    expect(JSON.stringify(slackRequests[0]?.blocks)).toContain('open_report');
+    const resultMessage = slackRequests.find((entry) => String(entry.text ?? '').includes('2 passed'));
+    expect(resultMessage?.text).toContain('2 passed');
+    expect(JSON.stringify(resultMessage?.blocks)).toContain('triage_failures');
+    expect(JSON.stringify(resultMessage?.blocks)).toContain('open_report');
   });
 
   it('authenticates and ACKs before classifier or GitHub work', async () => {
@@ -321,7 +328,11 @@ describe('Slack control worker', () => {
       store,
       classifier,
       github,
-      slack: {} as SlackPort,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
       now: () => new Date('2023-11-14T22:15:00.000Z')
     });
     await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
@@ -353,7 +364,11 @@ describe('Slack control worker', () => {
         classify: async (work) => ({ ...command(work), intent: 'maintain-suite' })
       },
       github,
-      slack: {} as SlackPort,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
       now: () => new Date('2023-11-14T22:15:00.000Z')
     });
     await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
@@ -396,11 +411,11 @@ describe('Slack control worker', () => {
     expect(message.ack).toHaveBeenCalled();
     expect(message.retry).not.toHaveBeenCalled();
     expect(store.correlations.get('Ev1')?.status).toBe('failed');
-    expect(notices[0]).toMatchObject({
-      channelId: 'C1',
-      threadTs: '1700000000.001'
-    });
-    expect(notices[0]?.text).toContain('Workers AI classification failed');
+    expect(store.correlations.get('Ev1')?.lastError).toContain('Workers AI classification failed');
+    expect(notices.some((notice) => notice.text.includes('Workers AI classification failed'))).toBe(
+      true
+    );
+    expect(notices.some((notice) => notice.text.includes('Working on it'))).toBe(true);
   });
 
   it('accepts signed interactive actions as deduplicated queue work', async () => {
