@@ -223,6 +223,8 @@ Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
 | `GITHUB_OWNER` / `GITHUB_REPO`        | Worker secret                     | Target repository               |
 | `GITHUB_WEBHOOK_SECRET`               | Worker secret                     | Verify GitHub → Worker webhooks |
 | `GITHUB_WORKFLOW_FILE` / `GITHUB_REF` | Worker vars / `.env`              | Usually `execute.yml` / `main`  |
+| `QALI_WORKER_BASE_URL`                | GitHub Actions repo **variable**  | Worker URL for run-summary POST |
+| `QALI_CALLBACK_SECRET`                | **GitHub Actions** repo secret    | Same as `GITHUB_WEBHOOK_SECRET` |
 | `QALI_PUBLISH_GITHUB_TOKEN`           | **GitHub Actions** repo secret    | Controlled publication job only |
 | `CURSOR_MODEL`                        | GitHub Actions repo **variable**  | Optional agent model            |
 
