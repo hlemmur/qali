@@ -37,6 +37,12 @@ function encodeTag(tag: number, content: Uint8Array): Uint8Array {
   return concatBytes(Uint8Array.from([tag]), encodeLength(content.length), content);
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 /** Wrap PKCS#1 RSAPrivateKey bytes as PKCS#8 PrivateKeyInfo for Web Crypto. */
 export function wrapPkcs1ToPkcs8(pkcs1: Uint8Array): ArrayBuffer {
   const version = Uint8Array.from([0x02, 0x01, 0x00]);
@@ -44,7 +50,7 @@ export function wrapPkcs1ToPkcs8(pkcs1: Uint8Array): ArrayBuffer {
     0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00
   ]);
   const privateKey = encodeTag(0x04, pkcs1);
-  return encodeTag(0x30, concatBytes(version, algorithm, privateKey)).buffer;
+  return toArrayBuffer(encodeTag(0x30, concatBytes(version, algorithm, privateKey)));
 }
 
 function decodePemBody(pem: string, begin: string, end: string): Uint8Array {
@@ -66,7 +72,9 @@ export function privateKeyBytes(pem: string): ArrayBuffer {
     );
   }
   if (/BEGIN PRIVATE KEY/.test(pem)) {
-    return decodePemBody(pem, '-----BEGIN PRIVATE KEY-----', '-----END PRIVATE KEY-----').buffer;
+    return toArrayBuffer(
+      decodePemBody(pem, '-----BEGIN PRIVATE KEY-----', '-----END PRIVATE KEY-----')
+    );
   }
   throw new Error(
     'GITHUB_APP_PRIVATE_KEY must be a PEM private key (BEGIN PRIVATE KEY or BEGIN RSA PRIVATE KEY)'

@@ -1,4 +1,5 @@
 import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifier.js';
+import { handleSlackAction } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
 import { verifySignedRequest } from './security.js';
@@ -319,6 +320,16 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           continue;
         }
         try {
+          if (message.body.kind === 'action') {
+            await handleSlackAction({
+              work: message.body,
+              store,
+              github,
+              slack
+            });
+            message.ack();
+            continue;
+          }
           try {
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,

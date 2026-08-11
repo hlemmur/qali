@@ -94,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qali-${{ inputs.request_id || 'scheduled-demo-smoke' }}
+          name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 14
           path: |
@@ -125,7 +125,7 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
-          name: qali-${{ inputs.request_id }}
+          name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           path: publication-artifact
       - name: Publish through Qali GitHub App
         if: env.QALI_PUBLISH_GITHUB_TOKEN != ''

@@ -13,6 +13,7 @@ function payload(correlation: Correlation, summary: SlackRunSummary) {
     {
       runId: summary.runId,
       status: summary.conclusion ?? summary.status,
+      ...(summary.conclusion ? { conclusion: summary.conclusion } : {}),
       ...(summary.counts ?? {})
     },
     {

@@ -15,7 +15,8 @@ const rowToCorrelation = (row: Record<string, unknown>): Correlation => ({
   threadTs: String(row.thread_ts),
   requestTs: String(row.request_ts),
   ...(row.response_ts ? { responseTs: String(row.response_ts) } : {}),
-  ...(row.last_error ? { lastError: String(row.last_error) } : {})
+  ...(row.last_error ? { lastError: String(row.last_error) } : {}),
+  ...(row.command_json ? { commandJson: String(row.command_json) } : {})
 });
 
 export class D1ControlStore implements ControlStore {
@@ -79,10 +80,16 @@ export class D1ControlStore implements ControlStore {
     await this.db
       .prepare(
         `UPDATE correlations
-         SET workflow_id = ?, run_id = ?, status = 'dispatched', last_error = NULL, updated_at = ?
+         SET workflow_id = ?, run_id = ?, command_json = ?, status = 'dispatched', last_error = NULL, updated_at = ?
          WHERE request_id = ?`
       )
-      .bind(command.intent, runId ?? null, new Date().toISOString(), requestId)
+      .bind(
+        command.intent,
+        runId ?? null,
+        JSON.stringify(command),
+        new Date().toISOString(),
+        requestId
+      )
       .run();
   }
 
@@ -90,6 +97,14 @@ export class D1ControlStore implements ControlStore {
     const row = await this.db
       .prepare('SELECT * FROM correlations WHERE run_id = ?')
       .bind(runId)
+      .first<Record<string, unknown>>();
+    return row ? rowToCorrelation(row) : null;
+  }
+
+  async findByRequestId(requestId: string): Promise<Correlation | null> {
+    const row = await this.db
+      .prepare('SELECT * FROM correlations WHERE request_id = ?')
+      .bind(requestId)
       .first<Record<string, unknown>>();
     return row ? rowToCorrelation(row) : null;
   }

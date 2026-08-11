@@ -32,14 +32,55 @@ describe('compact run reporting', () => {
         expect.objectContaining({
           type: 'actions',
           elements: expect.arrayContaining([
-            expect.objectContaining({ action_id: 'run_details' }),
+            expect.objectContaining({
+              action_id: 'open_run_url',
+              url: 'https://example.test/runs/demo-run'
+            }),
             expect.objectContaining({ action_id: 'rerun_workflow' }),
-            expect.objectContaining({ action_id: 'triage_failures' }),
             expect.objectContaining({ action_id: 'open_report' })
           ])
         })
       ])
     );
+    expect(JSON.stringify(payload.blocks)).not.toContain('triage_failures');
+  });
+
+  it('hides rerun/triage/report while a run is still in progress', () => {
+    const payload = renderSlackRunSummary(
+      { runId: 'running-1', status: 'in_progress' },
+      {
+        detailsUrl: 'https://example.test/runs/running-1',
+        reportUrl: 'https://example.test/reports/running-1',
+        rerunValue: 'running-1',
+        triageValue: 'running-1'
+      }
+    );
+    const actions = payload.blocks.find((block) => block.type === 'actions') as {
+      elements: Array<Record<string, unknown>>;
+    };
+    expect(actions.elements).toEqual([
+      expect.objectContaining({
+        action_id: 'open_run_url',
+        url: 'https://example.test/runs/running-1'
+      })
+    ]);
+  });
+
+  it('shows triage only after a failed terminal run', () => {
+    const payload = renderSlackRunSummary(
+      {
+        runId: 'failed-1',
+        status: 'completed',
+        conclusion: 'failure',
+        total: 2,
+        passed: 1,
+        failed: 1,
+        skipped: 0
+      },
+      { triageValue: 'failed-1', rerunValue: 'failed-1' }
+    );
+    expect(JSON.stringify(payload.blocks)).toContain('triage_failures');
+    expect(JSON.stringify(payload.blocks)).toContain('rerun_workflow');
   });
 
   it('renders verbose run details separately for expansion', () => {

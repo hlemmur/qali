@@ -1,0 +1,104 @@
+import { describe, expect, it, vi } from 'vitest';
+import { handleSlackAction } from './actions.js';
+import type { ControlStore, Correlation, GitHubPort, InboundWork, SlackPort } from './types.js';
+
+const work = (overrides: Partial<InboundWork> = {}): InboundWork => ({
+  identity: 'slack:action:1',
+  requestId: 'action-1',
+  kind: 'action',
+  text: '{"requestId":"Ev1","runId":"42"}',
+  actionId: 'run_details',
+  actionValue: '{"requestId":"Ev1","runId":"42"}',
+  requestedBy: 'U1',
+  externalRole: 'developer',
+  receivedAt: '2023-11-14T22:15:00.000Z',
+  slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' },
+  ...overrides
+});
+
+describe('Slack action handling', () => {
+  it('handles run_details without dispatching GitHub', async () => {
+    const notices: string[] = [];
+    const github: GitHubPort = { dispatch: vi.fn() };
+    const store = {
+      findByRequestId: vi.fn(async () => ({
+        requestId: 'Ev1',
+        runId: '42',
+        status: 'in_progress',
+        createdAt: '',
+        updatedAt: '',
+        teamId: 'T1',
+        channelId: 'C1',
+        userId: 'U1',
+        threadTs: '1.1',
+        requestTs: '1.1'
+      })),
+      findByRunId: vi.fn(),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: async (input: { text: string }) => {
+        notices.push(input.text);
+      }
+    } as unknown as SlackPort;
+
+    await handleSlackAction({ work: work(), store, github, slack });
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-handled');
+    expect(notices[0]).toContain('details');
+  });
+
+  it('reruns using the stored command instead of re-classifying button text', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '99', htmlUrl: 'https://github.test/runs/99' }))
+    };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'run-test-suite',
+      status: 'failure',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1',
+      commandJson: JSON.stringify({
+        intent: 'run-test-suite',
+        project: { id: '_demo', root: 'projects/_demo' },
+        requestedBy: 'U1',
+        externalRole: 'developer',
+        receivedAt: '2023-11-14T22:15:00.000Z',
+        parameters: { suite: 'smoke' }
+      })
+    };
+    const store = {
+      findByRequestId: vi.fn(async () => correlation),
+      findByRunId: vi.fn(),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction({
+      work: work({ actionId: 'rerun_workflow' }),
+      store,
+      github,
+      slack
+    });
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'run-test-suite',
+        project: { id: '_demo', root: 'projects/_demo' }
+      }),
+      'action-1'
+    );
+    expect(store.markDispatched).toHaveBeenCalled();
+  });
+});

@@ -55,6 +55,7 @@ class MemoryStore implements ControlStore {
     const row = this.correlations.get(requestId)!;
     row.status = 'dispatched';
     row.workflowId = command.intent;
+    row.commandJson = JSON.stringify(command);
     if (runId) {
       row.runId = runId;
       this.runIndex.set(runId, requestId);
@@ -64,6 +65,10 @@ class MemoryStore implements ControlStore {
   async findByRunId(runId: string): Promise<Correlation | null> {
     const requestId = this.runIndex.get(runId);
     return requestId ? (this.correlations.get(requestId) ?? null) : null;
+  }
+
+  async findByRequestId(requestId: string): Promise<Correlation | null> {
+    return this.correlations.get(requestId) ?? null;
   }
 
   async markCompleted(
@@ -186,9 +191,12 @@ describe('Slack control worker', () => {
     });
 
     expect((await worker.fetch(callback, baseEnv(queue))).status).toBe(200);
-    const resultMessage = slackRequests.find((entry) => String(entry.text ?? '').includes('2 passed'));
+    const resultMessage = slackRequests.find((entry) =>
+      String(entry.text ?? '').includes('2 passed')
+    );
     expect(resultMessage?.text).toContain('2 passed');
-    expect(JSON.stringify(resultMessage?.blocks)).toContain('triage_failures');
+    expect(JSON.stringify(resultMessage?.blocks)).toContain('open_run_url');
+    expect(JSON.stringify(resultMessage?.blocks)).not.toContain('triage_failures');
     expect(JSON.stringify(resultMessage?.blocks)).toContain('open_report');
   });
 

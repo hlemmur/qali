@@ -65,6 +65,7 @@ export interface Correlation {
   requestTs: string;
   responseTs?: string;
   lastError?: string;
+  commandJson?: string;
 }
 
 export interface ControlStore {
@@ -73,6 +74,7 @@ export interface ControlStore {
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;
   findByRunId(runId: string): Promise<Correlation | null>;
+  findByRequestId(requestId: string): Promise<Correlation | null>;
   markCompleted(
     requestId: string,
     status: string,
