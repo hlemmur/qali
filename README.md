@@ -76,11 +76,27 @@ Machine-readable YAML under `workflows/` defines what Qali does for each intent:
 
 See [docs/autonomy-and-security.md](docs/autonomy-and-security.md) and [docs/setup-slack.md](docs/setup-slack.md).
 
+## Live control plane (optional)
+
+Local Mock Mode needs no Cloudflare. To wire Slack + Worker:
+
+```bash
+npx wrangler login
+npm run control-plane:provision
+# set secrets listed in docs/setup-cloudflare.md
+npm run control-plane:deploy
+WORKER_BASE_URL=https://qali-slack-control.<subdomain>.workers.dev \
+  npm run control-plane:render-slack-manifest
+```
+
+Then create the Slack app from `apps/slack-worker/slack-app-manifest.json` (see [docs/setup-slack.md](docs/setup-slack.md)).
+
 ## Setup guides
 
 - [Implementation plan](docs/plan.md) — authoritative MVP scope and acceptance criteria
 - [Origin context](docs/origin-context.md) — product decisions and how to continue work
-- [Slack + Cloudflare Worker](docs/setup-slack.md)
+- [Cloudflare Worker (D1, Queue, AI)](docs/setup-cloudflare.md)
+- [Slack app manifest](docs/setup-slack.md)
 - [GitHub App + Actions](docs/setup-github.md)
 - [Roadmap and phases](docs/roadmap.md)
 

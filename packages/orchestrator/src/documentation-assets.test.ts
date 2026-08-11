@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { renderSlackAppManifest } from './control-plane-setup.js';
 
 const root = new URL('../../../', import.meta.url);
 const requiredDocs = [
   'README.md',
   'docs/architecture.md',
+  'docs/setup-cloudflare.md',
   'docs/setup-slack.md',
   'docs/setup-github.md',
   'docs/autonomy-and-security.md',
@@ -30,6 +32,28 @@ describe('product documentation assets', () => {
     expect(readme).toContain('[MOCK MODE]');
     expect(readme).toMatch(/not (?:been )?deployed/i);
     expect(readme).toMatch(/no preview URL/i);
+  });
+
+  it('documents Cloudflare provision and Slack manifest workflows', () => {
+    const scripts = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
+    for (const command of [
+      'control-plane:provision',
+      'control-plane:render-slack-manifest',
+      'control-plane:deploy',
+      'control-plane:dry-run'
+    ]) {
+      expect(scripts.scripts[command]).toBeDefined();
+      expect(read('docs/setup-cloudflare.md')).toContain(`npm run ${command}`);
+    }
+
+    const manifest = JSON.parse(read('apps/slack-worker/slack-app-manifest.json')) as ReturnType<
+      typeof renderSlackAppManifest
+    >;
+    expect(manifest).toEqual(
+      renderSlackAppManifest('https://qali-slack-control.example.workers.dev')
+    );
+    expect(read('docs/setup-slack.md')).toContain('slack-app-manifest.json');
+    expect(read('docs/setup-slack.md')).toContain('From an app manifest');
   });
 
   it('keeps documented role and credential configuration consistent with the runtime', () => {

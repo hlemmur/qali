@@ -19,7 +19,8 @@ Create a GitHub App on the target repository or organization:
 
 **Events:** `workflow_run`
 
-**Webhook URL:** `https://<your-worker>.workers.dev/github/webhook`
+**Webhook URL:** `https://qali-slack-control.<your-subdomain>.workers.dev/github/webhook`  
+(same Worker as Slack — see [setup-cloudflare.md](setup-cloudflare.md))
 
 **Webhook secret:** `GITHUB_WEBHOOK_SECRET`
 
