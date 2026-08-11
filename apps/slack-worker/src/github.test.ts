@@ -1,8 +1,9 @@
 import type { NormalizedCommand } from '@qali/contracts';
+import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { GitHubAppClient } from './github.js';
+import { GitHubAppClient, createGitHubAppJwt, privateKeyBytes } from './github.js';
 
 function pem(bytes: ArrayBuffer): string {
   const binary = String.fromCharCode(...new Uint8Array(bytes));
@@ -96,25 +97,13 @@ describe('GitHub App workflow dispatch', () => {
     expect(dispatchRequest[1]).not.toHaveProperty('command');
   });
 
-  it('rejects PKCS#1 RSA private keys with a conversion hint', async () => {
-    const client = new GitHubAppClient({
-      appId: '123',
-      privateKey: '-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----',
-      installationId: '456',
-      owner: 'qali',
-      repo: 'control',
-      workflowFile: 'execute.yml',
-      ref: 'main',
-      apiUrl: 'https://api.github.test'
-    });
-    const command: NormalizedCommand = {
-      intent: 'run-test-suite',
-      project: { id: 'demo', root: 'projects/demo' },
-      requestedBy: 'U1',
-      externalRole: 'developer',
-      receivedAt: new Date().toISOString(),
-      parameters: {}
-    };
-    await expect(client.dispatch(command, 'request-1')).rejects.toThrow(/PKCS#8/);
+  it('imports GitHub PKCS#1 RSA private keys by wrapping them as PKCS#8', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pkcs1Pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+    expect(pkcs1Pem).toContain('BEGIN RSA PRIVATE KEY');
+    const jwt = await createGitHubAppJwt('123', pkcs1Pem);
+    expect(jwt.split('.')).toHaveLength(3);
+    const asPkcs8 = Buffer.from(privateKeyBytes(pkcs1Pem));
+    expect(() => createPrivateKey({ key: asPkcs8, format: 'der', type: 'pkcs8' })).not.toThrow();
   });
 });

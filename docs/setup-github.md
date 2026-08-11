@@ -105,13 +105,7 @@ GITHUB_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
 -----END PRIVATE KEY-----"
 ```
 
-(Multiline in `.env` is fine; sync script reads it as one secret. GitHub sometimes downloads `BEGIN RSA PRIVATE KEY` — convert first:
-
-```bash
-openssl pkcs8 -topk8 -nocrypt -in app.pem -out app-pkcs8.pem
-```
-
-Use the PKCS#8 file contents in `.env`.)
+(Multiline in `.env` is fine; sync script reads it as one secret. GitHub often downloads `BEGIN RSA PRIVATE KEY`; the Worker accepts that or PKCS#8 `BEGIN PRIVATE KEY`.)
 
 ### 2.6 Install the app on the Qali repository
 
@@ -142,7 +136,7 @@ GITHUB_WORKFLOW_FILE=execute.yml
 GITHUB_REF=main
 ```
 
-Use PKCS#8 (`BEGIN PRIVATE KEY`), not `BEGIN RSA PRIVATE KEY`. Leave `QALI_PUBLISH_GITHUB_TOKEN` empty for now.
+Use PKCS#8 (`BEGIN PRIVATE KEY`) or PKCS#1 (`BEGIN RSA PRIVATE KEY`) — the Worker accepts both. Leave `QALI_PUBLISH_GITHUB_TOKEN` empty for now.
 
 Push to Cloudflare:
 
