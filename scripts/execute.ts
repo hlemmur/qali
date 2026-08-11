@@ -59,6 +59,30 @@ function writeWorkflowSlackSummary(
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
 }
 
+function writePlaywrightSlackSummary(
+  command: NormalizedCommand,
+  summary: PlaywrightEvidenceSummary
+): void {
+  const reportDirectory = join(workspace, command.project.root, 'derived/reports');
+  mkdirSync(reportDirectory, { recursive: true });
+  mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const runSummary = {
+    runId: command.parameters.requestId
+      ? String(command.parameters.requestId)
+      : `${command.intent}-run`,
+    status: summary.failed === 0 ? 'passed' : 'failed',
+    intent: command.intent,
+    projectId: command.project.id,
+    suiteLabel: 'smoke',
+    ...summary
+  };
+  const report = renderRunReport(runSummary);
+  writeFileSync(join(reportDirectory, 'test-run.md'), generatedMarkdown(report.markdown));
+  writeFileSync(join(reportDirectory, 'test-run.json'), renderGeneratedJson(report.json));
+  writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(report.json));
+  writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(report.json));
+}
+
 class FileEventStore implements WorkflowEventStore {
   constructor(private readonly path: string) {}
   async append(event: WorkflowEvent) {
@@ -264,6 +288,7 @@ class RoutedStepExecutor implements StepExecutor {
         this.playwrightSummary = parsePlaywrightJsonReport(
           JSON.parse(readFileSync(join(evidenceDir, 'results.json'), 'utf8'))
         );
+        writePlaywrightSlackSummary(command, this.playwrightSummary);
       }
       const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
       mkdirSync(dirname(jobPath), { recursive: true });
@@ -333,13 +358,27 @@ if (result.status === 'succeeded') {
     writeWorkflowSlackSummary(command, 'passed');
   }
 } else {
-  const detail = (result.events.at(-1)?.detail ?? {}) as Record<string, unknown>;
-  const message =
-    typeof detail.reason === 'string'
-      ? detail.reason
-      : typeof detail.error === 'string'
-        ? detail.error
-        : `Workflow ${result.status}`;
-  writeWorkflowSlackSummary(command, result.status === 'blocked' ? 'blocked' : 'failed', [message]);
+  const resultsPath = join(
+    workspace,
+    command.project.root,
+    'observations/evidence/test-runs/results.json'
+  );
+  if (command.intent === 'run-test-suite' && existsSync(resultsPath)) {
+    writePlaywrightSlackSummary(
+      command,
+      parsePlaywrightJsonReport(JSON.parse(readFileSync(resultsPath, 'utf8')))
+    );
+  } else {
+    const detail = (result.events.at(-1)?.detail ?? {}) as Record<string, unknown>;
+    const message =
+      typeof detail.reason === 'string'
+        ? detail.reason
+        : typeof detail.error === 'string'
+          ? detail.error
+          : `Workflow ${result.status}`;
+    writeWorkflowSlackSummary(command, result.status === 'blocked' ? 'blocked' : 'failed', [
+      message
+    ]);
+  }
   process.exitCode = 1;
 }
