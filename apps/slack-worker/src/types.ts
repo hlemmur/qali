@@ -1,4 +1,4 @@
-import type { NormalizedCommand, SlackCorrelationContext } from '@qali/contracts';
+import type { ExternalRole, NormalizedCommand, SlackCorrelationContext } from '@qali/contracts';
 import type { D1Database } from '@cloudflare/workers-types';
 
 export interface QueueSender {
@@ -25,6 +25,7 @@ export interface Env {
   SLACK_ALLOWED_TEAM_IDS?: string;
   SLACK_ALLOWED_CHANNEL_IDS?: string;
   SLACK_ALLOWED_USER_IDS?: string;
+  SLACK_QA_LEAD_USER_IDS?: string;
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
   GITHUB_APP_ID: string;
@@ -45,6 +46,7 @@ export interface InboundWork {
   actionId?: string;
   actionValue?: string;
   requestedBy: string;
+  externalRole: ExternalRole;
   receivedAt: string;
   slack: SlackCorrelationContext;
 }

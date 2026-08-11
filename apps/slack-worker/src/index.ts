@@ -1,4 +1,5 @@
 import { WorkersAiIntentClassifier } from './classifier.js';
+import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
 import { verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
@@ -142,6 +143,7 @@ async function slackEvents(
     kind: 'message',
     text: event.text,
     requestedBy: event.user,
+    externalRole: externalRoleForUser(event.user, env.SLACK_QA_LEAD_USER_IDS),
     receivedAt: now.toISOString(),
     slack: {
       teamId: payload.team_id,
@@ -202,6 +204,10 @@ async function slackInteraction(
     return new Response('Bad Request', { status: 400 });
   }
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
+  const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
+  if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
+    return new Response('Forbidden', { status: 403 });
+  }
   const work: InboundWork = {
     identity,
     requestId: identity,
@@ -210,6 +216,7 @@ async function slackInteraction(
     actionId: action.action_id,
     ...(typeof action.value === 'string' ? { actionValue: action.value } : {}),
     requestedBy: userId,
+    externalRole,
     receivedAt: now.toISOString(),
     slack: {
       teamId,
@@ -312,6 +319,12 @@ export function createWorker(overrides: WorkerDependencies = {}) {
         }
         try {
           const command = await classifier.classify(message.body);
+          const authorization = authorizeCommand(command);
+          if (!authorization.allowed) {
+            await store.markCompleted(message.body.requestId, 'rejected');
+            message.ack();
+            continue;
+          }
           const dispatched = await github.dispatch(command, message.body.requestId);
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
           message.ack();

@@ -77,6 +77,7 @@ const command = (work: InboundWork): NormalizedCommand => ({
   intent: 'run-test-suite',
   project: { id: 'demo', root: 'projects/demo' },
   requestedBy: work.requestedBy,
+  externalRole: work.externalRole,
   receivedAt: work.receivedAt,
   parameters: { suite: 'smoke' },
   slack: work.slack
@@ -260,6 +261,55 @@ describe('Slack control worker', () => {
     expect(await verification.text()).toBe('challenge-token');
   });
 
+  it('maps QA Lead IDs and defaults allowed Slack users to Developer before queueing', async () => {
+    const queue: InboundWork[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack: {} as SlackPort,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+
+    await worker.fetch(await slackEvent(eventBody), {
+      ...baseEnv(queue),
+      SLACK_QA_LEAD_USER_IDS: 'U1'
+    });
+    expect(queue[0]?.externalRole).toBe('qa-lead-admin');
+
+    const developer = structuredClone(eventBody);
+    developer.event_id = 'Ev2';
+    developer.event.user = 'U2';
+    await worker.fetch(await slackEvent(developer), {
+      ...baseEnv(queue),
+      SLACK_QA_LEAD_USER_IDS: 'U1'
+    });
+    expect(queue[1]?.externalRole).toBe('developer');
+  });
+
+  it('rejects privileged Developer actions before queueing', async () => {
+    const queue: InboundWork[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack: {} as SlackPort,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const payload = {
+      type: 'block_actions',
+      team: { id: 'T1' },
+      channel: { id: 'C1' },
+      user: { id: 'U1' },
+      message: { ts: '1700000000.001' },
+      container: { thread_ts: '1700000000.001' },
+      actions: [{ action_id: 'change_autonomy', action_ts: '1700000001.001' }]
+    };
+
+    expect((await worker.fetch(await slackAction(payload), baseEnv(queue))).status).toBe(403);
+    expect(queue).toHaveLength(0);
+  });
+
   it('normalizes and dispatches only in the queue consumer, once across retries', async () => {
     const queue: InboundWork[] = [];
     const store = new MemoryStore();
@@ -291,6 +341,30 @@ describe('Slack control worker', () => {
       runId: '42',
       status: 'dispatched'
     });
+  });
+
+  it('rejects unauthorized Developer commands after classification and before dispatch', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const github: GitHubPort = { dispatch: vi.fn() };
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async (work) => ({ ...command(work), intent: 'maintain-suite' })
+      },
+      github,
+      slack: {} as SlackPort,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    const message = { body: queue[0]!, ack: vi.fn(), retry: vi.fn() };
+
+    await worker.queue({ messages: [message] }, baseEnv(queue));
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(message.ack).toHaveBeenCalled();
+    expect(message.retry).not.toHaveBeenCalled();
+    expect(store.correlations.get('Ev1')?.status).toBe('rejected');
   });
 
   it('accepts signed interactive actions as deduplicated queue work', async () => {
@@ -336,6 +410,7 @@ describe('Slack control worker', () => {
       kind: 'message',
       text: 'run',
       requestedBy: 'U1',
+      externalRole: 'developer',
       receivedAt: new Date().toISOString(),
       slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
     } satisfies InboundWork;

@@ -22,6 +22,7 @@ const command: NormalizedCommand = {
   intent: 'run-test-suite',
   project: { id: 'demo', root: 'projects/demo' },
   requestedBy: 'U1',
+  externalRole: 'developer',
   receivedAt: '2026-08-10T20:00:00.000Z',
   parameters: {}
 };

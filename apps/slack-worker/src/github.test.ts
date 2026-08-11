@@ -63,6 +63,7 @@ describe('GitHub App workflow dispatch', () => {
       intent: 'run-test-suite',
       project: { id: 'demo', root: 'projects/demo' },
       requestedBy: 'U1',
+      externalRole: 'developer',
       receivedAt: new Date().toISOString(),
       parameters: { label: untrusted }
     };

@@ -15,6 +15,10 @@ export const INTENTS = [
 export const IntentSchema = z.enum(INTENTS);
 export type Intent = z.infer<typeof IntentSchema>;
 
+export const EXTERNAL_ROLES = ['developer', 'qa-lead-admin'] as const;
+export const ExternalRoleSchema = z.enum(EXTERNAL_ROLES);
+export type ExternalRole = z.infer<typeof ExternalRoleSchema>;
+
 export const ROLE_IDS = [
   'intake-planner',
   'knowledge-curator',
@@ -110,6 +114,7 @@ export const FreeFormRequestSchema = z
     text: z.string().trim().min(1),
     projectHint: z.string().trim().min(1).optional(),
     requestedBy: z.string().min(1),
+    externalRole: ExternalRoleSchema.default('developer'),
     receivedAt: z.iso.datetime(),
     slack: SlackCorrelationContextSchema.optional()
   })
@@ -121,6 +126,7 @@ export const NormalizedCommandSchema = z
     intent: IntentSchema,
     project: ProjectMetadataSchema,
     requestedBy: z.string().min(1),
+    externalRole: ExternalRoleSchema.default('developer'),
     receivedAt: z.iso.datetime(),
     parameters: z.record(z.string(), z.unknown()).default({}),
     autonomy: AutonomyMetadataSchema.optional(),

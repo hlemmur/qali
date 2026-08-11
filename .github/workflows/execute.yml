@@ -57,6 +57,22 @@ jobs:
           COMMAND_JSON: ${{ inputs.command_json }}
           CURSOR_MODEL: ${{ vars.CURSOR_MODEL }}
         run: npm run execute
+      - name: Validate generated state
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PROJECT_JSON: ${{ inputs.project_json }}
+        run: |
+          npm run check
+          PROJECT_ROOT="$(node -e 'const p=JSON.parse(process.env.PROJECT_JSON); process.stdout.write(p.root)')"
+          npm run project:validate -- "$PROJECT_ROOT"
+      - name: Prepare controlled publication bundle
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          QALI_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          mkdir -p .qali
+          git diff --binary > .qali/generated.patch
+          npm run publish:prepare
       - name: Run scheduled demo smoke scaffold
         if: github.event_name == 'schedule'
         run: npm run demo:test
@@ -86,3 +102,36 @@ jobs:
             test-results/
             projects/*/observations/evidence/
             projects/*/derived/workflow-state/
+            .qali/generated.patch
+            .qali/publication-request.json
+
+  publish-generated-changes:
+    if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'
+    needs: validate-and-execute
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      QALI_PUBLISH_GITHUB_TOKEN: ${{ secrets.QALI_PUBLISH_GITHUB_TOKEN }}
+      GITHUB_OWNER: ${{ github.repository_owner }}
+      GITHUB_REPO: ${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: qali-${{ inputs.request_id }}
+          path: publication-artifact
+      - name: Publish through Qali GitHub App
+        if: env.QALI_PUBLISH_GITHUB_TOKEN != ''
+        env:
+          QALI_PUBLICATION_MANIFEST: publication-artifact/.qali/publication-request.json
+        run: npm run publish
+      - name: Keep patch artifact when publication is not configured
+        if: env.QALI_PUBLISH_GITHUB_TOKEN == ''
+        run: echo "QALI_PUBLISH_GITHUB_TOKEN is not configured; generated.patch remains an artifact."

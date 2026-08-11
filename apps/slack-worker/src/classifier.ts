@@ -55,6 +55,7 @@ export class WorkersAiIntentClassifier implements IntentClassifier {
     return NormalizedCommandSchema.parse({
       ...classification,
       requestedBy: work.requestedBy,
+      externalRole: work.externalRole,
       receivedAt: work.receivedAt,
       slack: work.slack
     });

@@ -137,6 +137,7 @@ describe('deterministic intent routing', () => {
         intent,
         project: { id: 'checkout', root: 'projects/checkout' },
         requestedBy: 'U123',
+        externalRole: 'developer',
         receivedAt: '2026-08-10T20:00:00.000Z',
         parameters: {}
       },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ExternalRoleSchema,
   NormalizedCommandSchema,
   RoleProfileSchema,
   WorkflowDescriptorSchema,
@@ -7,11 +8,18 @@ import {
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('represents Developer and QA Lead/Admin external request authority', () => {
+    expect(ExternalRoleSchema.parse('developer')).toBe('developer');
+    expect(ExternalRoleSchema.parse('qa-lead-admin')).toBe('qa-lead-admin');
+    expect(() => ExternalRoleSchema.parse('owner')).toThrow();
+  });
+
   it('accepts a structured normalized command with Slack correlation context', () => {
     const command = NormalizedCommandSchema.parse({
       intent: 'explore-project',
       project: { id: 'checkout', root: 'projects/checkout' },
       requestedBy: 'U123',
+      externalRole: 'developer',
       receivedAt: '2026-08-10T20:00:00.000Z',
       parameters: { charter: 'Probe checkout boundaries' },
       autonomy: {
@@ -28,6 +36,7 @@ describe('workflow contracts', () => {
     });
 
     expect(command.intent).toBe('explore-project');
+    expect(command.externalRole).toBe('developer');
     expect(command.autonomy?.mode).toBe('balanced');
     expect(command.slack?.threadTs).toBe('1723320000.000100');
   });

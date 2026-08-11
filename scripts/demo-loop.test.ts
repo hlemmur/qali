@@ -41,6 +41,7 @@ describe('complete demo loop', () => {
       intent: 'run-test-suite',
       project: { id: '_demo', root: 'projects/_demo' },
       requestedBy: 'U-MOCK',
+      externalRole: 'developer',
       receivedAt: '2026-08-10T20:00:00.000Z',
       parameters: {},
       autonomy: {
