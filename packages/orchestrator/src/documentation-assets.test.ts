@@ -39,6 +39,7 @@ describe('product documentation assets', () => {
     for (const command of [
       'control-plane:provision',
       'control-plane:render-slack-manifest',
+      'control-plane:sync-secrets',
       'control-plane:deploy',
       'control-plane:dry-run'
     ]) {
@@ -49,11 +50,17 @@ describe('product documentation assets', () => {
     const manifest = JSON.parse(read('apps/slack-worker/slack-app-manifest.json')) as ReturnType<
       typeof renderSlackAppManifest
     >;
-    expect(manifest).toEqual(
-      renderSlackAppManifest('https://qali-slack-control.example.workers.dev')
+    const eventsUrl = manifest.settings.event_subscriptions.request_url;
+    const baseUrl = eventsUrl.replace(/\/slack\/events$/, '');
+    expect(eventsUrl).toMatch(/^https:\/\/.+\.workers\.dev\/slack\/events$/);
+    expect(manifest.settings.interactivity.request_url).toBe(`${baseUrl}/slack/interactions`);
+    expect(manifest.settings.event_subscriptions.bot_events).toEqual(['app_mention', 'message.im']);
+    expect(manifest.oauth_config.scopes.bot).toEqual(
+      renderSlackAppManifest(baseUrl).oauth_config.scopes.bot
     );
     expect(read('docs/setup-slack.md')).toContain('slack-app-manifest.json');
     expect(read('docs/setup-slack.md')).toContain('From an app manifest');
+    expect(read('docs/setup-slack.md')).toContain('control-plane:sync-secrets');
   });
 
   it('keeps documented role and credential configuration consistent with the runtime', () => {

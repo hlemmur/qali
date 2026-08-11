@@ -24,6 +24,7 @@
     "project:validate": "tsx scripts/validate-project.ts",
     "control-plane:provision": "tsx scripts/provision-control-plane.ts",
     "control-plane:render-slack-manifest": "QALI_RENDER_SLACK_MANIFEST=1 tsx scripts/provision-control-plane.ts",
+    "control-plane:sync-secrets": "tsx scripts/sync-worker-secrets.ts",
     "control-plane:deploy": "npm exec -- wrangler deploy --config apps/slack-worker/wrangler.jsonc",
     "control-plane:dry-run": "npm exec -- wrangler deploy --dry-run --config apps/slack-worker/wrangler.jsonc",
     "control-plane:dev": "npm exec -- wrangler dev --config apps/slack-worker/wrangler.jsonc"

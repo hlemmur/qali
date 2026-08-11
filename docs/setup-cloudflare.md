@@ -72,21 +72,30 @@ Manual equivalent if you prefer the dashboard:
 
 Non-secret defaults live in `wrangler.jsonc` `vars` (`GITHUB_WORKFLOW_FILE`, allowlist placeholders).
 
-Put secrets with Wrangler (values from [`.env.example`](../.env.example)):
+Fill [`.env`](../.env.example) locally (copy from `.env.example`), then sync:
+
+```bash
+# Slack only
+npm run control-plane:sync-secrets -- --only slack
+
+# GitHub App dispatch credentials only
+npm run control-plane:sync-secrets -- --only github
+
+# Every non-empty Worker secret in .env
+npm run control-plane:sync-secrets
+
+# Preview which keys would be uploaded
+npm run control-plane:sync-secrets -- --dry-run
+```
+
+Manual equivalent (stdin per secret):
 
 ```bash
 npx wrangler secret put SLACK_SIGNING_SECRET --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put SLACK_BOT_TOKEN --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put SLACK_BOT_USER_ID --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_WEBHOOK_SECRET --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_APP_ID --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_APP_PRIVATE_KEY --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_INSTALLATION_ID --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_OWNER --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put GITHUB_REPO --config apps/slack-worker/wrangler.jsonc
+# ... same for SLACK_BOT_TOKEN, SLACK_BOT_USER_ID, and GitHub keys
 ```
 
-Optional role / allowlist configuration (secret or plain var):
+Optional role / allowlist configuration (plain `vars` in `wrangler.jsonc`, or secrets):
 
 - `SLACK_ALLOWED_TEAM_IDS`
 - `SLACK_ALLOWED_CHANNEL_IDS`

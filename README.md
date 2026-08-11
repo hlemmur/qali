@@ -83,7 +83,8 @@ Local Mock Mode needs no Cloudflare. To wire Slack + Worker:
 ```bash
 npx wrangler login
 npm run control-plane:provision
-# set secrets listed in docs/setup-cloudflare.md
+# fill .env from .env.example, then:
+npm run control-plane:sync-secrets -- --only slack
 npm run control-plane:deploy
 WORKER_BASE_URL=https://qali-slack-control.<subdomain>.workers.dev \
   npm run control-plane:render-slack-manifest

@@ -12,21 +12,13 @@
   },
   "oauth_config": {
     "scopes": {
-      "bot": [
-        "app_mentions:read",
-        "chat:write",
-        "im:history",
-        "im:write"
-      ]
+      "bot": ["app_mentions:read", "chat:write", "im:history", "im:write"]
     }
   },
   "settings": {
     "event_subscriptions": {
       "request_url": "https://qali-slack-control.qali-lab.workers.dev/slack/events",
-      "bot_events": [
-        "app_mention",
-        "message.im"
-      ]
+      "bot_events": ["app_mention", "message.im"]
     },
     "interactivity": {
       "is_enabled": true,

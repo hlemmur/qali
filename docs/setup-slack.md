@@ -6,7 +6,7 @@ Qali uses a standard Slack app with Events API and Interactions — works on **f
 
 ## 1. Create a Slack app from manifest
 
-Qali ships a Slack App Manifest at ([slack-app-manifest.json](apps/slack-worker/slack-app-manifest.json)).
+Qali ships a Slack App Manifest at [`apps/slack-worker/slack-app-manifest.json`](../apps/slack-worker/slack-app-manifest.json).
 
 1. Provision and deploy Cloudflare ([setup-cloudflare.md](setup-cloudflare.md)).
 2. Render URLs for your Worker:
@@ -20,19 +20,25 @@ WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev \
 4. Paste the contents of `apps/slack-worker/slack-app-manifest.json` (or upload the file).
 5. Review scopes and URLs, then create.
 6. **Install to workspace**.
-7. Copy credentials into Worker secrets:
+7. Copy credentials into the repo `.env` (from `.env.example`):
 
-| Slack UI                                                                                   | Env / secret           |
-| ------------------------------------------------------------------------------------------ | ---------------------- |
-| Bot User OAuth Token                                                                       | `SLACK_BOT_TOKEN`      |
-| Signing Secret                                                                             | `SLACK_SIGNING_SECRET` |
-| Bot User ID (under App Home / Basic Information → App ID section, or from `@Qali` profile) | `SLACK_BOT_USER_ID`    |
+| Slack UI                                                        | Env / secret           |
+| --------------------------------------------------------------- | ---------------------- |
+| Bot User OAuth Token                                            | `SLACK_BOT_TOKEN`      |
+| Signing Secret                                                  | `SLACK_SIGNING_SECRET` |
+| Bot User ID (Basic Information → App Credentials / bot profile) | `SLACK_BOT_USER_ID`    |
+
+8. Push those values to the Cloudflare Worker:
 
 ```bash
-npx wrangler secret put SLACK_SIGNING_SECRET --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put SLACK_BOT_TOKEN --config apps/slack-worker/wrangler.jsonc
-npx wrangler secret put SLACK_BOT_USER_ID --config apps/slack-worker/wrangler.jsonc
+# Sync only Slack secrets from .env (skips empty GitHub keys)
+npm run control-plane:sync-secrets -- --only slack
+
+# Or sync every non-empty Worker secret defined in .env
+npm run control-plane:sync-secrets
 ```
+
+Secrets are read from `.env` by default (`QALI_ENV_FILE` overrides the path). Values are never printed; Wrangler receives them on stdin.
 
 Redeploy if the Worker was already live without these secrets:
 
@@ -86,14 +92,14 @@ Full Markdown reports live in GitHub artifacts and `projects/<id>/derived/report
 
 ## Troubleshooting
 
-| Symptom                           | Check                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------ |
-| Manifesto URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md) |
-| 403 Forbidden                     | User not in `SLACK_ALLOWED_USER_IDS`                                                       |
-| Request ignored                   | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                          |
-| No GitHub run                     | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                             |
-| Signature failures                | Clock skew; verify `SLACK_SIGNING_SECRET`                                                  |
-| Maintenance rejected              | User is Developer, not QA Lead — add to `SLACK_QA_LEAD_USER_IDS`                           |
+| Symptom                          | Check                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| Manifest URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md) |
+| 403 Forbidden                    | User not in `SLACK_ALLOWED_USER_IDS`                                                       |
+| Request ignored                  | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                          |
+| No GitHub run                    | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                             |
+| Signature failures               | Clock skew; verify `SLACK_SIGNING_SECRET`                                                  |
+| Maintenance rejected             | User is Developer, not QA Lead — add to `SLACK_QA_LEAD_USER_IDS`                           |
 
 ## Cost and retention
 
