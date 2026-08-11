@@ -319,11 +319,18 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           continue;
         }
         try {
-          await slack.postThreadNotice({
-            channelId: message.body.slack.channelId,
-            threadTs: message.body.slack.threadTs,
-            text: `Working on it (\`${message.body.requestId}\`)…`
-          });
+          try {
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: `Working on it (\`${message.body.requestId}\`)…`
+            });
+          } catch (ackError) {
+            console.error(
+              'qali.queue.ack_failed',
+              ackError instanceof Error ? ackError.message : String(ackError)
+            );
+          }
           const command = await classifier.classify(message.body);
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {

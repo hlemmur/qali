@@ -1,4 +1,5 @@
 import { renderSlackRunSummary } from '@qali/reporting';
+import { boundFetch } from './fetch.js';
 import type { Correlation, SlackPort, SlackRunSummary } from './types.js';
 
 interface SlackResponse {
@@ -26,7 +27,7 @@ function payload(correlation: Correlation, summary: SlackRunSummary) {
 export class SlackWebClient implements SlackPort {
   constructor(
     private readonly token: string,
-    private readonly request: typeof fetch = fetch
+    private readonly request: typeof fetch = boundFetch
   ) {}
 
   private async call(method: string, body: Record<string, unknown>): Promise<SlackResponse> {

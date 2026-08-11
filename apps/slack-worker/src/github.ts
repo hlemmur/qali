@@ -1,4 +1,5 @@
 import { NormalizedCommandSchema, type NormalizedCommand } from '@qali/contracts';
+import { boundFetch } from './fetch.js';
 import type { DispatchResult, GitHubPort } from './types.js';
 
 const encoder = new TextEncoder();
@@ -59,7 +60,7 @@ export interface GitHubAppConfig {
 export class GitHubAppClient implements GitHubPort {
   constructor(
     private readonly config: GitHubAppConfig,
-    private readonly request: typeof fetch = fetch
+    private readonly request: typeof fetch = boundFetch
   ) {}
 
   private async installationToken(): Promise<string> {
