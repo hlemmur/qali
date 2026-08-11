@@ -41,6 +41,7 @@ export function displayRunStatus(summary: Pick<RunSummary, 'status' | 'conclusio
   const raw = (summary.conclusion ?? summary.status).toLowerCase();
   if (raw === 'success' || raw === 'passed') return 'passed';
   if (raw === 'failure' || raw === 'failed') return 'failed';
+  if (raw === 'blocked') return 'blocked';
   if (raw === 'cancelled' || raw === 'canceled') return 'cancelled';
   if (raw === 'timed_out') return 'timed out';
   return summary.conclusion ?? summary.status;

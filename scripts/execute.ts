@@ -32,14 +32,36 @@ const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
   value.replaceAll('{projectId}', command.project.id);
 const generatedMarkdown = (body: string): string => {
-  const normalized = body.startsWith('\n') ? body : `\n${body}`;
+  const inner = body.replace(/^\n+/, '').replace(/\s+$/, '\n');
+  const normalized = `\n\n${inner}`;
   const hash = createHash('sha256').update(normalized).digest('hex');
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
 };
 
+function writeWorkflowSlackSummary(
+  command: NormalizedCommand,
+  status: 'passed' | 'failed' | 'blocked',
+  errors: string[] = []
+): void {
+  const reportDirectory = join(workspace, command.project.root, 'derived/reports');
+  mkdirSync(reportDirectory, { recursive: true });
+  mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const summary = {
+    runId: command.parameters.requestId
+      ? String(command.parameters.requestId)
+      : `${command.intent}-run`,
+    status,
+    intent: command.intent,
+    projectId: command.project.id,
+    ...(errors.length ? { errors } : { errors: [] })
+  };
+  writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
+  writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
+}
+
 class FileEventStore implements WorkflowEventStore {
   constructor(private readonly path: string) {}
-  async append(event: WorkflowEvent): Promise<void> {
+  async append(event: WorkflowEvent) {
     mkdirSync(dirname(this.path), { recursive: true });
     writeFileSync(this.path, `${JSON.stringify(event)}\n`, { flag: 'a' });
   }
@@ -95,8 +117,22 @@ class WorkflowPolicy implements PolicyEnforcer {
       (command.autonomy?.approvalRefs.length ?? 0) === 0
     ) {
       return {
-        allowed: false,
-        reason: `step ${step.id} requires a human approval reference`
+        allowed: false as const,
+        reason: 'human-approval gate requires approvalRefs'
+      };
+    }
+    if (
+      step.policyGates.includes('approved-scenario') &&
+      !(
+        existsSync(join(workspace, command.project.root, 'derived/scenarios/approved')) &&
+        readFileNames(join(workspace, command.project.root, 'derived/scenarios/approved')).some(
+          (name) => name.endsWith('.md')
+        )
+      )
+    ) {
+      return {
+        allowed: false as const,
+        reason: 'approved-scenario gate requires approved scenarios'
       } as const;
     }
     return { allowed: true } as const;
@@ -152,7 +188,7 @@ class RoutedStepExecutor implements StepExecutor {
       return { status: 'succeeded' as const, outputs };
     }
 
-    if (step.id === 'report') {
+    if (step.id === 'report' && command.intent === 'run-test-suite') {
       const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
       const summary =
         this.playwrightSummary ??
@@ -187,13 +223,14 @@ class RoutedStepExecutor implements StepExecutor {
     for (const output of outputs) {
       const absolute = join(workspace, output.path);
       mkdirSync(dirname(absolute), { recursive: true });
+      const governedSource = /(^|[/\\])sources[/\\]/.test(output.path);
       if (absolute.endsWith('.md')) {
-        writeFileSync(
-          absolute,
-          generatedMarkdown(
-            `\n# ${step.id}\n\nDeterministic fallback (Cursor Agent CLI not configured).\n`
-          )
-        );
+        if (governedSource && existsSync(absolute)) {
+          // Deterministic fallback must not overwrite governed sources with generated markers.
+          continue;
+        }
+        const body = `# ${step.id}\n\nDeterministic fallback (Cursor Agent CLI not configured).\n`;
+        writeFileSync(absolute, governedSource ? body : generatedMarkdown(body));
       } else if (absolute.endsWith('.json')) {
         writeFileSync(
           absolute,
@@ -233,7 +270,7 @@ class RoutedStepExecutor implements StepExecutor {
       writeFileSync(
         jobPath,
         generatedMarkdown(
-          `\n# Test run job\n\nStatus: ${run.status}\nEvidence: \`${join(evidenceDir, 'results.json')}\`\n`
+          `# Test run job\n\nStatus: ${run.status}\nEvidence: \`${join(evidenceDir, 'results.json')}\`\n`
         )
       );
       return run.status === 'passed'
@@ -291,4 +328,18 @@ const result = await executeWorkflow(command, {
   outputValidator: new FileSystemOutputValidator(workspace)
 });
 console.log(JSON.stringify(result, null, 2));
-if (result.status !== 'succeeded') process.exitCode = 1;
+if (result.status === 'succeeded') {
+  if (command.intent !== 'run-test-suite') {
+    writeWorkflowSlackSummary(command, 'passed');
+  }
+} else {
+  const detail = (result.events.at(-1)?.detail ?? {}) as Record<string, unknown>;
+  const message =
+    typeof detail.reason === 'string'
+      ? detail.reason
+      : typeof detail.error === 'string'
+        ? detail.error
+        : `Workflow ${result.status}`;
+  writeWorkflowSlackSummary(command, result.status === 'blocked' ? 'blocked' : 'failed', [message]);
+  process.exitCode = 1;
+}

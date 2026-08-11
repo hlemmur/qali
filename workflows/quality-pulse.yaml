@@ -2,7 +2,7 @@ version: 1
 id: quality-pulse
 title: Quality pulse
 description: Render a concise quality pulse from deterministic evidence and open decisions.
-executable: false
+executable: true
 triggers:
   - type: command
     intent: quality-pulse

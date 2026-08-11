@@ -2,7 +2,7 @@ version: 1
 id: knowledge-maintenance
 title: Knowledge maintenance
 description: Reconcile evidence into governed project knowledge without silent promotion.
-executable: false
+executable: true
 triggers:
   - type: command
     intent: maintain-knowledge

@@ -2,7 +2,7 @@ version: 1
 id: suite-maintenance
 title: Suite maintenance
 description: Diagnose suite reliability and propose policy-gated repairs.
-executable: false
+executable: true
 triggers:
   - type: command
     intent: maintain-suite
