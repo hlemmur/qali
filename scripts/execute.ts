@@ -66,11 +66,12 @@ function writePlaywrightSlackSummary(
   const reportDirectory = join(workspace, command.project.root, 'derived/reports');
   mkdirSync(reportDirectory, { recursive: true });
   mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
   const compactErrors = (summary.errors ?? [])
     .map(
       (error) =>
         error
-          .replace(/\u001b\[[0-9;]*m/g, '')
+          .replace(ansiPattern, '')
           .split('\n')
           .map((line) => line.trim())
           .find((line) => line.length > 0) ?? 'Test failed'
