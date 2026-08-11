@@ -79,8 +79,10 @@ jobs:
         env:
           PROJECT_JSON: ${{ inputs.project_json }}
         run: |
-          npm run check
           PROJECT_ROOT="$(node -e 'const p=JSON.parse(process.env.PROJECT_JSON); process.stdout.write(p.root)')"
+          # Live Cursor Agent may write markdown that is not Prettier-clean yet.
+          npx prettier --write "$PROJECT_ROOT"
+          npm run check
           npm run project:validate -- "$PROJECT_ROOT"
       - name: Prepare controlled publication bundle
         if: github.event_name == 'workflow_dispatch'

@@ -5,7 +5,8 @@
  */
 import { createHmac } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 function readJson(path: string): Record<string, unknown> | undefined {
   if (!existsSync(path)) return undefined;
@@ -48,81 +49,89 @@ function sign(secret: string, body: string): string {
   return `sha256=${digest}`;
 }
 
-const workerBase = (process.env.QALI_WORKER_BASE_URL ?? process.env.WORKER_BASE_URL ?? '').replace(
-  /\/$/,
-  ''
-);
-const secret = process.env.QALI_CALLBACK_SECRET ?? process.env.GITHUB_WEBHOOK_SECRET;
-if (!workerBase || !secret) {
-  console.log('Skipping Slack run-summary callback (QALI_WORKER_BASE_URL / secret not set).');
-  process.exit(0);
+/** Prefer Actions job outcome over an earlier in-workflow Slack summary. */
+export function resolveSlackRunStatus(jobStatus: string, reportStatus: unknown): string {
+  if (jobStatus === 'failure' || jobStatus === 'cancelled') return 'failed';
+  if (typeof reportStatus === 'string') return reportStatus;
+  if (jobStatus === 'success') return 'passed';
+  return jobStatus;
 }
 
-const project = projectRootFromEnv();
-const report = findTestRunJson(project.root) ?? {};
-const counts =
-  typeof report.total === 'number' &&
-  typeof report.passed === 'number' &&
-  typeof report.failed === 'number' &&
-  typeof report.skipped === 'number'
-    ? {
-        total: report.total,
-        passed: report.passed,
-        failed: report.failed,
-        skipped: report.skipped
-      }
-    : undefined;
+export async function postRunSummary(): Promise<void> {
+  const workerBase = (
+    process.env.QALI_WORKER_BASE_URL ??
+    process.env.WORKER_BASE_URL ??
+    ''
+  ).replace(/\/$/, '');
+  const secret = process.env.QALI_CALLBACK_SECRET ?? process.env.GITHUB_WEBHOOK_SECRET;
+  if (!workerBase || !secret) {
+    console.log('Skipping Slack run-summary callback (QALI_WORKER_BASE_URL / secret not set).');
+    return;
+  }
 
-const jobStatus = process.env.JOB_STATUS ?? 'unknown';
-const status =
-  typeof report.status === 'string'
-    ? report.status
-    : jobStatus === 'success'
-      ? 'passed'
-      : jobStatus === 'failure' || jobStatus === 'cancelled'
-        ? 'failed'
-        : jobStatus;
+  const project = projectRootFromEnv();
+  const report = findTestRunJson(project.root) ?? {};
+  const counts =
+    typeof report.total === 'number' &&
+    typeof report.passed === 'number' &&
+    typeof report.failed === 'number' &&
+    typeof report.skipped === 'number'
+      ? {
+          total: report.total,
+          passed: report.passed,
+          failed: report.failed,
+          skipped: report.skipped
+        }
+      : undefined;
 
-const errors = Array.isArray(report.errors)
-  ? report.errors.filter((entry): entry is string => typeof entry === 'string')
-  : [];
-if (!counts && jobStatus === 'failure') {
-  errors.push('GitHub Actions failed before a test report was produced');
+  const jobStatus = process.env.JOB_STATUS ?? 'unknown';
+  const status = resolveSlackRunStatus(jobStatus, report.status);
+
+  const errors = Array.isArray(report.errors)
+    ? report.errors.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  if (!counts && jobStatus === 'failure') {
+    errors.push('GitHub Actions failed before a test report was produced');
+  }
+
+  const body = JSON.stringify({
+    requestId: process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID,
+    runId: process.env.GITHUB_RUN_ID,
+    htmlUrl: process.env.GITHUB_RUN_URL,
+    intent: process.env.SUMMARY_INTENT,
+    projectId: project.id,
+    ...(typeof report.suiteLabel === 'string'
+      ? { suiteLabel: report.suiteLabel }
+      : process.env.SUMMARY_INTENT === 'run-test-suite'
+        ? { suiteLabel: 'smoke' }
+        : {}),
+    status,
+    ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
+    ...(errors.length ? { errors } : {}),
+    ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
+    ...(counts ? { counts } : {})
+  });
+
+  const url = `${workerBase}/github/run-summary`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-hub-signature-256': sign(secret, body)
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`run-summary callback failed: ${response.status} ${text.slice(0, 400)}`);
+    process.exitCode = 1;
+  } else {
+    const text = await response.text();
+    console.log(`Posted run summary to ${url} (${response.status}) ${text.slice(0, 200)}`);
+  }
 }
 
-const body = JSON.stringify({
-  requestId: process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID,
-  runId: process.env.GITHUB_RUN_ID,
-  htmlUrl: process.env.GITHUB_RUN_URL,
-  intent: process.env.SUMMARY_INTENT,
-  projectId: project.id,
-  ...(typeof report.suiteLabel === 'string'
-    ? { suiteLabel: report.suiteLabel }
-    : process.env.SUMMARY_INTENT === 'run-test-suite'
-      ? { suiteLabel: 'smoke' }
-      : {}),
-  status,
-  ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
-  ...(errors.length ? { errors } : {}),
-  ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
-  ...(counts ? { counts } : {})
-});
-
-const url = `${workerBase}/github/run-summary`;
-const response = await fetch(url, {
-  method: 'POST',
-  headers: {
-    'content-type': 'application/json',
-    'x-hub-signature-256': sign(secret, body)
-  },
-  body
-});
-
-if (!response.ok) {
-  const text = await response.text();
-  console.error(`run-summary callback failed: ${response.status} ${text.slice(0, 400)}`);
-  process.exitCode = 1;
-} else {
-  const text = await response.text();
-  console.log(`Posted run summary to ${url} (${response.status}) ${text.slice(0, 200)}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await postRunSummary();
 }
