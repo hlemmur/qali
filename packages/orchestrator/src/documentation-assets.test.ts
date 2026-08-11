@@ -50,17 +50,15 @@ describe('product documentation assets', () => {
     const manifest = JSON.parse(read('apps/slack-worker/slack-app-manifest.json')) as ReturnType<
       typeof renderSlackAppManifest
     >;
-    const eventsUrl = manifest.settings.event_subscriptions.request_url;
-    const baseUrl = eventsUrl.replace(/\/slack\/events$/, '');
-    expect(eventsUrl).toMatch(/^https:\/\/.+\.workers\.dev\/slack\/events$/);
-    expect(manifest.settings.interactivity.request_url).toBe(`${baseUrl}/slack/interactions`);
-    expect(manifest.settings.event_subscriptions.bot_events).toEqual(['app_mention', 'message.im']);
-    expect(manifest.oauth_config.scopes.bot).toEqual(
-      renderSlackAppManifest(baseUrl).oauth_config.scopes.bot
+    expect(manifest).toEqual(
+      renderSlackAppManifest('https://qali-slack-control.example.workers.dev')
     );
     expect(read('docs/setup-slack.md')).toContain('slack-app-manifest.json');
+    expect(read('docs/setup-slack.md')).toContain('slack-app-manifest.local.json');
     expect(read('docs/setup-slack.md')).toContain('From an app manifest');
     expect(read('docs/setup-slack.md')).toContain('control-plane:sync-secrets');
+    expect(read('docs/setup-slack.md')).toContain('WORKER_BASE_URL');
+    expect(read('docs/setup-slack.md')).toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
   });
 
   it('keeps documented role and credential configuration consistent with the runtime', () => {

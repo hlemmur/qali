@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONTROL_PLANE_DEFAULTS,
+  applyWorkerUrlsToSlackManifest,
   parseD1CreateOutput,
   patchWranglerDatabaseId,
   renderSlackAppManifest,
@@ -31,6 +32,22 @@ describe('control plane setup helpers', () => {
 
   it('rejects non-https Worker base URLs', () => {
     expect(() => renderSlackAppManifest('http://localhost:8787')).toThrow(/https/i);
+  });
+
+  it('keeps template branding while substituting Worker URLs from env-derived base', () => {
+    const template = renderSlackAppManifest(CONTROL_PLANE_DEFAULTS.placeholderWorkerBaseUrl);
+    template.display_information.description = 'Custom operator description';
+    const rendered = applyWorkerUrlsToSlackManifest(
+      template,
+      'https://qali-slack-control.qali-lab.workers.dev'
+    );
+    expect(rendered.display_information.description).toBe('Custom operator description');
+    expect(rendered.settings.event_subscriptions.request_url).toBe(
+      'https://qali-slack-control.qali-lab.workers.dev/slack/events'
+    );
+    expect(rendered.settings.interactivity.request_url).toBe(
+      'https://qali-slack-control.qali-lab.workers.dev/slack/interactions'
+    );
   });
 
   it('patches only the D1 database_id in wrangler config text', () => {

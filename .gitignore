@@ -6,6 +6,7 @@ coverage/
 .env
 .env.*
 !.env.example
+apps/slack-worker/slack-app-manifest.local.json
 
 playwright-report/
 test-results/

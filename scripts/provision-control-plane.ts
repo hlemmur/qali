@@ -3,9 +3,10 @@
  *
  * Usage:
  *   npm run control-plane:provision [-- --dry-run]
- *   WORKER_BASE_URL=https://... npm run control-plane:render-slack-manifest
+ *   npm run control-plane:render-slack-manifest
+ *     (reads WORKER_BASE_URL / CLOUDFLARE_WORKERS_SUBDOMAIN from .env or the environment)
  *
- * Requires: wrangler authenticated (`npx wrangler login`).
+ * Requires: wrangler authenticated (`npx wrangler login`) for provision (not for render-only).
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -14,20 +15,43 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
   CONTROL_PLANE_DEFAULTS,
+  applyWorkerUrlsToSlackManifest,
   parseD1CreateOutput,
   patchWranglerDatabaseId,
-  renderSlackAppManifest,
-  resolveWorkerBaseUrl
+  resolveWorkerBaseUrl,
+  type SlackAppManifest
 } from '../packages/orchestrator/src/control-plane-setup.js';
+import { parseDotEnv } from '../packages/orchestrator/src/worker-secrets.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const workerDir = join(repoRoot, 'apps/slack-worker');
 const wranglerPath = join(workerDir, 'wrangler.jsonc');
-const manifestPath = join(workerDir, 'slack-app-manifest.json');
+const manifestTemplatePath = join(workerDir, 'slack-app-manifest.json');
+const manifestLocalPath = join(workerDir, 'slack-app-manifest.local.json');
 const dryRun = process.argv.includes('--dry-run');
 const renderOnly =
   process.argv.includes('--render-slack-manifest') ||
   process.env.QALI_RENDER_SLACK_MANIFEST === '1';
+
+function loadDotEnv(): void {
+  const envPath = process.env.QALI_ENV_FILE
+    ? join(repoRoot, process.env.QALI_ENV_FILE)
+    : join(repoRoot, '.env');
+  if (!existsSync(envPath)) return;
+  const values = parseDotEnv(readFileSync(envPath, 'utf8'));
+  for (const [key, value] of Object.entries(values)) {
+    if (value && process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+function workerBaseUrlFromEnv(): string {
+  return resolveWorkerBaseUrl({
+    ...(process.env.WORKER_BASE_URL ? { override: process.env.WORKER_BASE_URL } : {}),
+    ...(process.env.CLOUDFLARE_WORKERS_SUBDOMAIN
+      ? { workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN }
+      : {})
+  });
+}
 
 function run(command: string, args: string[], cwd = workerDir): string {
   if (dryRun) {
@@ -120,11 +144,13 @@ function applyMigrations(): void {
   ]);
 }
 
-function writeSlackManifest(baseUrl: string): void {
-  const manifest = renderSlackAppManifest(baseUrl);
-  mkdirSync(dirname(manifestPath), { recursive: true });
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`Wrote Slack app manifest: ${manifestPath}`);
+function writeSlackManifestLocal(baseUrl: string): void {
+  const template = JSON.parse(readFileSync(manifestTemplatePath, 'utf8')) as SlackAppManifest;
+  const manifest = applyWorkerUrlsToSlackManifest(template, baseUrl);
+  mkdirSync(dirname(manifestLocalPath), { recursive: true });
+  writeFileSync(manifestLocalPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`Wrote env-resolved Slack app manifest: ${manifestLocalPath}`);
+  console.log(`  (template left generic: ${manifestTemplatePath})`);
   console.log(`  events:        ${manifest.settings.event_subscriptions.request_url}`);
   console.log(`  interactions:  ${manifest.settings.interactivity.request_url}`);
   console.log(`  github webhook:${baseUrl}/github/webhook`);
@@ -132,38 +158,29 @@ function writeSlackManifest(baseUrl: string): void {
 
 function printSecretChecklist(): void {
   console.log(`
-Next: set Worker secrets from the repo root / apps/slack-worker:
+Next: set Worker secrets from .env:
 
-  npx wrangler secret put SLACK_SIGNING_SECRET --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put SLACK_BOT_TOKEN --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put SLACK_BOT_USER_ID --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_WEBHOOK_SECRET --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_APP_ID --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_APP_PRIVATE_KEY --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_INSTALLATION_ID --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_OWNER --config apps/slack-worker/wrangler.jsonc
-  npx wrangler secret put GITHUB_REPO --config apps/slack-worker/wrangler.jsonc
-
-Optional allowlists / roles (or set as wrangler vars):
-  SLACK_ALLOWED_TEAM_IDS, SLACK_ALLOWED_CHANNEL_IDS, SLACK_ALLOWED_USER_IDS, SLACK_QA_LEAD_USER_IDS
+  npm run control-plane:sync-secrets -- --only slack
 
 Then deploy:
   npm run control-plane:deploy
+
+Render Slack manifest for upload (reads WORKER_BASE_URL / CLOUDFLARE_WORKERS_SUBDOMAIN from .env):
+  npm run control-plane:render-slack-manifest
 `);
 }
+
+loadDotEnv();
 
 if (!existsSync(wranglerPath)) {
   throw new Error(`Missing ${wranglerPath}`);
 }
+if (!existsSync(manifestTemplatePath)) {
+  throw new Error(`Missing Slack manifest template: ${manifestTemplatePath}`);
+}
 
 if (renderOnly) {
-  const baseUrl = resolveWorkerBaseUrl({
-    ...(process.env.WORKER_BASE_URL ? { override: process.env.WORKER_BASE_URL } : {}),
-    ...(process.env.CLOUDFLARE_WORKERS_SUBDOMAIN
-      ? { workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN }
-      : {})
-  });
-  writeSlackManifest(baseUrl);
+  writeSlackManifestLocal(workerBaseUrlFromEnv());
   process.exit(0);
 }
 
@@ -178,24 +195,13 @@ ensureQueue();
 if (!dryRun) applyMigrations();
 else console.log('[dry-run] skip remote migrations');
 
-const baseUrl = process.env.WORKER_BASE_URL
-  ? resolveWorkerBaseUrl({ override: process.env.WORKER_BASE_URL })
-  : process.env.CLOUDFLARE_WORKERS_SUBDOMAIN
-    ? resolveWorkerBaseUrl({
-        workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN
-      })
-    : `https://${CONTROL_PLANE_DEFAULTS.workerName}.<your-subdomain>.workers.dev`;
-
-if (baseUrl.includes('<your-subdomain>')) {
-  writeFileSync(
-    manifestPath,
-    `${JSON.stringify(renderSlackAppManifest('https://qali-slack-control.example.workers.dev'), null, 2)}\n`
-  );
+try {
+  writeSlackManifestLocal(workerBaseUrlFromEnv());
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
   console.log(
-    `Wrote placeholder Slack manifest at ${manifestPath}. Re-run with WORKER_BASE_URL after deploy.`
+    `Skipped local Slack manifest render (${message}). Set WORKER_BASE_URL or CLOUDFLARE_WORKERS_SUBDOMAIN in .env, then run npm run control-plane:render-slack-manifest.`
   );
-} else {
-  writeSlackManifest(baseUrl);
 }
 
 printSecretChecklist();

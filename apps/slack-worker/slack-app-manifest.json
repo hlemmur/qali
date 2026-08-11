@@ -17,12 +17,12 @@
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://qali-slack-control.qali-lab.workers.dev/slack/events",
+      "request_url": "https://qali-slack-control.example.workers.dev/slack/events",
       "bot_events": ["app_mention", "message.im"]
     },
     "interactivity": {
       "is_enabled": true,
-      "request_url": "https://qali-slack-control.qali-lab.workers.dev/slack/interactions"
+      "request_url": "https://qali-slack-control.example.workers.dev/slack/interactions"
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,

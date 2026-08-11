@@ -46,7 +46,7 @@ From the monorepo root:
 
 ```bash
 # Creates D1 + Queue, patches wrangler.jsonc database_id, applies migrations,
-# writes apps/slack-worker/slack-app-manifest.json (placeholder until WORKER_BASE_URL is set)
+# and renders apps/slack-worker/slack-app-manifest.local.json when .env has Worker URL vars
 npm run control-plane:provision
 
 # Preview commands without remote mutations
@@ -59,7 +59,7 @@ What the script does:
 2. Writes the returned UUID into `apps/slack-worker/wrangler.jsonc`
 3. `wrangler queues create qali-inbound` (ignores “already exists”)
 4. `wrangler d1 migrations apply qali-control --remote`
-5. Writes / refreshes `apps/slack-worker/slack-app-manifest.json`
+5. Renders `apps/slack-worker/slack-app-manifest.local.json` from the generic template + `.env` Worker URL (skips if URL vars are missing)
 
 Manual equivalent if you prefer the dashboard:
 
@@ -133,19 +133,26 @@ npm run control-plane:dry-run
 
 ## Render Slack manifest for your Worker URL
 
+Fill `.env` (preferred) or export env vars, then:
+
+```bash
+# reads WORKER_BASE_URL or CLOUDFLARE_WORKERS_SUBDOMAIN from .env
+npm run control-plane:render-slack-manifest
+```
+
+That writes gitignored `apps/slack-worker/slack-app-manifest.local.json` and leaves the committed template generic.
+
+Overrides without editing `.env`:
+
 ```bash
 WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev \
   npm run control-plane:render-slack-manifest
-```
 
-Or with subdomain only:
-
-```bash
 CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain> \
   npm run control-plane:render-slack-manifest
 ```
 
-Then follow [setup-slack.md](setup-slack.md) (create app **from manifest**).
+Then follow [setup-slack.md](setup-slack.md) (create app from the local manifest).
 
 ## Local development
 

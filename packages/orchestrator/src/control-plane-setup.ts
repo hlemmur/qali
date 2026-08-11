@@ -2,7 +2,8 @@ export const CONTROL_PLANE_DEFAULTS = {
   workerName: 'qali-slack-control',
   d1DatabaseName: 'qali-control',
   queueName: 'qali-inbound',
-  placeholderDatabaseId: 'replace-with-production-database-id'
+  placeholderDatabaseId: 'replace-with-production-database-id',
+  placeholderWorkerBaseUrl: 'https://qali-slack-control.example.workers.dev'
 } as const;
 
 export interface SlackAppManifest {
@@ -51,7 +52,7 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
     display_information: {
       name: 'Qali',
       description:
-        'Slack-first autonomous QA orchestration. Ask Qali to explore, generate, and run Playwright tests.',
+        'Slack-first autonomous QA agent. Ask Qali to test features, explore your app, generate/run test suits or report quality status',
       background_color: '#1a1a2e'
     },
     features: {
@@ -77,6 +78,29 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
       org_deploy_enabled: false,
       socket_mode_enabled: false,
       token_rotation_enabled: false
+    }
+  };
+}
+
+/** Keep branding/scopes from the committed template; only substitute Worker URLs. */
+export function applyWorkerUrlsToSlackManifest(
+  template: SlackAppManifest,
+  workerBaseUrl: string
+): SlackAppManifest {
+  const base = normalizeWorkerBaseUrl(workerBaseUrl);
+  return {
+    ...template,
+    settings: {
+      ...template.settings,
+      event_subscriptions: {
+        ...template.settings.event_subscriptions,
+        request_url: `${base}/slack/events`
+      },
+      interactivity: {
+        ...template.settings.interactivity,
+        is_enabled: true,
+        request_url: `${base}/slack/interactions`
+      }
     }
   };
 }

@@ -86,11 +86,13 @@ npm run control-plane:provision
 # fill .env from .env.example, then:
 npm run control-plane:sync-secrets -- --only slack
 npm run control-plane:deploy
-WORKER_BASE_URL=https://qali-slack-control.<subdomain>.workers.dev \
-  npm run control-plane:render-slack-manifest
+WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev
+# or:
+# CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain>
+npm run control-plane:render-slack-manifest
 ```
 
-Then create the Slack app from `apps/slack-worker/slack-app-manifest.json` (see [docs/setup-slack.md](docs/setup-slack.md)).
+Then create the Slack app from the env-resolved `apps/slack-worker/slack-app-manifest.local.json` (see [docs/setup-slack.md](docs/setup-slack.md)). The committed `slack-app-manifest.json` stays generic.
 
 ## Setup guides
 

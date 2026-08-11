@@ -6,19 +6,26 @@ Qali uses a standard Slack app with Events API and Interactions — works on **f
 
 ## 1. Create a Slack app from manifest
 
-Qali ships a Slack App Manifest at [`apps/slack-worker/slack-app-manifest.json`](../apps/slack-worker/slack-app-manifest.json).
+The committed template [`apps/slack-worker/slack-app-manifest.json`](../apps/slack-worker/slack-app-manifest.json) stays **environment-generic** (placeholder `*.example.workers.dev` URLs). Render a local copy from `.env` before uploading to Slack.
 
 1. Provision and deploy Cloudflare ([setup-cloudflare.md](setup-cloudflare.md)).
-2. Render URLs for your Worker:
+2. Set in `.env` (see `.env.example`):
 
 ```bash
-WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev \
-  npm run control-plane:render-slack-manifest
+WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev
+# or only:
+CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain>
 ```
 
-3. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest**.
-4. Paste the contents of `apps/slack-worker/slack-app-manifest.json` (or upload the file).
-5. Review scopes and URLs, then create.
+3. Render the env-resolved manifest (does not modify the generic template):
+
+```bash
+npm run control-plane:render-slack-manifest
+# writes apps/slack-worker/slack-app-manifest.local.json (gitignored)
+```
+
+4. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest**.
+5. Paste / upload `apps/slack-worker/slack-app-manifest.local.json`.
 6. **Install to workspace**.
 7. Copy credentials into the repo `.env` (from `.env.example`):
 
