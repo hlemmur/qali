@@ -87,8 +87,6 @@ npm run control-plane:provision
 npm run control-plane:sync-secrets -- --only slack
 npm run control-plane:deploy
 WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev
-# or:
-# CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain>
 npm run control-plane:render-slack-manifest
 ```
 

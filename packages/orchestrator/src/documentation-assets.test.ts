@@ -58,7 +58,11 @@ describe('product documentation assets', () => {
     expect(read('docs/setup-slack.md')).toContain('From an app manifest');
     expect(read('docs/setup-slack.md')).toContain('control-plane:sync-secrets');
     expect(read('docs/setup-slack.md')).toContain('WORKER_BASE_URL');
-    expect(read('docs/setup-slack.md')).toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
+    expect(read('docs/setup-slack.md')).toContain('qali-icon.png');
+    expect(read('docs/setup-slack.md')).not.toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
+    expect(read('.env.example')).toContain('WORKER_BASE_URL');
+    expect(read('.env.example')).not.toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
+    expect(() => read('apps/slack-worker/assets/qali-icon.png')).not.toThrow();
   });
 
   it('keeps documented role and credential configuration consistent with the runtime', () => {

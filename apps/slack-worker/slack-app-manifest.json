@@ -2,7 +2,7 @@
   "display_information": {
     "name": "Qali",
     "description": "Slack-first autonomous QA agent. Ask Qali to test features, explore your app, generate/run test suits or report quality status",
-    "background_color": "#1a1a2e"
+    "background_color": "#ff0084"
   },
   "features": {
     "bot_user": {

@@ -136,19 +136,16 @@ npm run control-plane:dry-run
 Fill `.env` (preferred) or export env vars, then:
 
 ```bash
-# reads WORKER_BASE_URL or CLOUDFLARE_WORKERS_SUBDOMAIN from .env
+# reads WORKER_BASE_URL from .env
 npm run control-plane:render-slack-manifest
 ```
 
 That writes gitignored `apps/slack-worker/slack-app-manifest.local.json` and leaves the committed template generic.
 
-Overrides without editing `.env`:
+Override without editing `.env`:
 
 ```bash
 WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev \
-  npm run control-plane:render-slack-manifest
-
-CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain> \
   npm run control-plane:render-slack-manifest
 ```
 

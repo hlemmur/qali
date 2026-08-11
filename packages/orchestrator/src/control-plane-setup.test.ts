@@ -13,6 +13,7 @@ describe('control plane setup helpers', () => {
     const manifest = renderSlackAppManifest('https://qali-slack-control.example.workers.dev');
 
     expect(manifest.display_information.name).toBe('Qali');
+    expect(manifest.display_information.background_color).toBe('#ff0084');
     expect(manifest.oauth_config.scopes.bot).toEqual([
       'app_mentions:read',
       'chat:write',
@@ -69,16 +70,11 @@ describe('control plane setup helpers', () => {
     expect(patched).not.toContain('replace-with-production-database-id');
   });
 
-  it('resolves Worker URLs from overrides and Cloudflare defaults', () => {
+  it('resolves Worker URLs from WORKER_BASE_URL only', () => {
     expect(resolveWorkerBaseUrl({ override: 'https://custom.example' })).toBe(
       'https://custom.example'
     );
-    expect(
-      resolveWorkerBaseUrl({
-        workerName: CONTROL_PLANE_DEFAULTS.workerName,
-        workersSubdomain: 'acme'
-      })
-    ).toBe('https://qali-slack-control.acme.workers.dev');
+    expect(() => resolveWorkerBaseUrl({})).toThrow(/WORKER_BASE_URL/);
   });
 
   it('extracts a D1 database id from wrangler create output', () => {

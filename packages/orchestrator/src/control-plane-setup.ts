@@ -53,7 +53,7 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
       name: 'Qali',
       description:
         'Slack-first autonomous QA agent. Ask Qali to test features, explore your app, generate/run test suits or report quality status',
-      background_color: '#1a1a2e'
+      background_color: '#ff0084'
     },
     features: {
       bot_user: {
@@ -113,18 +113,11 @@ export function patchWranglerDatabaseId(configText: string, databaseId: string):
   return configText.replace(/("database_id"\s*:\s*")([^"]*)(")/, `$1${databaseId.trim()}$3`);
 }
 
-export function resolveWorkerBaseUrl(input: {
-  override?: string;
-  workerName?: string;
-  workersSubdomain?: string;
-}): string {
-  if (input.override) return normalizeWorkerBaseUrl(input.override);
-  const workerName = input.workerName ?? CONTROL_PLANE_DEFAULTS.workerName;
-  const subdomain = input.workersSubdomain?.trim();
-  if (!subdomain) {
-    throw new Error('Provide WORKER_BASE_URL or CLOUDFLARE_WORKERS_SUBDOMAIN');
+export function resolveWorkerBaseUrl(input: { override?: string }): string {
+  if (!input.override?.trim()) {
+    throw new Error('Provide WORKER_BASE_URL');
   }
-  return `https://${workerName}.${subdomain}.workers.dev`;
+  return normalizeWorkerBaseUrl(input.override);
 }
 
 export function parseD1CreateOutput(output: string): string | undefined {

@@ -13,8 +13,6 @@ The committed template [`apps/slack-worker/slack-app-manifest.json`](../apps/sla
 
 ```bash
 WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev
-# or only:
-CLOUDFLARE_WORKERS_SUBDOMAIN=<your-subdomain>
 ```
 
 3. Render the env-resolved manifest (does not modify the generic template):
@@ -27,7 +25,8 @@ npm run control-plane:render-slack-manifest
 4. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest**.
 5. Paste / upload `apps/slack-worker/slack-app-manifest.local.json`.
 6. **Install to workspace**.
-7. Copy credentials into the repo `.env` (from `.env.example`):
+7. Set the app icon (Slack manifests cannot include images). In **Basic Information → Display Information**, upload [`apps/slack-worker/assets/qali-icon.png`](../apps/slack-worker/assets/qali-icon.png) (1024×1024). Optionally set via [`apps.icon.set`](https://docs.slack.dev/reference/methods/apps.icon.set) with a public image URL or multipart upload.
+8. Copy credentials into the repo `.env` (from `.env.example`):
 
 | Slack UI                                                        | Env / secret           |
 | --------------------------------------------------------------- | ---------------------- |
@@ -35,7 +34,7 @@ npm run control-plane:render-slack-manifest
 | Signing Secret                                                  | `SLACK_SIGNING_SECRET` |
 | Bot User ID (Basic Information → App Credentials / bot profile) | `SLACK_BOT_USER_ID`    |
 
-8. Push those values to the Cloudflare Worker:
+9. Push those values to the Cloudflare Worker:
 
 ```bash
 # Sync only Slack secrets from .env (skips empty GitHub keys)
@@ -57,6 +56,8 @@ npm run control-plane:deploy
 
 | Setting           | Value                                                       |
 | ----------------- | ----------------------------------------------------------- |
+| Background color  | `#ff0084`                                                   |
+| App icon          | Upload separately — see step 7 (`assets/qali-icon.png`)     |
 | Bot events        | `app_mention`, `message.im`                                 |
 | Events URL        | `{WORKER}/slack/events`                                     |
 | Interactivity URL | `{WORKER}/slack/interactions`                               |

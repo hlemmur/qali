@@ -4,7 +4,7 @@
  * Usage:
  *   npm run control-plane:provision [-- --dry-run]
  *   npm run control-plane:render-slack-manifest
- *     (reads WORKER_BASE_URL / CLOUDFLARE_WORKERS_SUBDOMAIN from .env or the environment)
+ *     (reads WORKER_BASE_URL from .env or the environment)
  *
  * Requires: wrangler authenticated (`npx wrangler login`) for provision (not for render-only).
  */
@@ -46,10 +46,7 @@ function loadDotEnv(): void {
 
 function workerBaseUrlFromEnv(): string {
   return resolveWorkerBaseUrl({
-    ...(process.env.WORKER_BASE_URL ? { override: process.env.WORKER_BASE_URL } : {}),
-    ...(process.env.CLOUDFLARE_WORKERS_SUBDOMAIN
-      ? { workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN }
-      : {})
+    ...(process.env.WORKER_BASE_URL ? { override: process.env.WORKER_BASE_URL } : {})
   });
 }
 
@@ -165,7 +162,7 @@ Next: set Worker secrets from .env:
 Then deploy:
   npm run control-plane:deploy
 
-Render Slack manifest for upload (reads WORKER_BASE_URL / CLOUDFLARE_WORKERS_SUBDOMAIN from .env):
+Render Slack manifest for upload (reads WORKER_BASE_URL from .env):
   npm run control-plane:render-slack-manifest
 `);
 }
@@ -200,7 +197,7 @@ try {
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.log(
-    `Skipped local Slack manifest render (${message}). Set WORKER_BASE_URL or CLOUDFLARE_WORKERS_SUBDOMAIN in .env, then run npm run control-plane:render-slack-manifest.`
+    `Skipped local Slack manifest render (${message}). Set WORKER_BASE_URL in .env, then run npm run control-plane:render-slack-manifest.`
   );
 }
 
