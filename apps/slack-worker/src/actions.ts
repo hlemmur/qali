@@ -144,14 +144,23 @@ export async function handleSlackAction(input: {
         ? 'triage-failure'
         : ((correlation.workflowId as NormalizedCommand['intent'] | undefined) ?? 'run-test-suite');
     const command = rebuildCommand(correlation, work, intent);
+    const childRequestId = `${actionId === 'triage_failures' ? 'triage' : 'rerun'}-${Date.now().toString(36)}`;
+    const childWork: InboundWork = {
+      ...work,
+      identity: `child:${childRequestId}`,
+      requestId: childRequestId
+    };
+    await store.accept(childWork);
+    await store.claim(childRequestId);
     const label = actionId === 'triage_failures' ? 'Starting triage…' : 'Rerunning…';
     await slack.postThreadNotice({
       channelId: work.slack.channelId,
       threadTs: work.slack.threadTs,
       text: label
     });
-    const dispatched = await github.dispatch(command, work.requestId);
-    await store.markDispatched(work.requestId, command, dispatched.runId);
+    const dispatched = await github.dispatch(command, childRequestId);
+    await store.markDispatched(childRequestId, command, dispatched.runId);
+    await store.markCompleted(work.requestId, 'action-handled');
     await slack.postThreadNotice({
       channelId: work.slack.channelId,
       threadTs: work.slack.threadTs,

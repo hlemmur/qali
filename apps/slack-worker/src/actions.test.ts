@@ -123,6 +123,8 @@ describe('Slack action handling', () => {
     const store = {
       findByRequestId: vi.fn(async () => correlation),
       findByRunId: vi.fn(),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
       markCompleted: vi.fn(),
       markDispatched: vi.fn()
     } as unknown as ControlStore;
@@ -139,14 +141,17 @@ describe('Slack action handling', () => {
       slack
     });
 
+    expect(store.accept).toHaveBeenCalled();
+    expect(store.claim).toHaveBeenCalled();
     expect(github.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'run-test-suite',
         project: { id: '_demo', root: 'projects/_demo' }
       }),
-      'action-1'
+      expect.stringMatching(/^rerun-/)
     );
     expect(store.markDispatched).toHaveBeenCalled();
+    expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-handled');
     expect(notices).toEqual(['Rerunning…', 'Started: https://github.test/runs/99']);
   });
 });

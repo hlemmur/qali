@@ -192,8 +192,8 @@ export class GitHubAppClient implements GitHubPort {
     dispatchedAt: number
   ): Promise<DispatchResult> {
     const runsEndpoint = `${this.config.apiUrl}/repos/${encodeURIComponent(this.config.owner)}/${encodeURIComponent(this.config.repo)}/actions/workflows/${encodeURIComponent(this.config.workflowFile)}/runs?event=workflow_dispatch&per_page=10`;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 400 + attempt * 300));
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500 + attempt * 400));
       const response = await this.request(runsEndpoint, {
         headers: {
           accept: 'application/vnd.github+json',
