@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Qali",
-    "description": "Slack-first autonomous QA orchestration. Ask Qali to explore, generate, and run Playwright tests.",
+    "description": "Slack-first autonomous QA agent. Ask Qali to test features, explore your app, generate/run test suits or report quality status",
     "background_color": "#1a1a2e"
   },
   "features": {

@@ -6,7 +6,7 @@ Qali uses a standard Slack app with Events API and Interactions — works on **f
 
 ## 1. Create a Slack app from manifest
 
-Qali ships a Slack App Manifest at `apps/slack-worker/slack-app-manifest.json`.
+Qali ships a Slack App Manifest at ([slack-app-manifest.json](apps/slack-worker/slack-app-manifest.json)).
 
 1. Provision and deploy Cloudflare ([setup-cloudflare.md](setup-cloudflare.md)).
 2. Render URLs for your Worker:
