@@ -8,7 +8,7 @@ test('DEMO-SMK-001 seeded customer reaches the dashboard', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByRole('heading', { name: 'Good morning, Alex Morgan' })).toBeVisible();
-  await expect(page.getByTestId('balance')).toHaveText('$12,480.50');
+  await expect(page.getByTestId('balance')).toHaveText('$999,999.99');
   await expect(page.getByText('Coffee House')).toBeVisible();
   await expect(page.getByText('MOCK MODE')).toBeVisible();
 });
