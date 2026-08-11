@@ -323,11 +323,22 @@ async function githubWebhook(
     ...meta,
     ...(counts ? { counts } : {})
   };
-  // Prefer /github/run-summary (has pass/fail counts). Skip bare completed webhooks once posted.
   const terminal = Boolean(summary.conclusion) || summary.status === 'completed';
-  if (terminal && correlation.responseTs && !counts) {
-    await store.markCompleted(correlation.requestId, summary.conclusion ?? summary.status);
-    return json(200, { ok: true, deferred: 'run-summary' });
+  const finalized = [
+    'passed',
+    'failed',
+    'success',
+    'failure',
+    'cancelled',
+    'canceled',
+    'timed_out'
+  ].includes(correlation.status.toLowerCase());
+  // Prefer /github/run-summary (pass/fail counts). Never clobber a richer Slack card.
+  if (!counts && correlation.responseTs && (finalized || !terminal)) {
+    if (terminal) {
+      await store.markCompleted(correlation.requestId, summary.conclusion ?? summary.status);
+    }
+    return json(200, { ok: true, skipped: 'preserve-slack' });
   }
   return applySlackSummary({ store, slack, correlation, summary });
 }
@@ -358,12 +369,10 @@ async function githubRunSummary(
   }
   const requestId = typeof payload.requestId === 'string' ? payload.requestId : undefined;
   const runId = payload.runId !== undefined ? String(payload.runId) : undefined;
-  const correlation = requestId
-    ? await store.findByRequestId(requestId)
-    : runId
-      ? await store.findByRunId(runId)
-      : null;
-  if (!correlation) return new Response('Uncorrelated', { status: 202 });
+  const correlation =
+    (requestId ? await store.findByRequestId(requestId) : null) ??
+    (runId ? await store.findByRunId(runId) : null);
+  if (!correlation) return new Response('Uncorrelated', { status: 404 });
   const counts = record(payload.counts);
   const hasCounts =
     typeof counts.total === 'number' &&

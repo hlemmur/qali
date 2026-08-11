@@ -124,5 +124,6 @@ if (!response.ok) {
   console.error(`run-summary callback failed: ${response.status} ${text.slice(0, 400)}`);
   process.exitCode = 1;
 } else {
-  console.log(`Posted run summary to ${url}`);
+  const text = await response.text();
+  console.log(`Posted run summary to ${url} (${response.status}) ${text.slice(0, 200)}`);
 }

@@ -145,6 +145,7 @@ export class GitHubAppClient implements GitHubPort {
     const trustedCommand = NormalizedCommandSchema.parse(command);
     const token = await this.installationToken();
     const endpoint = `${this.config.apiUrl}/repos/${encodeURIComponent(this.config.owner)}/${encodeURIComponent(this.config.repo)}/actions/workflows/${encodeURIComponent(this.config.workflowFile)}/dispatches`;
+    const dispatchedAt = Date.now();
     const response = await this.request(endpoint, {
       method: 'POST',
       headers: {
@@ -168,15 +169,62 @@ export class GitHubAppClient implements GitHubPort {
       })
     });
     if (!response.ok) throw new Error(`GitHub workflow dispatch failed: ${response.status}`);
-    if (response.status === 204) return {};
-    const data = (await response.json()) as {
-      workflow_run_id?: string | number;
-      workflow_run?: { id?: string | number; html_url?: string };
-    };
-    const id = data.workflow_run_id ?? data.workflow_run?.id;
-    return {
-      ...(id !== undefined ? { runId: String(id) } : {}),
-      ...(data.workflow_run?.html_url ? { htmlUrl: data.workflow_run.html_url } : {})
-    };
+    if (response.status !== 204) {
+      const data = (await response.json()) as {
+        workflow_run_id?: string | number;
+        workflow_run?: { id?: string | number; html_url?: string };
+      };
+      const id = data.workflow_run_id ?? data.workflow_run?.id;
+      if (id !== undefined) {
+        return {
+          runId: String(id),
+          ...(data.workflow_run?.html_url ? { htmlUrl: data.workflow_run.html_url } : {})
+        };
+      }
+    }
+    return this.findDispatchedRun(token, requestId, trustedCommand.intent, dispatchedAt);
+  }
+
+  private async findDispatchedRun(
+    token: string,
+    requestId: string,
+    _intent: string,
+    dispatchedAt: number
+  ): Promise<DispatchResult> {
+    const runsEndpoint = `${this.config.apiUrl}/repos/${encodeURIComponent(this.config.owner)}/${encodeURIComponent(this.config.repo)}/actions/workflows/${encodeURIComponent(this.config.workflowFile)}/runs?event=workflow_dispatch&per_page=10`;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400 + attempt * 300));
+      const response = await this.request(runsEndpoint, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          authorization: `Bearer ${token}`,
+          'user-agent': 'qali-slack-control',
+          'x-github-api-version': '2022-11-28'
+        }
+      });
+      if (!response.ok) continue;
+      const data = (await response.json()) as {
+        workflow_runs?: Array<{
+          id?: number;
+          name?: string;
+          display_title?: string;
+          html_url?: string;
+          created_at?: string;
+        }>;
+      };
+      const runs = data.workflow_runs ?? [];
+      const match = runs.find((run) => {
+        const title = `${run.name ?? ''} ${run.display_title ?? ''}`;
+        const created = run.created_at ? Date.parse(run.created_at) : 0;
+        return title.includes(requestId) && created >= dispatchedAt - 15_000;
+      });
+      if (match?.id !== undefined) {
+        return {
+          runId: String(match.id),
+          ...(match.html_url ? { htmlUrl: match.html_url } : {})
+        };
+      }
+    }
+    return {};
   }
 }

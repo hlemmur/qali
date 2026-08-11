@@ -1,4 +1,5 @@
 name: Execute Qali workflow
+run-name: Qali ${{ inputs.intent || 'scheduled' }} · ${{ inputs.request_id || github.run_id }}
 
 on:
   workflow_dispatch:
