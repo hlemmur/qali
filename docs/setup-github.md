@@ -204,9 +204,11 @@ Unsafe mutations (assertion weakening, visual baseline updates, deletes, authori
 
 ## 6. Cursor CLI (optional)
 
-When repository variable **`CURSOR_MODEL`** is set (**Settings → Secrets and variables → Actions → Variables**), agent steps can invoke the Cursor CLI (`agent -p`) on the runner. Without it, Mock Mode and local fakes still work (`npm run demo:loop`).
+When repository variable **`CURSOR_MODEL`** is set (**Settings → Secrets and variables → Actions → Variables**) **and** the Cursor Agent CLI (`agent`) is installed on the runner, agent workflow steps invoke that CLI.
 
-Cursor CLI install/auth on the runner is separate from this Dispatch App setup.
+Without `CURSOR_MODEL` (or without the `agent` binary), execution uses a **deterministic fallback** for analysis/report steps so smoke runs succeed. Install/auth of Cursor CLI on GitHub Actions is a separate setup step when you want live agent triage.
+
+Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
 
 ---
 

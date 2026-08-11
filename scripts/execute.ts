@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
-import { CursorCliAgentRuntime } from '../packages/agent-runtime/src/index.js';
+import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
 import {
   NormalizedCommandSchema,
   type NormalizedCommand,
   type WorkflowEvent,
   type WorkflowStep
 } from '../packages/contracts/src/index.js';
+import { renderGeneratedJson } from '../packages/knowledge/src/index.js';
 import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
@@ -20,7 +21,12 @@ import {
   type StepExecutor,
   type WorkflowEventStore
 } from '../packages/orchestrator/src/index.js';
-import { SpawnPlaywrightRunner } from '../packages/playwright/src/index.js';
+import {
+  SpawnPlaywrightRunner,
+  parsePlaywrightJsonReport,
+  type PlaywrightEvidenceSummary
+} from '../packages/playwright/src/index.js';
+import { renderRunReport } from '../packages/reporting/src/index.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -100,6 +106,7 @@ class WorkflowPolicy implements PolicyEnforcer {
 class RoutedStepExecutor implements StepExecutor {
   private readonly playwright = new SpawnPlaywrightRunner();
   private readonly agent = new CursorCliAgentRuntime();
+  private playwrightSummary: PlaywrightEvidenceSummary | undefined;
   private readonly skills = new Map(
     (
       JSON.parse(readFileSync(join(workspace, 'skills/catalog.json'), 'utf8')) as {
@@ -107,6 +114,95 @@ class RoutedStepExecutor implements StepExecutor {
       }
     ).skills.map((skill) => [skill.id, JSON.stringify(skill.instructions)])
   );
+
+  private shouldUseCursorCli(): boolean {
+    return Boolean(process.env.CURSOR_MODEL?.trim()) && agentCliAvailable();
+  }
+
+  private async deterministicAgentStep(
+    step: WorkflowStep,
+    command: NormalizedCommand,
+    outputs: Array<{ artifact: WorkflowStep['outputs'][number]['artifact']; path: string }>
+  ) {
+    const projectRoot = join(workspace, command.project.root);
+    if (step.id === 'analyze-failures') {
+      const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
+      if (!existsSync(reportPath) && !this.playwrightSummary) {
+        return { status: 'failed' as const, error: 'Missing Playwright summary' };
+      }
+      const summary =
+        this.playwrightSummary ??
+        parsePlaywrightJsonReport(JSON.parse(readFileSync(reportPath, 'utf8')));
+      this.playwrightSummary = summary;
+      const analysisDirectory = join(projectRoot, 'observations/evidence/failure-analysis');
+      mkdirSync(analysisDirectory, { recursive: true });
+      writeFileSync(
+        join(analysisDirectory, 'summary.json'),
+        JSON.stringify(
+          {
+            mode: 'deterministic-fallback',
+            failed: summary.failed,
+            classification: summary.failed === 0 ? 'no-failures' : 'needs-triage',
+            note: 'Cursor Agent CLI unavailable; wrote deterministic failure analysis.'
+          },
+          null,
+          2
+        )
+      );
+      return { status: 'succeeded' as const, outputs };
+    }
+
+    if (step.id === 'report') {
+      const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
+      const summary =
+        this.playwrightSummary ??
+        (existsSync(reportPath)
+          ? parsePlaywrightJsonReport(JSON.parse(readFileSync(reportPath, 'utf8')))
+          : undefined);
+      if (!summary) return { status: 'failed' as const, error: 'Missing Playwright summary' };
+      const reportDirectory = join(projectRoot, 'derived/reports');
+      mkdirSync(reportDirectory, { recursive: true });
+      const runSummary = {
+        runId: command.parameters.requestId
+          ? String(command.parameters.requestId)
+          : `${command.intent}-run`,
+        status: summary.failed === 0 ? 'passed' : 'failed',
+        ...summary
+      };
+      const report = renderRunReport(runSummary);
+      writeFileSync(
+        join(reportDirectory, 'test-run.md'),
+        generatedMarkdown(`\n${report.markdown}`)
+      );
+      writeFileSync(join(reportDirectory, 'test-run.json'), renderGeneratedJson(report.json));
+      return { status: 'succeeded' as const, outputs };
+    }
+
+    for (const output of outputs) {
+      const absolute = join(workspace, output.path);
+      mkdirSync(dirname(absolute), { recursive: true });
+      if (absolute.endsWith('.md')) {
+        writeFileSync(
+          absolute,
+          generatedMarkdown(
+            `\n# ${step.id}\n\nDeterministic fallback (Cursor Agent CLI not configured).\n`
+          )
+        );
+      } else if (absolute.endsWith('.json')) {
+        writeFileSync(
+          absolute,
+          `${JSON.stringify({ mode: 'deterministic-fallback', step: step.id }, null, 2)}\n`
+        );
+      } else if (!existsSync(absolute)) {
+        mkdirSync(absolute, { recursive: true });
+        writeFileSync(
+          join(absolute, 'summary.json'),
+          `${JSON.stringify({ mode: 'deterministic-fallback', step: step.id }, null, 2)}\n`
+        );
+      }
+    }
+    return { status: 'succeeded' as const, outputs };
+  }
 
   async execute(step: WorkflowStep, command: NormalizedCommand) {
     const outputs = step.outputs.map(({ artifact, path }) => ({
@@ -121,6 +217,11 @@ class RoutedStepExecutor implements StepExecutor {
         projectId: command.project.id,
         reportPath: join(evidenceDir, 'results.json')
       });
+      if (existsSync(join(evidenceDir, 'results.json'))) {
+        this.playwrightSummary = parsePlaywrightJsonReport(
+          JSON.parse(readFileSync(join(evidenceDir, 'results.json'), 'utf8'))
+        );
+      }
       const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
       mkdirSync(dirname(jobPath), { recursive: true });
       writeFileSync(
@@ -133,6 +234,11 @@ class RoutedStepExecutor implements StepExecutor {
         ? ({ status: 'succeeded', outputs } as const)
         : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
     }
+
+    if (!this.shouldUseCursorCli()) {
+      return this.deterministicAgentStep(step, command, outputs);
+    }
+
     const result = await this.agent.execute({
       workspace,
       role: ROLE_PROFILES[step.role],
@@ -144,6 +250,9 @@ class RoutedStepExecutor implements StepExecutor {
     });
     if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
     if (result.status === 'blocked') return { status: 'blocked', reason: result.output } as const;
+    if (/ENOENT|not found/i.test(result.error)) {
+      return this.deterministicAgentStep(step, command, outputs);
+    }
     return { status: 'failed', error: result.error } as const;
   }
 }

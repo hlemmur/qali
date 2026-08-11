@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CursorCliAgentRuntime,
   FakeAgentRuntime,
+  agentCliAvailable,
   buildAgentPrompt,
   type AgentExecutionRequest,
   type AgentSpawn
@@ -149,5 +150,11 @@ describe('agent runtime', () => {
     const runtime = new FakeAgentRuntime([{ status: 'succeeded', output: 'ok' }]);
     await expect(runtime.execute(request())).resolves.toMatchObject({ output: 'ok' });
     expect(runtime.requests).toHaveLength(1);
+  });
+
+  it('detects whether the Cursor Agent CLI executable is available', () => {
+    expect(agentCliAvailable('agent', () => null)).toBe(false);
+    expect(agentCliAvailable('agent', () => '/usr/local/bin/agent')).toBe(true);
+    expect(agentCliAvailable('/missing/agent', () => null)).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
-import { spawn as nodeSpawn } from 'node:child_process';
+import { spawn as nodeSpawn, execFileSync } from 'node:child_process';
+import { accessSync } from 'node:fs';
 import type { EventEmitter } from 'node:events';
 import type { RoleProfile, WorkflowStep } from '../../contracts/src/index.js';
 
@@ -170,4 +171,26 @@ export class FakeAgentRuntime implements AgentRuntime {
     this.requests.push(request);
     return this.results.shift() ?? { status: 'succeeded', output: '{}' };
   }
+}
+
+/** True when Cursor Agent CLI is on PATH (or a custom executable exists). */
+export function agentCliAvailable(
+  executable = 'agent',
+  lookup: (command: string) => string | null = (command) => {
+    try {
+      return execFileSync('which', [command], { encoding: 'utf8' }).trim() || null;
+    } catch {
+      return null;
+    }
+  }
+): boolean {
+  if (executable.includes('/') || executable.includes('\\')) {
+    try {
+      accessSync(executable);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return lookup(executable) !== null;
 }
