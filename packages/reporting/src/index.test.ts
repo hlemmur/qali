@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { displayRunStatus, renderRunReport, renderSlackRunDetails, renderSlackRunSummary } from './index.js';
+import {
+  displayRunStatus,
+  renderRunReport,
+  renderSlackRunDetails,
+  renderSlackRunSummary
+} from './index.js';
 
 const result = {
   runId: 'demo-run',

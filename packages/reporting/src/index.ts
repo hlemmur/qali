@@ -99,8 +99,7 @@ export function renderSlackRunSummary(
   }
 
   const terminal = isTerminalRunStatus(summary);
-  const failed =
-    status === 'failed' || (hasCounts(summary) && summary.failed > 0);
+  const failed = hasCounts(summary) && summary.failed > 0;
   const elements: Array<Record<string, unknown>> = [];
 
   if (actions.detailsUrl) {

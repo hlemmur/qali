@@ -180,10 +180,7 @@ class RoutedStepExecutor implements StepExecutor {
       writeFileSync(join(reportDirectory, 'test-run.json'), renderGeneratedJson(report.json));
       writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(report.json));
       mkdirSync(join(workspace, '.qali'), { recursive: true });
-      writeFileSync(
-        join(workspace, '.qali/slack-summary.json'),
-        renderGeneratedJson(report.json)
-      );
+      writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(report.json));
       return { status: 'succeeded' as const, outputs };
     }
 

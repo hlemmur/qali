@@ -1,5 +1,12 @@
 import { NormalizedCommandSchema, type NormalizedCommand } from '@qali/contracts';
-import type { ControlStore, Correlation, GitHubPort, InboundWork, SlackPort, SlackRunSummary } from './types.js';
+import type {
+  ControlStore,
+  Correlation,
+  GitHubPort,
+  InboundWork,
+  SlackPort,
+  SlackRunSummary
+} from './types.js';
 
 /** Link buttons open URLs in the client; never enqueue work or post thread spam. */
 export const LINK_ONLY_ACTIONS = new Set(['open_run_url', 'open_report', 'run_details']);

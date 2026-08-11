@@ -73,12 +73,23 @@ const counts =
       }
     : undefined;
 
+const jobStatus = process.env.JOB_STATUS ?? 'unknown';
+const hasReport = Object.keys(report).length > 0;
 const status =
   typeof report.status === 'string'
     ? report.status
-    : process.env.JOB_STATUS === 'success'
+    : jobStatus === 'success'
       ? 'passed'
-      : (process.env.JOB_STATUS ?? 'unknown');
+      : jobStatus === 'failure' || jobStatus === 'cancelled'
+        ? 'failed'
+        : jobStatus;
+
+const errors = Array.isArray(report.errors)
+  ? report.errors.filter((entry): entry is string => typeof entry === 'string')
+  : [];
+if (!counts && jobStatus === 'failure') {
+  errors.push('GitHub Actions failed before a test report was produced');
+}
 
 const body = JSON.stringify({
   requestId: process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID,
@@ -86,10 +97,14 @@ const body = JSON.stringify({
   htmlUrl: process.env.GITHUB_RUN_URL,
   intent: process.env.SUMMARY_INTENT,
   projectId: project.id,
-  suiteLabel: typeof report.suiteLabel === 'string' ? report.suiteLabel : 'smoke',
+  ...(typeof report.suiteLabel === 'string'
+    ? { suiteLabel: report.suiteLabel }
+    : hasReport
+      ? { suiteLabel: 'smoke' }
+      : {}),
   status,
   ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
-  ...(Array.isArray(report.errors) ? { errors: report.errors } : {}),
+  ...(errors.length ? { errors } : {}),
   ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
   ...(counts ? { counts } : {})
 });
