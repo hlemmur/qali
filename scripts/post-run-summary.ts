@@ -74,7 +74,6 @@ const counts =
     : undefined;
 
 const jobStatus = process.env.JOB_STATUS ?? 'unknown';
-const hasReport = Object.keys(report).length > 0;
 const status =
   typeof report.status === 'string'
     ? report.status
@@ -99,7 +98,7 @@ const body = JSON.stringify({
   projectId: project.id,
   ...(typeof report.suiteLabel === 'string'
     ? { suiteLabel: report.suiteLabel }
-    : hasReport
+    : process.env.SUMMARY_INTENT === 'run-test-suite'
       ? { suiteLabel: 'smoke' }
       : {}),
   status,
