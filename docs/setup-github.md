@@ -100,12 +100,18 @@ On the new app’s settings page:
 3. Paste the **full PEM text** into `.env` as `GITHUB_APP_PRIVATE_KEY`, including the `BEGIN` / `END` lines:
 
 ```bash
-GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+GITHUB_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
 ...
------END RSA PRIVATE KEY-----"
+-----END PRIVATE KEY-----"
 ```
 
-(Multiline in `.env` is fine; sync script reads it as one secret.)
+(Multiline in `.env` is fine; sync script reads it as one secret. GitHub sometimes downloads `BEGIN RSA PRIVATE KEY` — convert first:
+
+```bash
+openssl pkcs8 -topk8 -nocrypt -in app.pem -out app-pkcs8.pem
+```
+
+Use the PKCS#8 file contents in `.env`.)
 
 ### 2.6 Install the app on the Qali repository
 
@@ -128,15 +134,15 @@ GITHUB_OWNER=<owner>
 GITHUB_REPO=qali
 GITHUB_APP_ID=<app-id>
 GITHUB_INSTALLATION_ID=<installation-id>
-GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+GITHUB_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
 ...
------END RSA PRIVATE KEY-----"
+-----END PRIVATE KEY-----"
 GITHUB_WEBHOOK_SECRET=<same-as-app-webhook-secret>
 GITHUB_WORKFLOW_FILE=execute.yml
 GITHUB_REF=main
 ```
 
-Leave `QALI_PUBLISH_GITHUB_TOKEN` empty for now.
+Use PKCS#8 (`BEGIN PRIVATE KEY`), not `BEGIN RSA PRIVATE KEY`. Leave `QALI_PUBLISH_GITHUB_TOKEN` empty for now.
 
 Push to Cloudflare:
 

@@ -95,4 +95,26 @@ describe('GitHub App workflow dispatch', () => {
     expect(dispatchRequest[1]).not.toHaveProperty('shell');
     expect(dispatchRequest[1]).not.toHaveProperty('command');
   });
+
+  it('rejects PKCS#1 RSA private keys with a conversion hint', async () => {
+    const client = new GitHubAppClient({
+      appId: '123',
+      privateKey: '-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----',
+      installationId: '456',
+      owner: 'qali',
+      repo: 'control',
+      workflowFile: 'execute.yml',
+      ref: 'main',
+      apiUrl: 'https://api.github.test'
+    });
+    const command: NormalizedCommand = {
+      intent: 'run-test-suite',
+      project: { id: 'demo', root: 'projects/demo' },
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: new Date().toISOString(),
+      parameters: {}
+    };
+    await expect(client.dispatch(command, 'request-1')).rejects.toThrow(/PKCS#8/);
+  });
 });

@@ -312,6 +312,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
       const store = storeService(env, overrides);
       const classifier = classifierService(env, overrides);
       const github = githubService(env, overrides);
+      const slack = slackService(env, overrides);
       for (const message of batch.messages) {
         if (!(await store.claim(message.body.requestId))) {
           message.ack();
@@ -328,9 +329,23 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           const dispatched = await github.dispatch(command, message.body.requestId);
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
           message.ack();
-        } catch {
-          await store.requeue(message.body.requestId);
-          message.retry();
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.error('qali.queue.failed', {
+            requestId: message.body.requestId,
+            detail
+          });
+          try {
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: `Qali could not start this request (\`${message.body.requestId}\`): ${detail.slice(0, 400)}`
+            });
+          } catch (notifyError) {
+            console.error('qali.queue.notify_failed', notifyError);
+          }
+          await store.markCompleted(message.body.requestId, 'failed');
+          message.ack();
         }
       }
     }

@@ -95,6 +95,7 @@ export interface SlackPort {
     responseTs: string,
     summary: SlackRunSummary
   ): Promise<void>;
+  postThreadNotice(input: { channelId: string; threadTs: string; text: string }): Promise<void>;
 }
 
 export interface SlackRunSummary {

@@ -68,4 +68,16 @@ export class SlackWebClient implements SlackPort {
       ...rendered
     });
   }
+
+  async postThreadNotice(input: {
+    channelId: string;
+    threadTs: string;
+    text: string;
+  }): Promise<void> {
+    await this.call('chat.postMessage', {
+      channel: input.channelId,
+      thread_ts: input.threadTs,
+      text: input.text
+    });
+  }
 }

@@ -11,7 +11,15 @@ function base64Url(input: string | ArrayBuffer): string {
 }
 
 function privateKeyBytes(pem: string): ArrayBuffer {
+  if (/BEGIN RSA PRIVATE KEY/.test(pem)) {
+    throw new Error(
+      'GITHUB_APP_PRIVATE_KEY must be PKCS#8 (-----BEGIN PRIVATE KEY-----). Convert with: openssl pkcs8 -topk8 -nocrypt -in key.pem -out key-pkcs8.pem'
+    );
+  }
   const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+  if (!body) {
+    throw new Error('GITHUB_APP_PRIVATE_KEY is empty or not a PKCS#8 PEM');
+  }
   const binary = atob(body);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
 }

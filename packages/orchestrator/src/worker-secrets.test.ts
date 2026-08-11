@@ -17,6 +17,22 @@ EMPTY=
     });
   });
 
+  it('parses multiline double-quoted values such as PEM private keys', () => {
+    expect(
+      parseDotEnv(`
+GITHUB_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+line-one
+line-two
+-----END PRIVATE KEY-----"
+GITHUB_APP_ID=123
+`)
+    ).toEqual({
+      GITHUB_APP_PRIVATE_KEY:
+        '-----BEGIN PRIVATE KEY-----\nline-one\nline-two\n-----END PRIVATE KEY-----',
+      GITHUB_APP_ID: '123'
+    });
+  });
+
   it('selects only configured Worker secrets and reports missing required ones', () => {
     const decision = selectSecretsToSync(
       {

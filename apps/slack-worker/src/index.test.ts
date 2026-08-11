@@ -367,6 +367,42 @@ describe('Slack control worker', () => {
     expect(store.correlations.get('Ev1')?.status).toBe('rejected');
   });
 
+  it('posts a Slack failure notice and stops retrying when queue processing throws', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const notices: Array<{ channelId: string; threadTs: string; text: string }> = [];
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async () => {
+          throw new Error('Workers AI classification failed');
+        }
+      },
+      github: { dispatch: vi.fn() },
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    const message = { body: queue[0]!, ack: vi.fn(), retry: vi.fn() };
+
+    await worker.queue({ messages: [message] }, baseEnv(queue));
+
+    expect(message.ack).toHaveBeenCalled();
+    expect(message.retry).not.toHaveBeenCalled();
+    expect(store.correlations.get('Ev1')?.status).toBe('failed');
+    expect(notices[0]).toMatchObject({
+      channelId: 'C1',
+      threadTs: '1700000000.001'
+    });
+    expect(notices[0]?.text).toContain('Workers AI classification failed');
+  });
+
   it('accepts signed interactive actions as deduplicated queue work', async () => {
     const queue: InboundWork[] = [];
     const worker = createWorker({
@@ -419,7 +455,8 @@ describe('Slack control worker', () => {
     await store.markDispatched('Ev1', command(work), '42');
     const slack: SlackPort = {
       postResult: vi.fn(async () => '2.2'),
-      updateResult: vi.fn(async () => undefined)
+      updateResult: vi.fn(async () => undefined),
+      postThreadNotice: vi.fn(async () => undefined)
     };
     const worker = createWorker({
       store,
