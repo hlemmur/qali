@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assessPromotion,
   classifyMutation,
+  refreshGeneratedMarkers,
   renderGeneratedJson,
   scaffoldProject,
   validateProjectDirectory,
@@ -223,6 +224,9 @@ describe('canonical project template', () => {
           })
         ]
       });
+
+      expect(refreshGeneratedMarkers(projectRoot)).toBeGreaterThan(0);
+      expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
 
       writeFileSync(join(projectRoot, 'derived/reports/manual.md'), '# Manual report\n');
       expect(validateProjectDirectory(projectRoot).issues).toContainEqual(

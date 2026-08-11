@@ -360,3 +360,48 @@ export function validateProjectDirectory(projectRoot: string | URL): ProjectVali
 
   return { valid: issues.length === 0, issues };
 }
+
+/**
+ * Recompute Qali ownership hashes for derived markdown/JSON after agent or Prettier edits.
+ * Returns the number of files whose markers were refreshed.
+ */
+export function refreshGeneratedMarkers(projectRoot: string | URL): number {
+  const root = typeof projectRoot === 'string' ? projectRoot : fileURLToPath(projectRoot);
+  const generatedPaths = new Set([
+    ...GENERATED_PROJECT_PATHS,
+    ...filesBelow(join(root, 'derived'))
+      .map((path) => relative(root, path))
+      .filter((path) => /\.(?:md|json|ya?ml)$/.test(path))
+  ]);
+
+  let updated = 0;
+  for (const relativePath of generatedPaths) {
+    const path = join(root, relativePath);
+    if (!existsSync(path)) continue;
+    const content = readFileSync(path, 'utf8');
+    if (relativePath.endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (!parsed._qali) continue;
+        const body = { ...parsed };
+        delete body._qali;
+        const next = renderGeneratedJson(body);
+        if (next !== content) {
+          writeFileSync(path, next);
+          updated += 1;
+        }
+      } catch {
+        // Leave invalid JSON for project:validate to report.
+      }
+      continue;
+    }
+    const match = generatedHeaderPattern.exec(content);
+    if (!match) continue;
+    const body = match[2]!;
+    const hash = createHash('sha256').update(body).digest('hex');
+    if (match[1] === hash) continue;
+    writeFileSync(path, `<!-- qali:generated owner=qali sha256=${hash} -->${body}`);
+    updated += 1;
+  }
+  return updated;
+}

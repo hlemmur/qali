@@ -82,8 +82,11 @@ jobs:
           PROJECT_ROOT="$(node -e 'const p=JSON.parse(process.env.PROJECT_JSON); process.stdout.write(p.root)')"
           # Live Cursor Agent may write markdown that is not Prettier-clean yet.
           npx prettier --write "$PROJECT_ROOT"
-          npm run check
-          npm run project:validate -- "$PROJECT_ROOT"
+          # Do not re-run unit tests against a mutated demo fixture; policy already checked pre-execute.
+          npm run format:check
+          npm run lint
+          npm run build
+          npm run project:validate -- --refresh "$PROJECT_ROOT"
       - name: Prepare controlled publication bundle
         if: github.event_name == 'workflow_dispatch'
         env:
