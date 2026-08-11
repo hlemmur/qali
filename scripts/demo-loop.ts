@@ -445,8 +445,8 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
   };
   const slack = renderSlackRunSummary(runSummary, {
     detailsUrl: 'https://example.invalid/qali/demo/details',
-    reportUrl: 'https://example.invalid/qali/demo/report',
     rerunValue: finalWorkflow.runId,
+    expandValue: finalWorkflow.runId,
     triageValue: finalWorkflow.runId
   });
   const slackDetails = renderSlackRunDetails(runSummary);

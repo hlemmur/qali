@@ -1,5 +1,5 @@
 import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifier.js';
-import { handleSlackAction } from './actions.js';
+import { handleSlackAction, LINK_ONLY_ACTIONS } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
 import { verifySignedRequest } from './security.js';
@@ -7,6 +7,7 @@ import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
 import type {
   ControlStore,
+  Correlation,
   Env,
   GitHubPort,
   InboundWork,
@@ -204,6 +205,10 @@ async function slackInteraction(
   ) {
     return new Response('Bad Request', { status: 400 });
   }
+  // URL buttons can still emit interaction payloads; never queue them.
+  if (LINK_ONLY_ACTIONS.has(action.action_id)) {
+    return json(200, { ok: true });
+  }
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
   const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
   if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
@@ -227,6 +232,43 @@ async function slackInteraction(
     }
   };
   return acceptWork(work, env, store);
+}
+
+function commandMeta(correlation: Correlation): { intent?: string; projectId?: string } {
+  if (!correlation.commandJson) return {};
+  try {
+    const parsed = JSON.parse(correlation.commandJson) as {
+      intent?: unknown;
+      project?: { id?: unknown };
+    };
+    return {
+      ...(typeof parsed.intent === 'string' ? { intent: parsed.intent } : {}),
+      ...(typeof parsed.project?.id === 'string' ? { projectId: parsed.project.id } : {})
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function applySlackSummary(input: {
+  store: ControlStore;
+  slack: SlackPort;
+  correlation: Correlation;
+  summary: SlackRunSummary;
+}): Promise<Response> {
+  const { store, slack, correlation, summary } = input;
+  if (correlation.responseTs) {
+    await slack.updateResult(correlation, correlation.responseTs, summary);
+    await store.markCompleted(correlation.requestId, summary.conclusion ?? summary.status);
+  } else {
+    const responseTs = await slack.postResult(correlation, summary);
+    await store.markCompleted(
+      correlation.requestId,
+      summary.conclusion ?? summary.status,
+      responseTs
+    );
+  }
+  return json(200, { ok: true });
 }
 
 async function githubWebhook(
@@ -272,26 +314,99 @@ async function githubWebhook(
           skipped: reportedCounts.skipped
         }
       : undefined;
+  const meta = commandMeta(correlation);
   const summary: SlackRunSummary = {
     runId,
     status: typeof run.status === 'string' ? run.status : String(payload.action ?? 'updated'),
     ...(typeof run.conclusion === 'string' ? { conclusion: run.conclusion } : {}),
     ...(typeof run.html_url === 'string' ? { htmlUrl: run.html_url } : {}),
-    ...(typeof run.artifacts_url === 'string' ? { reportUrl: run.artifacts_url } : {}),
+    ...meta,
     ...(counts ? { counts } : {})
   };
-  if (correlation.responseTs) {
-    await slack.updateResult(correlation, correlation.responseTs, summary);
+  // Prefer /github/run-summary (has pass/fail counts). Skip bare completed webhooks once posted.
+  const terminal = Boolean(summary.conclusion) || summary.status === 'completed';
+  if (terminal && correlation.responseTs && !counts) {
     await store.markCompleted(correlation.requestId, summary.conclusion ?? summary.status);
-  } else {
-    const responseTs = await slack.postResult(correlation, summary);
-    await store.markCompleted(
-      correlation.requestId,
-      summary.conclusion ?? summary.status,
-      responseTs
-    );
+    return json(200, { ok: true, deferred: 'run-summary' });
   }
-  return json(200, { ok: true });
+  return applySlackSummary({ store, slack, correlation, summary });
+}
+
+async function githubRunSummary(
+  request: Request,
+  env: Env,
+  store: ControlStore,
+  slack: SlackPort
+): Promise<Response> {
+  const raw = await request.text();
+  if (
+    !(await verifySignedRequest({
+      secret: env.GITHUB_WEBHOOK_SECRET,
+      body: raw,
+      signature: request.headers.get('x-hub-signature-256'),
+      nowSeconds: Math.floor(Date.now() / 1000),
+      prefix: 'sha256='
+    }))
+  ) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+  let payload: Record<string, unknown>;
+  try {
+    payload = record(JSON.parse(raw));
+  } catch {
+    return new Response('Bad Request', { status: 400 });
+  }
+  const requestId = typeof payload.requestId === 'string' ? payload.requestId : undefined;
+  const runId = payload.runId !== undefined ? String(payload.runId) : undefined;
+  const correlation = requestId
+    ? await store.findByRequestId(requestId)
+    : runId
+      ? await store.findByRunId(runId)
+      : null;
+  if (!correlation) return new Response('Uncorrelated', { status: 202 });
+  const counts = record(payload.counts);
+  const hasCounts =
+    typeof counts.total === 'number' &&
+    typeof counts.passed === 'number' &&
+    typeof counts.failed === 'number' &&
+    typeof counts.skipped === 'number';
+  const meta = commandMeta(correlation);
+  const errors = Array.isArray(payload.errors)
+    ? payload.errors.filter((entry): entry is string => typeof entry === 'string')
+    : undefined;
+  const evidence = Array.isArray(payload.evidence)
+    ? payload.evidence.filter((entry): entry is string => typeof entry === 'string')
+    : undefined;
+  const summary: SlackRunSummary = {
+    runId: runId ?? correlation.runId ?? correlation.requestId,
+    status: typeof payload.status === 'string' ? payload.status : correlation.status,
+    ...(typeof payload.htmlUrl === 'string' ? { htmlUrl: payload.htmlUrl } : {}),
+    ...(typeof payload.intent === 'string'
+      ? { intent: payload.intent }
+      : meta.intent
+        ? { intent: meta.intent }
+        : {}),
+    ...(typeof payload.projectId === 'string'
+      ? { projectId: payload.projectId }
+      : meta.projectId
+        ? { projectId: meta.projectId }
+        : {}),
+    ...(typeof payload.suiteLabel === 'string' ? { suiteLabel: payload.suiteLabel } : {}),
+    ...(typeof payload.durationMs === 'number' ? { durationMs: payload.durationMs } : {}),
+    ...(errors && errors.length ? { errors } : {}),
+    ...(evidence && evidence.length ? { evidence } : {}),
+    ...(hasCounts
+      ? {
+          counts: {
+            total: counts.total as number,
+            passed: counts.passed as number,
+            failed: counts.failed as number,
+            skipped: counts.skipped as number
+          }
+        }
+      : {})
+  };
+  return applySlackSummary({ store, slack, correlation, summary });
 }
 
 export function createWorker(overrides: WorkerDependencies = {}) {
@@ -305,6 +420,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
       if (pathname === '/slack/interactions') return slackInteraction(request, env, store, now);
       if (pathname === '/github/webhook') {
         return githubWebhook(request, env, store, slackService(env, overrides), now);
+      }
+      if (pathname === '/github/run-summary') {
+        return githubRunSummary(request, env, store, slackService(env, overrides));
       }
       return new Response('Not Found', { status: 404 });
     },
@@ -334,7 +452,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
-              text: `Working on it (\`${message.body.requestId}\`)…`
+              text: 'Working on it…'
             });
           } catch (ackError) {
             console.error(
@@ -349,7 +467,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
-              text: `Qali rejected this request (\`${message.body.requestId}\`): ${reason}`
+              text: `Qali rejected this request: ${reason}`
             });
             await store.markCompleted(message.body.requestId, 'rejected', undefined, reason);
             message.ack();
@@ -361,8 +479,8 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             channelId: message.body.slack.channelId,
             threadTs: message.body.slack.threadTs,
             text: dispatched.htmlUrl
-              ? `Dispatched GitHub Actions: ${dispatched.htmlUrl}`
-              : `Dispatched GitHub Actions for \`${command.intent}\` (\`${message.body.requestId}\`).`
+              ? `Started: ${dispatched.htmlUrl}`
+              : `Started \`${command.intent}\`.`
           });
           message.ack();
         } catch (error) {
@@ -375,7 +493,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
-              text: `Qali could not start this request (\`${message.body.requestId}\`): ${detail.slice(0, 400)}`
+              text: `Qali could not start this request: ${detail.slice(0, 400)}`
             });
           } catch (notifyError) {
             console.error(

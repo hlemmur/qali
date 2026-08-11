@@ -145,7 +145,14 @@ npm run control-plane:sync-secrets -- --only github
 npm run control-plane:deploy   # if the Worker was live before these secrets existed
 ```
 
-Secrets live on the **Worker**, not as GitHub Actions secrets (except the optional publication token in §5).
+Secrets live on the **Worker**, not as GitHub Actions secrets — except:
+
+| Actions secret / variable | Purpose |
+| ------------------------- | ------- |
+| `QALI_CALLBACK_SECRET` | Same value as `GITHUB_WEBHOOK_SECRET` — Actions posts pass/fail counts to `/github/run-summary` |
+| `QALI_WORKER_BASE_URL` (variable) | Worker base URL, e.g. `https://qali-slack-control.<subdomain>.workers.dev` |
+| `QALI_PUBLISH_GITHUB_TOKEN` | Optional publication job (§5) |
+| `CURSOR_MODEL` (variable) | Optional agent model (§6) |
 
 ---
 

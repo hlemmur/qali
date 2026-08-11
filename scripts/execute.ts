@@ -167,6 +167,9 @@ class RoutedStepExecutor implements StepExecutor {
           ? String(command.parameters.requestId)
           : `${command.intent}-run`,
         status: summary.failed === 0 ? 'passed' : 'failed',
+        intent: command.intent,
+        projectId: command.project.id,
+        suiteLabel: 'smoke',
         ...summary
       };
       const report = renderRunReport(runSummary);
@@ -175,6 +178,12 @@ class RoutedStepExecutor implements StepExecutor {
         generatedMarkdown(`\n${report.markdown}`)
       );
       writeFileSync(join(reportDirectory, 'test-run.json'), renderGeneratedJson(report.json));
+      writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(report.json));
+      mkdirSync(join(workspace, '.qali'), { recursive: true });
+      writeFileSync(
+        join(workspace, '.qali/slack-summary.json'),
+        renderGeneratedJson(report.json)
+      );
       return { status: 'succeeded' as const, outputs };
     }
 

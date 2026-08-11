@@ -42,8 +42,8 @@ jobs:
     env:
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -90,9 +90,20 @@ jobs:
             printf '%s\n' "- Project: \`$SUMMARY_PROJECT\`"
             echo "- Result: \`${{ job.status }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Post Slack run summary
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          QALI_WORKER_BASE_URL: ${{ vars.QALI_WORKER_BASE_URL }}
+          QALI_CALLBACK_SECRET: ${{ secrets.QALI_CALLBACK_SECRET }}
+          SUMMARY_REQUEST_ID: ${{ inputs.request_id }}
+          SUMMARY_INTENT: ${{ inputs.intent }}
+          PROJECT_JSON: ${{ inputs.project_json }}
+          JOB_STATUS: ${{ job.status }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run post:run-summary
       - name: Upload Playwright and workflow evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
@@ -101,9 +112,11 @@ jobs:
             playwright-report/
             test-results/
             projects/*/observations/evidence/
+            projects/*/derived/reports/
             projects/*/derived/workflow-state/
             .qali/generated.patch
             .qali/publication-request.json
+            .qali/slack-summary.json
 
   publish-generated-changes:
     if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'
@@ -117,13 +130,13 @@ jobs:
       GITHUB_OWNER: ${{ github.repository_owner }}
       GITHUB_REPO: ${{ github.event.repository.name }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           path: publication-artifact

@@ -110,8 +110,14 @@ export interface SlackRunSummary {
   runId: string;
   status: string;
   conclusion?: string;
+  intent?: string;
+  projectId?: string;
+  suiteLabel?: string;
   htmlUrl?: string;
-  reportUrl?: string;
+  durationMs?: number;
+  evidence?: string[];
+  errors?: string[];
+  expanded?: boolean;
   counts?: {
     total: number;
     passed: number;

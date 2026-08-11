@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { renderRunReport, renderSlackRunDetails, renderSlackRunSummary } from './index.js';
+import { displayRunStatus, renderRunReport, renderSlackRunDetails, renderSlackRunSummary } from './index.js';
 
 const result = {
   runId: 'demo-run',
   status: 'passed' as const,
+  intent: 'run-test-suite',
+  projectId: '_demo',
   total: 3,
   passed: 2,
   failed: 0,
@@ -17,15 +19,17 @@ describe('compact run reporting', () => {
   it('renders only essential evidence-backed counts and actions by default', () => {
     const payload = renderSlackRunSummary(result, {
       detailsUrl: 'https://example.test/runs/demo-run',
-      reportUrl: 'https://example.test/reports/demo-run',
       rerunValue: 'demo-run',
+      expandValue: 'demo-run',
       triageValue: 'demo-run'
     });
 
     expect(payload.text).toContain('2 passed');
     expect(payload.text).toContain('0 failed');
+    expect(payload.text).not.toMatch(/success success/);
     expect(JSON.stringify(payload.blocks)).not.toContain('Duration:');
     expect(JSON.stringify(payload.blocks)).not.toContain('Evidence:');
+    expect(JSON.stringify(payload.blocks)).toContain('run-test-suite');
     expect(payload.blocks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'section' }),
@@ -34,24 +38,26 @@ describe('compact run reporting', () => {
           elements: expect.arrayContaining([
             expect.objectContaining({
               action_id: 'open_run_url',
-              url: 'https://example.test/runs/demo-run'
+              url: 'https://example.test/runs/demo-run',
+              text: expect.objectContaining({ text: 'GitHub' })
             }),
-            expect.objectContaining({ action_id: 'rerun_workflow' }),
-            expect.objectContaining({ action_id: 'open_report' })
+            expect.objectContaining({ action_id: 'expand_run_details' }),
+            expect.objectContaining({ action_id: 'rerun_workflow' })
           ])
         })
       ])
     );
+    expect(JSON.stringify(payload.blocks)).not.toContain('open_report');
     expect(JSON.stringify(payload.blocks)).not.toContain('triage_failures');
   });
 
-  it('hides rerun/triage/report while a run is still in progress', () => {
+  it('hides expand/rerun/triage while a run is still in progress', () => {
     const payload = renderSlackRunSummary(
       { runId: 'running-1', status: 'in_progress' },
       {
         detailsUrl: 'https://example.test/runs/running-1',
-        reportUrl: 'https://example.test/reports/running-1',
         rerunValue: 'running-1',
+        expandValue: 'running-1',
         triageValue: 'running-1'
       }
     );
@@ -75,20 +81,40 @@ describe('compact run reporting', () => {
         total: 2,
         passed: 1,
         failed: 1,
-        skipped: 0
+        skipped: 0,
+        errors: ['login.spec.ts › submits form']
       },
-      { triageValue: 'failed-1', rerunValue: 'failed-1' }
+      { triageValue: 'failed-1', rerunValue: 'failed-1', expandValue: 'failed-1' }
     );
     expect(JSON.stringify(payload.blocks)).toContain('triage_failures');
     expect(JSON.stringify(payload.blocks)).toContain('rerun_workflow');
+    expect(JSON.stringify(payload.blocks)).toContain('login.spec.ts');
   });
 
-  it('renders verbose run details separately for expansion', () => {
-    const payload = renderSlackRunDetails(result);
+  it('renders verbose run details on expand and collapses cleanly', () => {
+    const details = renderSlackRunDetails(result);
+    expect(details.text).toContain('details');
+    expect(JSON.stringify(details.blocks)).toContain('Duration: 1250 ms');
+    expect(JSON.stringify(details.blocks)).toContain('results.json');
 
-    expect(payload.text).toContain('details');
-    expect(JSON.stringify(payload.blocks)).toContain('Duration: 1250 ms');
-    expect(JSON.stringify(payload.blocks)).toContain('results.json');
+    const expanded = renderSlackRunSummary(result, {
+      expandValue: 'demo-run',
+      rerunValue: 'demo-run',
+      expanded: true
+    });
+    expect(JSON.stringify(expanded.blocks)).toContain('Duration: 1250 ms');
+    expect(JSON.stringify(expanded.blocks)).toContain('collapse_run_details');
+  });
+
+  it('normalizes success conclusion without duplicating status words', () => {
+    expect(displayRunStatus({ status: 'completed', conclusion: 'success' })).toBe('passed');
+    const payload = renderSlackRunSummary({
+      runId: 'external-run',
+      status: 'completed',
+      conclusion: 'success'
+    });
+    expect(payload.text).toBe('Qali passed');
+    expect(payload.text).not.toMatch(/success success/);
   });
 
   it('does not fabricate unavailable result counts', () => {
@@ -97,7 +123,7 @@ describe('compact run reporting', () => {
       status: 'running'
     });
 
-    expect(payload.text).toBe('Qali run external-run: running');
+    expect(payload.text).toBe('Qali running');
     expect(payload.text).not.toMatch(/passed|failed/);
   });
 

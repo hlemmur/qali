@@ -19,6 +19,7 @@
     "demo:test": "playwright test projects/_demo/tests",
     "demo:loop": "tsx scripts/demo-loop.ts",
     "execute": "tsx scripts/execute.ts",
+    "post:run-summary": "tsx scripts/post-run-summary.ts",
     "publish:prepare": "tsx scripts/prepare-publication.ts",
     "publish": "tsx scripts/publish.ts",
     "project:validate": "tsx scripts/validate-project.ts",

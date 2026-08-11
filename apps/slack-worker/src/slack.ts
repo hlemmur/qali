@@ -8,19 +8,48 @@ interface SlackResponse {
   error?: string;
 }
 
-function payload(correlation: Correlation, summary: SlackRunSummary) {
+function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
+  const snapshot = {
+    runId: summary.runId,
+    status: summary.status,
+    ...(summary.conclusion ? { conclusion: summary.conclusion } : {}),
+    ...(summary.intent ? { intent: summary.intent } : {}),
+    ...(summary.projectId ? { projectId: summary.projectId } : {}),
+    ...(summary.suiteLabel ? { suiteLabel: summary.suiteLabel } : {}),
+    ...(summary.counts ?? {}),
+    ...(summary.errors ? { errors: summary.errors } : {}),
+    ...(summary.evidence ? { evidence: summary.evidence } : {}),
+    ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {}),
+    ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {})
+  };
+  const expandValue = JSON.stringify({
+    requestId: correlation.requestId,
+    runId: summary.runId,
+    summary: snapshot
+  });
+  const controlValue = JSON.stringify({
+    requestId: correlation.requestId,
+    runId: summary.runId
+  });
   return renderSlackRunSummary(
     {
       runId: summary.runId,
-      status: summary.conclusion ?? summary.status,
+      status: summary.status,
       ...(summary.conclusion ? { conclusion: summary.conclusion } : {}),
-      ...(summary.counts ?? {})
+      ...(summary.intent ? { intent: summary.intent } : {}),
+      ...(summary.projectId ? { projectId: summary.projectId } : {}),
+      ...(summary.suiteLabel ? { suiteLabel: summary.suiteLabel } : {}),
+      ...(summary.counts ?? {}),
+      ...(summary.errors ? { errors: summary.errors } : {}),
+      ...(summary.evidence ? { evidence: summary.evidence } : {}),
+      ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {})
     },
     {
       ...(summary.htmlUrl ? { detailsUrl: summary.htmlUrl } : {}),
-      ...(summary.reportUrl ? { reportUrl: summary.reportUrl } : {}),
-      rerunValue: JSON.stringify({ requestId: correlation.requestId, runId: summary.runId }),
-      triageValue: JSON.stringify({ requestId: correlation.requestId, runId: summary.runId })
+      expandValue,
+      rerunValue: controlValue,
+      triageValue: controlValue,
+      expanded: Boolean(summary.expanded)
     }
   );
 }
@@ -48,7 +77,7 @@ export class SlackWebClient implements SlackPort {
   }
 
   async postResult(correlation: Correlation, summary: SlackRunSummary): Promise<string> {
-    const rendered = payload(correlation, summary);
+    const rendered = actionPayload(correlation, summary);
     const result = await this.call('chat.postMessage', {
       channel: correlation.channelId,
       thread_ts: correlation.threadTs,
@@ -63,7 +92,7 @@ export class SlackWebClient implements SlackPort {
     responseTs: string,
     summary: SlackRunSummary
   ): Promise<void> {
-    const rendered = payload(correlation, summary);
+    const rendered = actionPayload(correlation, summary);
     await this.call('chat.update', {
       channel: correlation.channelId,
       ts: responseTs,
@@ -84,7 +113,6 @@ export class SlackWebClient implements SlackPort {
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      // Private channels / missing thread context: still surface the message in-channel.
       await this.call('chat.postMessage', {
         channel: input.channelId,
         text: `${input.text}\n_(Could not reply in-thread: ${detail.slice(0, 120)})_`

@@ -197,7 +197,8 @@ describe('Slack control worker', () => {
     expect(resultMessage?.text).toContain('2 passed');
     expect(JSON.stringify(resultMessage?.blocks)).toContain('open_run_url');
     expect(JSON.stringify(resultMessage?.blocks)).not.toContain('triage_failures');
-    expect(JSON.stringify(resultMessage?.blocks)).toContain('open_report');
+    expect(JSON.stringify(resultMessage?.blocks)).toContain('expand_run_details');
+    expect(JSON.stringify(resultMessage?.blocks)).not.toContain('open_report');
   });
 
   it('authenticates and ACKs before classifier or GitHub work', async () => {
