@@ -56,6 +56,13 @@ function explorationFocus(parameters: NormalizedCommand['parameters']): string {
   return declarative.join(', ').slice(0, 120) || 'project';
 }
 
+function nextGovernedId(content: string, prefix: 'OBS-EXP' | 'Q-EXP'): string {
+  const pattern = new RegExp(`\\b${prefix}-(\\d{3})\\b`, 'g');
+  const used = [...content.matchAll(pattern)].map((match) => Number(match[1]));
+  const next = Math.max(0, ...used) + 1;
+  return `${prefix}-${String(next).padStart(3, '0')}`;
+}
+
 export async function executeExplorationStep(
   workspace: string,
   step: WorkflowStep,
@@ -100,35 +107,48 @@ export async function executeExplorationStep(
   const startedAt = clock.now();
   const maxSteps = positiveInteger(command.parameters.maxSteps, 10, 50);
   const timeBudgetMs = positiveInteger(command.parameters.timeBudgetMs, 300_000, step.timeoutMs);
-  const ensureBudget = (completedSteps: number) => {
+  let completedSteps = 0;
+  const ensureBudget = () => {
     if (completedSteps >= maxSteps) return 'exploration step budget exhausted';
     if (clock.now() - startedAt >= timeBudgetMs) return 'exploration time budget exhausted';
     return undefined;
   };
-  const budgetFailure = ensureBudget(0);
-  if (budgetFailure) return { status: 'blocked' as const, reason: budgetFailure };
+  const blockedByBudget = () => {
+    const reason = ensureBudget();
+    return reason ? ({ status: 'blocked' as const, reason } as const) : undefined;
+  };
 
   const evidenceDirectory = join(projectRoot, 'observations/evidence/exploration');
   mkdirSync(evidenceDirectory, { recursive: true });
+  const explorationPath = join(projectRoot, 'observations/exploration.md');
+  const questionsPath = join(projectRoot, 'sources/questions.md');
+  const existingExploration = existsSync(explorationPath)
+    ? readFileSync(explorationPath, 'utf8').trim()
+    : '# Exploration Log';
+  const existingQuestions = existsSync(questionsPath)
+    ? readFileSync(questionsPath, 'utf8').trim()
+    : '# Open Questions';
+  const observationId = nextGovernedId(existingExploration, 'OBS-EXP');
+  const questionId = nextGovernedId(existingQuestions, 'Q-EXP');
+  let budgetFailure = blockedByBudget();
+  if (budgetFailure) return budgetFailure;
   const navigation = await browser.navigate('/');
-  if (clock.now() - startedAt >= timeBudgetMs) {
-    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
-  }
+  completedSteps += 1;
+  budgetFailure = blockedByBudget();
+  if (budgetFailure) return budgetFailure;
   const snapshot = await browser.accessibilitySnapshot();
-  if (clock.now() - startedAt >= timeBudgetMs) {
-    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
-  }
+  completedSteps += 1;
+  budgetFailure = blockedByBudget();
+  if (budgetFailure) return budgetFailure;
   const evidence = await browser.captureEvidence('session-home', {
     screenshot: true,
     trace: false
   });
-  if (clock.now() - startedAt >= timeBudgetMs) {
-    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
-  }
+  completedSteps += 1;
+  budgetFailure = blockedByBudget();
+  if (budgetFailure) return budgetFailure;
   const diagnostics = await browser.readDiagnostics();
-  if (clock.now() - startedAt >= timeBudgetMs) {
-    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
-  }
+  completedSteps += 1;
   const observedAt = command.receivedAt.slice(0, 10);
   const evidenceRefs = evidence.artifacts.map(
     (artifact) => `observations/evidence/exploration/${artifact}`
@@ -139,7 +159,7 @@ export async function executeExplorationStep(
       {
         version: 1,
         focus,
-        budget: { maxSteps, timeBudgetMs, completedSteps: 1 },
+        budget: { maxSteps, timeBudgetMs, completedSteps },
         page: { url: navigation.url, accessibilitySnapshot: snapshot.untrustedPageData },
         evidence: evidenceRefs,
         diagnostics
@@ -148,11 +168,7 @@ export async function executeExplorationStep(
       2
     )}\n`
   );
-  const explorationPath = join(projectRoot, 'observations/exploration.md');
   mkdirSync(dirname(explorationPath), { recursive: true });
-  const existingExploration = existsSync(explorationPath)
-    ? readFileSync(explorationPath, 'utf8').trim()
-    : '# Exploration Log';
   writeFileSync(
     explorationPath,
     [
@@ -164,15 +180,11 @@ export async function executeExplorationStep(
       '',
       '| ID | Observation | Status | Evidence | Observed at | Session |',
       '| --- | --- | --- | --- | --- | --- |',
-      `| OBS-EXP-001 | Browser facade captured the accessible home-page state at \`${navigation.url}\`. | observed | \`${evidenceRefs[0] ?? 'observations/evidence/exploration/session.json'}\` | ${observedAt} | bounded-exploration |`,
+      `| ${observationId} | Browser facade captured the accessible home-page state at \`${navigation.url}\`. | observed | \`${evidenceRefs[0] ?? 'observations/evidence/exploration/session.json'}\` | ${observedAt} | bounded-exploration |`,
       ''
     ].join('\n')
   );
-  const questionsPath = join(projectRoot, 'sources/questions.md');
   mkdirSync(dirname(questionsPath), { recursive: true });
-  const existingQuestions = existsSync(questionsPath)
-    ? readFileSync(questionsPath, 'utf8').trim()
-    : '# Open Questions';
   writeFileSync(
     questionsPath,
     [
@@ -182,7 +194,7 @@ export async function executeExplorationStep(
       '',
       '| ID | Question | Status | Blocking | Evidence |',
       '| --- | --- | --- | --- | --- |',
-      `| Q-EXP-001 | What expected behavior should be validated for the ${focus} focus? | open | no | \`observations/evidence/exploration/session.json\` |`,
+      `| ${questionId} | What expected behavior should be validated for the ${focus} focus? | open | no | \`observations/evidence/exploration/session.json\` |`,
       ''
     ].join('\n')
   );

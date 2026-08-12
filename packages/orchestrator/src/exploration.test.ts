@@ -20,7 +20,7 @@ const command: NormalizedCommand = {
   requestedBy: 'U1',
   externalRole: 'qa-lead-admin',
   receivedAt: '2026-08-13T00:00:00.000Z',
-  parameters: { area: 'login', maxSteps: '2', timeBudgetMs: '5000' }
+  parameters: { area: 'login', maxSteps: '4', timeBudgetMs: '5000' }
 };
 
 class FakeBrowser implements ExplorationBrowser {
@@ -112,8 +112,25 @@ describe('bounded exploratory testing', () => {
     );
     expect(session).toMatchObject({
       focus: 'login',
-      budget: { maxSteps: 2, timeBudgetMs: 5_000 }
+      budget: { maxSteps: 4, timeBudgetMs: 5_000, completedSteps: 4 }
     });
+
+    await executeExplorationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'explore')!,
+      command,
+      browser,
+      { now: () => 1_000 }
+    );
+    const rerunExploration = readFileSync(
+      join(projectRoot, 'observations/exploration.md'),
+      'utf8'
+    );
+    const rerunQuestions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
+    expect(rerunExploration.match(/OBS-EXP-001/g)).toHaveLength(1);
+    expect(rerunExploration.match(/OBS-EXP-002/g)).toHaveLength(1);
+    expect(rerunQuestions.match(/Q-EXP-001/g)).toHaveLength(1);
+    expect(rerunQuestions.match(/Q-EXP-002/g)).toHaveLength(1);
   });
 
   it('blocks exploration when the configured budget is exhausted before an action', async () => {
@@ -164,6 +181,29 @@ describe('bounded exploratory testing', () => {
     expect(browser.calls).toEqual(['navigate:/']);
   });
 
+  it('stops before the next browser action when the step budget is exhausted', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-'));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+    const browser = new FakeBrowser();
+
+    const result = await executeExplorationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'explore')!,
+      { ...command, parameters: { area: 'login', maxSteps: 1, timeBudgetMs: 5_000 } },
+      browser,
+      { now: () => 0 }
+    );
+
+    expect(result).toMatchObject({
+      status: 'blocked',
+      reason: 'exploration step budget exhausted'
+    });
+    expect(browser.calls).toEqual(['navigate:/']);
+  });
+
   it('runs the complete workflow and renders an evidence-backed report', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-e2e-'));
     const projectRoot = join(workspace, command.project.root);
@@ -206,7 +246,7 @@ describe('bounded exploratory testing', () => {
     expect(result.status).toBe('succeeded');
     expect(result.attempts).toHaveLength(3);
     const report = readFileSync(join(projectRoot, 'derived/reports/exploration.md'), 'utf8');
-    expect(report).toContain('OBS-EXP-001');
+    expect(report).toContain('OBS-EXP-010');
     expect(report).toContain('session-home/screenshot.png');
     expect(report).toContain('Q-EXP-001');
     expect(report).toContain('OBS-EXP-009');
