@@ -465,6 +465,7 @@ export const WorkflowEventSchema = z
     workflowId: z.string().min(1),
     runId: z.string().min(1),
     stepId: z.string().min(1).optional(),
+    attempt: WorkflowAttemptSchema.optional(),
     type: z.enum([
       'workflow-started',
       'step-started',
@@ -502,6 +503,7 @@ export const WorkflowResultSchema = z
     startedAt: z.iso.datetime(),
     finishedAt: z.iso.datetime(),
     outputs: z.array(ArtifactReferenceSchema),
+    attempts: z.array(WorkflowAttemptSchema).default([]),
     events: z.array(WorkflowEventSchema)
   })
   .strict();

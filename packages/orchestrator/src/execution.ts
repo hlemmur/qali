@@ -6,6 +6,7 @@ import {
   WorkflowResultSchema,
   type ArtifactReference,
   type NormalizedCommand,
+  type WorkflowAttempt,
   type WorkflowDescriptor,
   type WorkflowEvent,
   type WorkflowResult,
@@ -147,17 +148,20 @@ export async function executeWorkflow(
   const startedAt = now().toISOString();
   const events: WorkflowEvent[] = [];
   const outputs: ArtifactReference[] = [];
+  const attempts: WorkflowAttempt[] = [];
 
   const emit = async (
     type: WorkflowEvent['type'],
     detail: Record<string, unknown> = {},
-    stepId?: string
+    stepId?: string,
+    attempt?: WorkflowAttempt
   ): Promise<void> => {
     const event: WorkflowEvent = {
       id: id(),
       workflowId: workflow.id,
       runId,
       ...(stepId ? { stepId } : {}),
+      ...(attempt ? { attempt } : {}),
       type,
       occurredAt: now().toISOString(),
       detail
@@ -173,6 +177,7 @@ export async function executeWorkflow(
       startedAt,
       finishedAt: now().toISOString(),
       outputs,
+      attempts,
       events
     });
 
@@ -196,25 +201,70 @@ export async function executeWorkflow(
       await emit('workflow-blocked', { reason: policy.reason }, step.id);
       return result('blocked');
     }
-    await emit('step-started', {}, step.id);
-    const execution = await executeWithTimeout(ports.executor, step, command);
-    if (execution.status === 'blocked') {
-      await emit('workflow-blocked', { reason: execution.reason }, step.id);
-      return result('blocked');
+    for (let attemptNumber = 1; attemptNumber <= step.retries + 1; attemptNumber += 1) {
+      const runningAttempt: WorkflowAttempt = {
+        id: id(),
+        workflowId: workflow.id,
+        runId,
+        stepId: step.id,
+        attempt: attemptNumber,
+        harnessProfileId: step.harnessProfileId,
+        status: 'running',
+        startedAt: now().toISOString()
+      };
+      await emit('step-started', {}, step.id, runningAttempt);
+      const execution = await executeWithTimeout(ports.executor, step, command);
+      if (execution.status === 'blocked') {
+        const blockedAttempt: WorkflowAttempt = {
+          ...runningAttempt,
+          status: 'blocked',
+          finishedAt: now().toISOString(),
+          error: execution.reason
+        };
+        attempts.push(blockedAttempt);
+        await emit(
+          'workflow-blocked',
+          { reason: execution.reason },
+          step.id,
+          blockedAttempt
+        );
+        return result('blocked');
+      }
+
+      let error: string | undefined;
+      let attemptOutputs: ArtifactReference[] = [];
+      if (execution.status === 'failed') {
+        error = execution.error;
+      } else {
+        attemptOutputs = execution.outputs;
+        const validation = await ports.outputValidator.validate(step, execution.outputs, command);
+        if (!validation.valid) error = validation.reason;
+      }
+
+      if (error) {
+        const failedAttempt: WorkflowAttempt = {
+          ...runningAttempt,
+          status: 'failed',
+          finishedAt: now().toISOString(),
+          error
+        };
+        attempts.push(failedAttempt);
+        await emit('step-failed', { error }, step.id, failedAttempt);
+        if (attemptNumber <= step.retries) continue;
+        await emit('workflow-failed', { failedStepId: step.id });
+        return result('failed');
+      }
+
+      const succeededAttempt: WorkflowAttempt = {
+        ...runningAttempt,
+        status: 'succeeded',
+        finishedAt: now().toISOString()
+      };
+      attempts.push(succeededAttempt);
+      outputs.push(...attemptOutputs);
+      await emit('step-succeeded', { outputs: attemptOutputs }, step.id, succeededAttempt);
+      break;
     }
-    if (execution.status === 'failed') {
-      await emit('step-failed', { error: execution.error }, step.id);
-      await emit('workflow-failed', { failedStepId: step.id });
-      return result('failed');
-    }
-    const validation = await ports.outputValidator.validate(step, execution.outputs, command);
-    if (!validation.valid) {
-      await emit('step-failed', { error: validation.reason }, step.id);
-      await emit('workflow-failed', { failedStepId: step.id });
-      return result('failed');
-    }
-    outputs.push(...execution.outputs);
-    await emit('step-succeeded', { outputs: execution.outputs }, step.id);
   }
 
   await emit('workflow-succeeded');

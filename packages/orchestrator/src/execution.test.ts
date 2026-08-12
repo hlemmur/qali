@@ -169,6 +169,35 @@ describe('workflow execution', () => {
     });
   });
 
+  it('retries failed steps and persists every declared attempt', async () => {
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [{ ...workflow.steps[0]!, retries: 1 }]
+    };
+    ports.executor.results = [
+      { status: 'failed', error: 'transient browser failure' },
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
+      }
+    ];
+
+    const result = await executeWorkflow(command, ports);
+
+    expect(result.status).toBe('succeeded');
+    expect(ports.executor.steps).toEqual(['execute', 'execute']);
+    expect(result.attempts.map(({ attempt, status }) => ({ attempt, status }))).toEqual([
+      { attempt: 1, status: 'failed' },
+      { attempt: 2, status: 'succeeded' }
+    ]);
+    expect(
+      ports.events.events
+        .filter(({ attempt }) => attempt !== undefined)
+        .map(({ attempt }) => attempt?.status)
+    ).toEqual(['running', 'failed', 'running', 'succeeded']);
+  });
+
   it('rejects declared outputs that were not materialized on disk', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-output-'));
     const validator = new FileSystemOutputValidator(workspace);
