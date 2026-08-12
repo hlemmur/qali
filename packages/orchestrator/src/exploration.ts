@@ -131,13 +131,15 @@ export async function executeExplorationStep(
   const questionId = nextGovernedId(existingQuestions, 'Q-EXP');
   const sessionId = `session-${observationId.toLowerCase()}`;
   const sessionReference = `observations/evidence/exploration/${sessionId}.json`;
-  let navigation: { url: string } | undefined;
-  let snapshot: { untrustedPageData: string } | undefined;
-  let evidence: { evidenceId: string; artifacts: string[] } | undefined;
-  let diagnostics: Awaited<ReturnType<ExplorationBrowser['readDiagnostics']>> | undefined;
+  const session: {
+    navigation?: { url: string };
+    snapshot?: { untrustedPageData: string };
+    evidence?: { evidenceId: string; artifacts: string[] };
+    diagnostics?: Awaited<ReturnType<ExplorationBrowser['readDiagnostics']>>;
+  } = {};
   const observedAt = command.receivedAt.slice(0, 10);
   const finish = (truncationReason?: string) => {
-    const evidenceRefs = (evidence?.artifacts ?? []).map(
+    const evidenceRefs = (session.evidence?.artifacts ?? []).map(
       (artifact) => `observations/evidence/exploration/${artifact}`
     );
     writeFileSync(
@@ -149,24 +151,26 @@ export async function executeExplorationStep(
           status: truncationReason ? 'truncated' : 'complete',
           ...(truncationReason ? { truncationReason } : {}),
           budget: { maxSteps, timeBudgetMs, completedSteps },
-          ...(navigation
+          ...(session.navigation
             ? {
                 page: {
-                  url: navigation.url,
-                  ...(snapshot ? { accessibilitySnapshot: snapshot.untrustedPageData } : {})
+                  url: session.navigation.url,
+                  ...(session.snapshot
+                    ? { accessibilitySnapshot: session.snapshot.untrustedPageData }
+                    : {})
                 }
               }
             : {}),
           evidence: evidenceRefs,
-          ...(diagnostics ? { diagnostics } : {})
+          ...(session.diagnostics ? { diagnostics: session.diagnostics } : {})
         },
         null,
         2
       )}\n`
     );
     const evidenceReference = evidenceRefs[0] ?? sessionReference;
-    const accessibleNodes = snapshot
-      ? snapshot.untrustedPageData.split('\n').filter(Boolean).length
+    const accessibleNodes = session.snapshot
+      ? session.snapshot.untrustedPageData.split('\n').filter(Boolean).length
       : 0;
     mkdirSync(dirname(explorationPath), { recursive: true });
     writeFileSync(
@@ -180,7 +184,7 @@ export async function executeExplorationStep(
         '',
         '| ID | Observation | Status | Evidence | Observed at | Session |',
         '| --- | --- | --- | --- | --- | --- |',
-        `| ${observationId} | Browser facade captured ${snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${navigation ? ` at \`${navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
+        `| ${observationId} | Browser facade captured ${session.snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${session.navigation ? ` at \`${session.navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
         ''
       ].join('\n')
     );
@@ -207,22 +211,22 @@ export async function executeExplorationStep(
 
   let budgetFailure = blockedByBudget();
   if (budgetFailure) return budgetFailure;
-  navigation = await browser.navigate('/');
+  session.navigation = await browser.navigate('/');
   completedSteps += 1;
   budgetFailure = blockedByBudget();
   if (budgetFailure) return finish(budgetFailure.reason);
-  snapshot = await browser.accessibilitySnapshot();
+  session.snapshot = await browser.accessibilitySnapshot();
   completedSteps += 1;
   budgetFailure = blockedByBudget();
   if (budgetFailure) return finish(budgetFailure.reason);
-  evidence = await browser.captureEvidence(sessionId, {
+  session.evidence = await browser.captureEvidence(sessionId, {
     screenshot: true,
     trace: false
   });
   completedSteps += 1;
   budgetFailure = blockedByBudget();
   if (budgetFailure) return finish(budgetFailure.reason);
-  diagnostics = await browser.readDiagnostics();
+  session.diagnostics = await browser.readDiagnostics();
   completedSteps += 1;
   return finish();
 }
