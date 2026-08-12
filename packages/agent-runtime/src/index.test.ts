@@ -77,7 +77,9 @@ describe('agent runtime', () => {
         GITHUB_TOKEN: 'never',
         SLACK_BOT_TOKEN: 'never',
         QALI_TEST_CREDENTIALS_JSON: '{"password":"never"}',
-        QALI_TEST_DATA_JSON: '{"customer":"never"}'
+        QALI_TEST_DATA_JSON: '{"customer":"never"}',
+        DATABASE_URL: 'postgres://never',
+        AWS_SECRET_ACCESS_KEY: 'never'
       }
     });
 
@@ -90,7 +92,6 @@ describe('agent runtime', () => {
     expect(command).toBe('agent');
     expect(argv).toEqual([
       '-p',
-      '--force',
       '--output-format',
       'json',
       '--workspace',
@@ -107,18 +108,26 @@ describe('agent runtime', () => {
     expect(options.env).not.toHaveProperty('SLACK_BOT_TOKEN');
     expect(options.env).not.toHaveProperty('QALI_TEST_CREDENTIALS_JSON');
     expect(options.env).not.toHaveProperty('QALI_TEST_DATA_JSON');
+    expect(options.env).not.toHaveProperty('DATABASE_URL');
+    expect(options.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
   });
 
-  it('disables sandbox automatically in CI unless overridden', async () => {
+  it('keeps sandbox enabled in CI and ignores attempts to disable it through environment', async () => {
     const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"ok"}\n' }));
     const runtime = new CursorCliAgentRuntime({
       spawn,
-      env: { PATH: '/bin', CI: 'true', CURSOR_MODEL: 'sonnet-4' }
+      env: {
+        PATH: '/bin',
+        CI: 'true',
+        CURSOR_MODEL: 'sonnet-4',
+        CURSOR_SANDBOX: 'disabled'
+      }
     });
     await runtime.execute(request());
     expect(spawn.mock.calls[0]![1]).toEqual(
-      expect.arrayContaining(['--sandbox', 'disabled', '--model', 'sonnet-4'])
+      expect.arrayContaining(['--sandbox', 'enabled', '--model', 'sonnet-4'])
     );
+    expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('CURSOR_SANDBOX');
   });
 
   it('supports a configurable Agent CLI executable', async () => {

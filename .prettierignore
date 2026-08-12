@@ -1,0 +1,2 @@
+# Reviewed upstream assets are hash-pinned and must remain byte-for-byte unchanged.
+skills/runtime/*/SKILL.md

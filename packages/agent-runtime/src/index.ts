@@ -73,8 +73,9 @@ export interface CursorCliOptions {
 }
 
 function safeEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const allowed = /^(?:PATH|HOME|TMPDIR|TMP|TEMP|LANG|LC_[A-Z_]+|CI|CURSOR_API_KEY|CURSOR_MODEL)$/;
   return Object.fromEntries(
-    Object.entries(source).filter(([name]) => !/^(?:GITHUB_|GH_|SLACK_|QALI_)/i.test(name))
+    Object.entries(source).filter(([name, value]) => allowed.test(name) && value !== undefined)
   );
 }
 
@@ -110,15 +111,9 @@ export class CursorCliAgentRuntime implements AgentRuntime {
     const timeoutMs = request.timeoutMs ?? request.step.timeoutMs;
     const env = safeEnvironment(this.options.env ?? process.env);
     const model = this.options.model ?? env.CURSOR_MODEL;
-    const sandbox =
-      env.CURSOR_SANDBOX?.trim() === 'enabled' || env.CURSOR_SANDBOX?.trim() === 'disabled'
-        ? env.CURSOR_SANDBOX.trim()
-        : env.CI === 'true'
-          ? 'disabled'
-          : 'enabled';
+    const sandbox = 'enabled';
     const args = [
       '-p',
-      '--force',
       '--output-format',
       'json',
       '--workspace',

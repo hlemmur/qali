@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./harness-profiles": "./src/harness-profiles.ts",
+    "./harness-workspace": "./src/harness-workspace.ts",
+    "./skill-assets": "./src/skill-assets.ts"
+  },
   "dependencies": {
     "@qali/contracts": "0.1.0"
   }

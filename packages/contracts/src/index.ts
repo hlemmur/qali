@@ -230,6 +230,39 @@ export const ProjectExecutionProfileSchema = z
   });
 export type ProjectExecutionProfile = z.infer<typeof ProjectExecutionProfileSchema>;
 
+const HashedHarnessAssetSchema = z
+  .object({
+    path: z.string().regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/),
+    hash: z.string().regex(/^[a-f0-9]{64}$/)
+  })
+  .strict();
+
+export const AgentHarnessManifestSchema = z
+  .object({
+    version: z.literal(1),
+    profileId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    skills: z.array(
+      z
+        .object({
+          id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+          hash: z.string().regex(/^[a-f0-9]{64}$/)
+        })
+        .strict()
+    ),
+    policies: z.array(HashedHarnessAssetSchema),
+    templates: z.array(HashedHarnessAssetSchema),
+    inputs: z.array(HashedHarnessAssetSchema),
+    writableOutputDirectories: z.array(
+      z.string().regex(/^outputs\/(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9/_-]+$/)
+    ),
+    tools: z.array(z.literal('browser')),
+    mutations: z.array(MutationClassSchema),
+    validators: z.array(z.string().regex(/^[a-z][a-z0-9-]*$/)),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/)
+  })
+  .strict();
+export type AgentHarnessManifest = z.infer<typeof AgentHarnessManifestSchema>;
+
 export const ProjectMetadataSchema = z
   .object({
     id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),

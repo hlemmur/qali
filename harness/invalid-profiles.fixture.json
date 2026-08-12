@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "invalid",
+      "skillIds": ["unreviewed"],
+      "policyPaths": [],
+      "templatePaths": [],
+      "writableOutputDirectories": ["../escape"],
+      "tools": ["shell"],
+      "mutations": [],
+      "validators": []
+    },
+    {
+      "id": "invalid",
+      "skillIds": ["qa-start"],
+      "policyPaths": [],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/result"],
+      "tools": [],
+      "mutations": [],
+      "validators": []
+    }
+  ]
+}
