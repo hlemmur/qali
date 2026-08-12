@@ -112,15 +112,20 @@ describe('agent runtime', () => {
     expect(options.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
   });
 
-  it('disables sandbox automatically in CI unless overridden', async () => {
+  it('keeps sandbox enabled in CI and ignores attempts to disable it through environment', async () => {
     const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"ok"}\n' }));
     const runtime = new CursorCliAgentRuntime({
       spawn,
-      env: { PATH: '/bin', CI: 'true', CURSOR_MODEL: 'sonnet-4' }
+      env: {
+        PATH: '/bin',
+        CI: 'true',
+        CURSOR_MODEL: 'sonnet-4',
+        CURSOR_SANDBOX: 'disabled'
+      }
     });
     await runtime.execute(request());
     expect(spawn.mock.calls[0]![1]).toEqual(
-      expect.arrayContaining(['--sandbox', 'disabled', '--model', 'sonnet-4'])
+      expect.arrayContaining(['--sandbox', 'enabled', '--model', 'sonnet-4'])
     );
   });
 
