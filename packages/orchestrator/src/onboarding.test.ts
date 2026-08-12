@@ -64,4 +64,82 @@ describe('deterministic project onboarding', () => {
     expect(questions).toContain('What is the project tech stack?');
     expect(questions).toContain('| open |');
   });
+
+  it('derives journeys, risks, strategy, and plan with evidence traceability', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboarding-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/onboarding-evidence.json'),
+      JSON.stringify({
+        version: 1,
+        projectName: 'Sample Portal',
+        observedAt: '2026-08-13',
+        facts: [
+          {
+            id: 'FACT-001',
+            category: 'product',
+            statement: 'Customers review support requests.',
+            source: 'README.md'
+          }
+        ],
+        journeys: [
+          {
+            id: 'JRN-001',
+            actor: 'customer',
+            goal: 'review an open request',
+            steps: ['sign in', 'open support requests', 'select a request'],
+            outcome: 'the current request status is visible',
+            requirementIds: ['REQ-001'],
+            source: 'requirements.md#REQ-001'
+          }
+        ],
+        risks: [
+          {
+            id: 'RSK-001',
+            statement: 'A stale status can cause a customer to take the wrong action.',
+            impact: 5,
+            probability: 3,
+            source: 'REQ-001'
+          }
+        ]
+      })
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'project-onboarding')!;
+
+    for (const step of workflow.steps) {
+      await expect(executeOnboardingMockStep(workspace, step, command)).resolves.toMatchObject({
+        status: 'succeeded'
+      });
+    }
+
+    const journeys = readFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      'utf8'
+    );
+    const risks = readFileSync(
+      join(projectRoot, 'derived/reports/risk-assessment.md'),
+      'utf8'
+    );
+    const scenario = readFileSync(
+      join(projectRoot, 'derived/scenarios/smoke-proposal.md'),
+      'utf8'
+    );
+    const plan = readFileSync(
+      join(projectRoot, 'derived/reports/initial-test-plan.md'),
+      'utf8'
+    );
+    expect(journeys).toContain('Source: `requirements.md#REQ-001`');
+    expect(risks).toContain('| RSK-001 |');
+    expect(risks).toContain('| 15 |');
+    expect(scenario).toContain('JRN-001');
+    expect(scenario).toContain('REQ-001');
+    expect(plan).toContain('## Strategy');
+    expect(plan).toContain('Prioritize `RSK-001`');
+    expect(plan).toContain('## Initial Plan');
+    expect(plan).not.toContain('TBD');
+  });
 });

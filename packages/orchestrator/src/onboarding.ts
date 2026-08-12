@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -34,8 +35,30 @@ const OnboardingEvidenceSchema = z
         })
         .strict()
     ),
-    journeys: z.array(z.unknown()),
-    risks: z.array(z.unknown())
+    journeys: z.array(
+      z
+        .object({
+          id: z.string().regex(/^JRN-[0-9]+$/),
+          actor: z.string().min(1),
+          goal: z.string().min(1),
+          steps: z.array(z.string().min(1)).min(1),
+          outcome: z.string().min(1),
+          requirementIds: z.array(z.string().regex(/^REQ-[0-9]+$/)),
+          source: z.string().min(1)
+        })
+        .strict()
+    ),
+    risks: z.array(
+      z
+        .object({
+          id: z.string().regex(/^RSK-[0-9]+$/),
+          statement: z.string().min(1),
+          impact: z.number().int().min(1).max(5),
+          probability: z.number().int().min(1).max(5),
+          source: z.string().min(1)
+        })
+        .strict()
+    )
   })
   .strict();
 
@@ -81,12 +104,18 @@ function outputsFor(step: WorkflowStep, command: NormalizedCommand): ArtifactRef
   return step.outputs.map(({ artifact, path }) => ({ artifact, path: expand(path, command) }));
 }
 
+function generatedMarkdown(body: string): string {
+  const normalized = `\n\n${body.trim()}\n`;
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+}
+
 export async function executeOnboardingMockStep(
   workspace: string,
   step: WorkflowStep,
   command: NormalizedCommand
 ): Promise<StepExecutionResult> {
-  if (command.intent !== 'onboard-project' || step.id !== 'discover-project') {
+  if (command.intent !== 'onboard-project') {
     return { status: 'failed', error: `Unsupported onboarding step: ${step.id}` };
   }
   const projectRoot = join(workspace, command.project.root);
@@ -95,7 +124,8 @@ export async function executeOnboardingMockStep(
   const outputs = outputsFor(step, command);
   for (const output of outputs) mkdirSync(dirname(join(workspace, output.path)), { recursive: true });
 
-  const context = [
+  if (step.id === 'discover-project') {
+    const context = [
     '# QA Project Context',
     '',
     ...SECTIONS.flatMap(({ title, category }) => {
@@ -113,37 +143,149 @@ export async function executeOnboardingMockStep(
         ''
       ];
     })
-  ].join('\n');
-  writeFileSync(join(projectRoot, 'sources/project-context.md'), `${context.trimEnd()}\n`);
+    ].join('\n');
+    writeFileSync(join(projectRoot, 'sources/project-context.md'), `${context.trimEnd()}\n`);
 
-  const unknowns = SECTIONS.filter(
-    ({ category }) => !evidence.facts.some((fact) => fact.category === category)
-  );
-  const questions = [
-    '# Questions',
-    '',
-    '| ID | Question | Status | Blocking | Owner | Source | Asked | Answer / decision |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |',
-    ...unknowns.map(
-      ({ question }, index) =>
-        `| Q-${String(index + 1).padStart(3, '0')} | ${question} | open | no | unassigned | onboarding evidence gap | ${evidence.observedAt} | |`
-    ),
-    ''
-  ].join('\n');
-  writeFileSync(join(projectRoot, 'sources/questions.md'), questions);
+    const unknownQuestions = SECTIONS.filter(
+      ({ category }) => !evidence.facts.some((fact) => fact.category === category)
+    ).map(({ question }) => question);
+    if (evidence.journeys.length === 0) {
+      unknownQuestions.push('Which user journeys are authoritative for this project?');
+    }
+    if (evidence.risks.length === 0) {
+      unknownQuestions.push('Which product risks have supporting evidence?');
+    }
+    const questions = [
+      '# Questions',
+      '',
+      '| ID | Question | Status | Blocking | Owner | Source | Asked | Answer / decision |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- |',
+      ...unknownQuestions.map(
+        (question, index) =>
+          `| Q-${String(index + 1).padStart(3, '0')} | ${question} | open | no | unassigned | onboarding evidence gap | ${evidence.observedAt} | |`
+      ),
+      ''
+    ].join('\n');
+    writeFileSync(join(projectRoot, 'sources/questions.md'), questions);
 
-  const discovery = [
-    '# Onboarding Discovery Evidence',
-    '',
-    `Project: ${evidence.projectName}`,
-    `Observed: ${evidence.observedAt}`,
-    'Source file: `onboarding-evidence.json`',
-    '',
-    ...evidence.facts.map(
-      (fact) => `- ${fact.id} | ${fact.statement} | Source: \`${fact.source}\``
-    ),
-    ''
-  ].join('\n');
-  writeFileSync(join(projectRoot, 'sources/reference/discovery.md'), discovery);
-  return { status: 'succeeded', outputs };
+    const discovery = [
+      '# Onboarding Discovery Evidence',
+      '',
+      `Project: ${evidence.projectName}`,
+      `Observed: ${evidence.observedAt}`,
+      'Source file: `onboarding-evidence.json`',
+      '',
+      ...evidence.facts.map(
+        (fact) => `- ${fact.id} | ${fact.statement} | Source: \`${fact.source}\``
+      ),
+      ''
+    ].join('\n');
+    writeFileSync(join(projectRoot, 'sources/reference/discovery.md'), discovery);
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'discover-journeys') {
+    const journeys = [
+      '# User Journeys',
+      '',
+      ...(evidence.journeys.length
+        ? evidence.journeys.flatMap((journey) => [
+            `## ${journey.id}: ${journey.goal}`,
+            '',
+            `- Actor: ${journey.actor}`,
+            `- Goal: ${journey.goal}`,
+            `- Steps: ${journey.steps.join('; ')}`,
+            `- Outcome: ${journey.outcome}`,
+            `- Requirement links: ${journey.requirementIds.join(', ') || 'Unknown'}`,
+            `- Source: \`${journey.source}\``,
+            `- Observed: ${evidence.observedAt}`,
+            ''
+          ])
+        : ['Unknown. No evidence-backed journeys were supplied.', ''])
+    ].join('\n');
+    writeFileSync(join(projectRoot, 'sources/reference/journeys.md'), journeys);
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'assess-risks') {
+    const risks = [
+      '# Product Risk Assessment',
+      '',
+      '| ID | Risk | Impact | Probability | Priority | Source | Observed |',
+      '| --- | --- | ---: | ---: | ---: | --- | --- |',
+      ...(evidence.risks.length
+        ? evidence.risks.map(
+            (risk) =>
+              `| ${risk.id} | ${risk.statement} | ${risk.impact} | ${risk.probability} | ${risk.impact * risk.probability} | ${risk.source} | ${evidence.observedAt} |`
+          )
+        : [
+            '| Unknown | No evidence-backed risks were supplied. | Unknown | Unknown | Unknown | onboarding evidence gap | Unknown |'
+          ])
+    ].join('\n');
+    writeFileSync(
+      join(projectRoot, 'derived/reports/risk-assessment.md'),
+      generatedMarkdown(risks)
+    );
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'plan-strategy') {
+    const rankedRisks = [...evidence.risks].sort(
+      (left, right) => right.impact * right.probability - left.impact * left.probability
+    );
+    const scenario = [
+      '# Smoke Scenario Proposal',
+      '',
+      ...(evidence.journeys.length
+        ? evidence.journeys.flatMap((journey) => [
+            `## ${journey.id}: ${journey.goal}`,
+            '',
+            `- Actor: ${journey.actor}`,
+            `- Evidence: \`${journey.source}\``,
+            `- Requirements: ${journey.requirementIds.join(', ') || 'Unknown'}`,
+            `- Expected outcome: ${journey.outcome}`,
+            '- Status: proposed; authority approval required',
+            ''
+          ])
+        : ['No smoke scenarios proposed because no evidence-backed journeys were supplied.', ''])
+    ].join('\n');
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/smoke-proposal.md'),
+      generatedMarkdown(scenario)
+    );
+    const plan = [
+      '# Initial Test Strategy and Plan',
+      '',
+      '## Strategy',
+      '',
+      ...(rankedRisks.length
+        ? rankedRisks.map(
+            (risk) =>
+              `- Prioritize \`${risk.id}\` (score ${risk.impact * risk.probability}) from \`${risk.source}\`.`
+          )
+        : ['- Risk-based prioritization is unknown until supporting risk evidence is supplied.']),
+      '',
+      '## Initial Plan',
+      '',
+      ...(evidence.journeys.length
+        ? evidence.journeys.map(
+            (journey) =>
+              `- Validate \`${journey.id}\` against ${journey.requirementIds.join(', ') || 'unconfirmed requirements'}; keep the scenario proposed until approved.`
+          )
+        : ['- Gather authoritative journey evidence before proposing executable coverage.']),
+      '',
+      '## Guardrails',
+      '',
+      '- Unknown facts remain open questions; they are not converted into assumptions.',
+      '- Proposed scenarios require authority approval before test generation.',
+      ''
+    ].join('\n');
+    writeFileSync(
+      join(projectRoot, 'derived/reports/initial-test-plan.md'),
+      generatedMarkdown(plan)
+    );
+    return { status: 'succeeded', outputs };
+  }
+
+  return { status: 'failed', error: `Unsupported onboarding step: ${step.id}` };
 }
