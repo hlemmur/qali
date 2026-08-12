@@ -443,6 +443,22 @@ export const WorkflowDescriptorSchema = z
   .strict();
 export type WorkflowDescriptor = z.infer<typeof WorkflowDescriptorSchema>;
 
+export const WorkflowAttemptSchema = z
+  .object({
+    id: z.string().min(1),
+    workflowId: z.string().min(1),
+    runId: z.string().min(1),
+    stepId: z.string().min(1),
+    attempt: z.number().int().positive(),
+    harnessProfileId: z.string().min(1),
+    status: z.enum(['running', 'blocked', 'succeeded', 'failed']),
+    startedAt: z.iso.datetime(),
+    finishedAt: z.iso.datetime().optional(),
+    error: z.string().min(1).optional()
+  })
+  .strict();
+export type WorkflowAttempt = z.infer<typeof WorkflowAttemptSchema>;
+
 export const WorkflowEventSchema = z
   .object({
     id: z.string().min(1),

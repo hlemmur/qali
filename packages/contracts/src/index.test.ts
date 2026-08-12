@@ -8,11 +8,30 @@ import {
   ProjectRegistrySchema,
   ModelQualificationRecordSchema,
   RoleProfileSchema,
+  WorkflowAttemptSchema,
   WorkflowDescriptorSchema,
   WorkflowResultSchema
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('records immutable workflow step attempt identity and outcome', () => {
+    const attempt = WorkflowAttemptSchema.parse({
+      id: 'attempt-1',
+      workflowId: 'run-test-suite',
+      runId: 'run-1',
+      stepId: 'execute',
+      attempt: 1,
+      harnessProfileId: 'host-test-execution',
+      status: 'failed',
+      startedAt: '2026-08-10T20:00:00.000Z',
+      finishedAt: '2026-08-10T20:01:00.000Z',
+      error: 'browser unavailable'
+    });
+
+    expect(attempt.attempt).toBe(1);
+    expect(() => WorkflowAttemptSchema.parse({ ...attempt, attempt: 0 })).toThrow();
+  });
+
   it('validates model qualification records with an exact 30-day lifetime', () => {
     const record = ModelQualificationRecordSchema.parse({
       version: 1,
