@@ -73,8 +73,7 @@ export interface CursorCliOptions {
 }
 
 function safeEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const allowed =
-    /^(?:PATH|HOME|TMPDIR|TMP|TEMP|LANG|LC_[A-Z_]+|CI|CURSOR_API_KEY|CURSOR_MODEL|CURSOR_SANDBOX)$/;
+  const allowed = /^(?:PATH|HOME|TMPDIR|TMP|TEMP|LANG|LC_[A-Z_]+|CI|CURSOR_API_KEY|CURSOR_MODEL)$/;
   return Object.fromEntries(
     Object.entries(source).filter(([name, value]) => allowed.test(name) && value !== undefined)
   );

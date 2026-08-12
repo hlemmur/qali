@@ -127,6 +127,7 @@ describe('agent runtime', () => {
     expect(spawn.mock.calls[0]![1]).toEqual(
       expect.arrayContaining(['--sandbox', 'enabled', '--model', 'sonnet-4'])
     );
+    expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('CURSOR_SANDBOX');
   });
 
   it('supports a configurable Agent CLI executable', async () => {
