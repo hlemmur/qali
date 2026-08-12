@@ -40,6 +40,8 @@ export const ARTIFACT_CLASSES = [
   'decisions',
   'known-issues',
   'exploration',
+  'strategy',
+  'plan',
   'scenarios',
   'tests',
   'evidence',

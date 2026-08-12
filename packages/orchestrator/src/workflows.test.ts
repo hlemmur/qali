@@ -43,6 +43,8 @@ describe('workflow catalog', () => {
       'project-context': 'sources',
       reference: 'sources',
       exploration: 'observations',
+      strategy: 'derived',
+      plan: 'derived',
       questions: 'sources',
       decisions: 'sources',
       'known-issues': 'observations',

@@ -140,6 +140,12 @@ describe('deterministic project onboarding', () => {
       join(projectRoot, 'derived/reports/initial-test-plan.md'),
       'utf8'
     );
+    const canonicalRisks = readFileSync(
+      join(projectRoot, 'sources/reference/risks.md'),
+      'utf8'
+    );
+    const strategy = readFileSync(join(projectRoot, 'derived/strategy.md'), 'utf8');
+    const canonicalPlan = readFileSync(join(projectRoot, 'derived/plan.md'), 'utf8');
     expect(journeys).toContain('Source: `requirements.md#REQ-001`');
     expect(risks).toContain('| RSK-001 |');
     expect(risks).toContain('| 15 |');
@@ -149,6 +155,9 @@ describe('deterministic project onboarding', () => {
     expect(plan).toContain('Prioritize `RSK-001`');
     expect(plan).toContain('## Initial Plan');
     expect(plan).not.toContain('TBD');
+    expect(canonicalRisks).toContain('RSK-001');
+    expect(strategy).toContain('Prioritize `RSK-001`');
+    expect(canonicalPlan).toContain('Validate `JRN-001`');
   });
 
   it('runs onboarding end to end through the production orchestrator in Mock Mode', async () => {

@@ -226,6 +226,7 @@ export async function executeOnboardingMockStep(
       join(projectRoot, 'derived/reports/risk-assessment.md'),
       generatedMarkdown(risks)
     );
+    writeFileSync(join(projectRoot, 'sources/reference/risks.md'), `${risks}\n`);
     return { status: 'succeeded', outputs };
   }
 
@@ -253,26 +254,36 @@ export async function executeOnboardingMockStep(
       join(projectRoot, 'derived/scenarios/smoke-proposal.md'),
       generatedMarkdown(scenario)
     );
-    const plan = [
-      '# Initial Test Strategy and Plan',
-      '',
-      '## Strategy',
-      '',
+    const strategyItems = [
       ...(rankedRisks.length
         ? rankedRisks.map(
             (risk) =>
               `- Prioritize \`${risk.id}\` (score ${risk.impact * risk.probability}) from \`${risk.source}\`.`
           )
-        : ['- Risk-based prioritization is unknown until supporting risk evidence is supplied.']),
-      '',
-      '## Initial Plan',
-      '',
+        : ['- Risk-based prioritization is unknown until supporting risk evidence is supplied.'])
+    ];
+    const planItems = [
       ...(evidence.journeys.length
         ? evidence.journeys.map(
             (journey) =>
               `- Validate \`${journey.id}\` against ${journey.requirementIds.join(', ') || 'unconfirmed requirements'}; keep the scenario proposed until approved.`
           )
-        : ['- Gather authoritative journey evidence before proposing executable coverage.']),
+        : ['- Gather authoritative journey evidence before proposing executable coverage.'])
+    ];
+    const strategy = ['# Test Strategy', '', ...strategyItems, ''].join('\n');
+    const initialPlan = ['# Initial Test Plan', '', ...planItems, ''].join('\n');
+    writeFileSync(join(projectRoot, 'derived/strategy.md'), generatedMarkdown(strategy));
+    writeFileSync(join(projectRoot, 'derived/plan.md'), generatedMarkdown(initialPlan));
+    const plan = [
+      '# Initial Test Strategy and Plan',
+      '',
+      '## Strategy',
+      '',
+      ...strategyItems,
+      '',
+      '## Initial Plan',
+      '',
+      ...planItems,
       '',
       '## Guardrails',
       '',
