@@ -187,9 +187,7 @@ export async function executeWorkflow(
     workflow.steps
       .filter(({ id: stepId }) => invalidResumeStepIds.has(stepId))
       .flatMap(({ outputs: stepOutputs }) =>
-        stepOutputs.map(
-          ({ artifact, path }) => `${artifact}:${expandOutputPath(path, command)}`
-        )
+        stepOutputs.map(({ artifact, path }) => `${artifact}:${expandOutputPath(path, command)}`)
       )
   );
   const outputs: ArtifactReference[] = (resume?.outputs ?? []).filter(
