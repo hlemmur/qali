@@ -54,6 +54,22 @@ Map leads via `SLACK_QA_LEAD_USER_IDS`. Default for all other allowed users: Dev
 - **No direct main push** — all generated changes via `qali/*` PR
 - **Path traversal blocked** — publication rejects paths outside `projects/`
 
+### Restricted browser boundary
+
+Agent browser access runs through the local `@qali/browser-facade` MCP service. Its tool surface is deny-by-default: allowlisted navigation, redacted accessibility snapshots, exact role/label interaction, named-value fill, masked evidence capture, and sanitized diagnostics. It exposes no JavaScript evaluation, cookies, downloads, secret reads, or general network client.
+
+The service resolves its target, origins, named credentials/test data, redaction rules, and approved form controls from a validated project execution profile plus environment variables. Form submission is rejected unless the exact role/name is approved; approved forms must use POST. Redirects are inspected before following, and off-origin redirects are blocked before the destination receives a request. Popups and downloads are always denied.
+
+Named credentials and test data remain inside the service process. Tool results and errors are redacted, screenshots mask fields populated through named fill, and evidence indexes contain artifact references only. Accessibility text and diagnostics are explicitly returned as untrusted page data so page-level prompt injection does not become an instruction.
+
+The stdio service starts with `npm run browser:mcp` and requires:
+
+- `QALI_EXECUTION_PROFILE_PATH`
+- the four standard `QALI_TARGET_*` / `QALI_TEST_*` variables declared by that profile
+- an absolute `QALI_BROWSER_EVIDENCE_DIR`
+
+An optional `QALI_BROWSER_EXECUTABLE_PATH` selects a trusted browser binary. The service writes protocol messages only to stdout and emits no secret-bearing startup diagnostics.
+
 ## Production-only testing
 
 Target projects currently test **production** only. There is **no preview URL** assumption for PRs. Guardrails:

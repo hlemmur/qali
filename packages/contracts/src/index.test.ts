@@ -61,7 +61,12 @@ describe('workflow contracts', () => {
         credentials: 'QALI_TEST_CREDENTIALS_JSON',
         testData: 'QALI_TEST_DATA_JSON'
       },
-      browser: { name: 'chromium', allowDownloads: false, allowPopups: false },
+      browser: {
+        name: 'chromium',
+        allowDownloads: false,
+        allowPopups: false,
+        allowedSubmissions: [{ role: 'button', name: 'Sign in' }]
+      },
       rate: { maxActionsPerMinute: 60 },
       mutation: { allowed: ['append-observation', 'append-evidence'] },
       cleanup: { strategy: 'fixture-reset' },
@@ -73,6 +78,7 @@ describe('workflow contracts', () => {
 
     expect(registry.projects[0]?.root).toBe('projects/_demo');
     expect(profile.environmentLabel).toBe('mock');
+    expect(profile.browser.allowedSubmissions).toEqual([{ role: 'button', name: 'Sign in' }]);
     expect(() =>
       ProjectExecutionProfileSchema.parse({ ...profile, displayBadge: undefined })
     ).toThrow();
