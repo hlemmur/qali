@@ -164,14 +164,30 @@ describe('ephemeral harness workspace', () => {
       profile,
       inputFiles: []
     });
-    const second = assembleHarnessWorkspace({
-      sourceRoot: process.cwd(),
-      workspace: join(parent, 'second'),
-      profile: { ...profile, mutations: [...profile.mutations, 'format-document'] },
-      inputFiles: []
-    });
+    const variants = [
+      { ...profile, skillIds: ['test-planning'] },
+      {
+        ...profile,
+        policyPaths: [...profile.policyPaths, 'core/policies/evidence-and-provenance.md']
+      },
+      { ...profile, templatePaths: ['core/templates/job.md'] },
+      { ...profile, writableOutputDirectories: ['outputs/alternate'] },
+      { ...profile, mutations: [...profile.mutations, 'format-document'] },
+      { ...profile, validators: [...profile.validators, 'markdown-links'] }
+    ];
+    const fingerprints = variants.map(
+      (variant, index) =>
+        assembleHarnessWorkspace({
+          sourceRoot: process.cwd(),
+          workspace: join(parent, `variant-${index}`),
+          profile: variant,
+          inputFiles: []
+        }).manifest.fingerprint
+    );
 
-    expect(first.manifest.fingerprint).not.toBe(second.manifest.fingerprint);
+    expect(new Set([first.manifest.fingerprint, ...fingerprints])).toHaveLength(
+      fingerprints.length + 1
+    );
     expect(existsSync(join(first.workspace, '.cursor/mcp.json'))).toBe(false);
   });
 });

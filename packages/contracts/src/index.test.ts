@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ClassifiedIntentSchema,
+  AgentHarnessManifestSchema,
   ExternalRoleSchema,
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
@@ -11,6 +12,24 @@ import {
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('validates fingerprinted agent harness manifests', () => {
+    const manifest = AgentHarnessManifestSchema.parse({
+      version: 1,
+      profileId: 'browser-exploration',
+      skills: [{ id: 'agentic-browser-testing', hash: 'a'.repeat(64) }],
+      policies: [{ path: '.cursor/rules/operating-model.mdc', hash: 'b'.repeat(64) }],
+      templates: [{ path: 'templates/session-log.md', hash: 'c'.repeat(64) }],
+      inputs: [{ path: 'inputs/context.md', hash: 'd'.repeat(64) }],
+      writableOutputDirectories: ['outputs/evidence'],
+      tools: ['browser'],
+      mutations: ['append-evidence'],
+      validators: ['evidence-index-schema'],
+      fingerprint: 'e'.repeat(64)
+    });
+    expect(manifest.profileId).toBe('browser-exploration');
+    expect(() => AgentHarnessManifestSchema.parse({ ...manifest, tools: ['shell'] })).toThrow();
+  });
+
   it('limits untrusted classification to intent, project id, and declarative focus', () => {
     expect(
       ClassifiedIntentSchema.parse({

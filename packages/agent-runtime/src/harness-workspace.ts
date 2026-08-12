@@ -10,6 +10,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { AgentHarnessManifestSchema, type AgentHarnessManifest } from '@qali/contracts';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 
 export interface HarnessProfile {
@@ -21,20 +22,6 @@ export interface HarnessProfile {
   tools: Array<'browser'>;
   mutations: string[];
   validators: string[];
-}
-
-export interface AgentHarnessManifest {
-  version: 1;
-  profileId: string;
-  skills: Array<{ id: string; hash: string }>;
-  policies: Array<{ path: string; hash: string }>;
-  templates: Array<{ path: string; hash: string }>;
-  inputs: Array<{ path: string; hash: string }>;
-  writableOutputDirectories: string[];
-  tools: string[];
-  mutations: string[];
-  validators: string[];
-  fingerprint: string;
 }
 
 interface AssemblyRequest {
@@ -237,7 +224,10 @@ export function assembleHarnessWorkspace(request: AssemblyRequest): {
     mutations: request.profile.mutations,
     validators: request.profile.validators
   };
-  const manifest: AgentHarnessManifest = { ...unsigned, fingerprint: hash(stable(unsigned)) };
+  const manifest = AgentHarnessManifestSchema.parse({
+    ...unsigned,
+    fingerprint: hash(stable(unsigned))
+  });
   writeFileSync(
     join(request.workspace, 'harness-manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,

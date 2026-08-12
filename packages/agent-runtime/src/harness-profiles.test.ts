@@ -61,8 +61,26 @@ describe('harness profile catalog', () => {
             }
           : {})
       });
-      const selected = readdirSync(join(result.workspace, '.agents/skills')).sort();
-      expect(selected).toEqual([...profile.skillIds].sort());
+      const expectedFiles = [
+        'AGENTS.md',
+        'harness-manifest.json',
+        '.cursor/cli.json',
+        ...profile.skillIds.map((id) => `.agents/skills/${id}/SKILL.md`),
+        ...profile.policyPaths.map(
+          (path) => `.cursor/rules/${path.split('/').at(-1)!.replace(/\.md$/, '')}.mdc`
+        ),
+        ...profile.templatePaths.map((path) => `templates/${path.split('/').at(-1)!}`),
+        ...(profile.tools.includes('browser') ? ['.cursor/mcp.json'] : [])
+      ].sort();
+      const actualFiles = (function list(directory: string): string[] {
+        return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+          const absolute = join(directory, entry.name);
+          return entry.isDirectory()
+            ? list(absolute)
+            : [absolute.slice(result.workspace.length + 1)];
+        });
+      })(result.workspace).sort();
+      expect(actualFiles).toEqual(expectedFiles);
       expect(existsSync(join(result.workspace, '.cursor/mcp.json'))).toBe(
         profile.tools.includes('browser')
       );
