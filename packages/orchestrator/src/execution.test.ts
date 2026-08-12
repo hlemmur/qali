@@ -247,6 +247,17 @@ describe('workflow execution', () => {
     expect(result.events.at(-1)?.type).toBe('workflow-failed');
   });
 
+  it('keeps workflow success separate from reporting failure', async () => {
+    const ports = dependencies();
+    ports.executor.results[1] = { status: 'failed', error: 'Slack renderer failed' };
+
+    const result = await executeWorkflow(command, ports);
+
+    expect(result.status).toBe('succeeded');
+    expect(result.reportingStatus).toBe('failed');
+    expect(result.events.at(-1)?.type).toBe('workflow-succeeded');
+  });
+
   it('resumes a run without repeating completed steps or outputs', async () => {
     const initialPorts = dependencies();
     const initial = await executeWorkflow(command, initialPorts);

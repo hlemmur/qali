@@ -280,9 +280,12 @@ export async function executeWorkflow(
         attempts.push(failedAttempt);
         await emit('step-failed', { error }, step.id, failedAttempt);
         if (attemptNumber <= step.retries) continue;
-        workflowFailed = true;
-        failedStepId ??= step.id;
-        if (step.role === 'reporter') reportingStatus = 'failed';
+        if (step.role === 'reporter') {
+          reportingStatus = 'failed';
+        } else {
+          workflowFailed = true;
+          failedStepId ??= step.id;
+        }
         break;
       }
 
