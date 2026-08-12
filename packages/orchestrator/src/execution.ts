@@ -69,6 +69,7 @@ export interface WorkflowExecutionPorts {
   executor: StepExecutor;
   events: WorkflowEventStore;
   outputValidator: OutputValidator;
+  resume?: WorkflowResult | undefined;
   now?: () => Date;
   id?: () => string;
 }
@@ -144,14 +145,24 @@ export async function executeWorkflow(
   const workflow = WorkflowDescriptorSchema.parse(await ports.loader.load(command));
   const now = ports.now ?? (() => new Date());
   const id = ports.id ?? (() => crypto.randomUUID());
-  const runId = id();
-  const startedAt = now().toISOString();
-  const events: WorkflowEvent[] = [];
-  const outputs: ArtifactReference[] = [];
-  const attempts: WorkflowAttempt[] = [];
-  let workflowFailed = false;
-  let failedStepId: string | undefined;
-  let reportingStatus: WorkflowResult['reportingStatus'] = 'not-run';
+  const resume = ports.resume ? WorkflowResultSchema.parse(ports.resume) : undefined;
+  if (resume && resume.workflowId !== workflow.id) {
+    throw new Error(`cannot resume ${resume.workflowId} as ${workflow.id}`);
+  }
+  const runId = resume?.runId ?? id();
+  const startedAt = resume?.startedAt ?? now().toISOString();
+  const events: WorkflowEvent[] = [...(resume?.events ?? [])];
+  const outputs: ArtifactReference[] = [...(resume?.outputs ?? [])];
+  const attempts: WorkflowAttempt[] = [...(resume?.attempts ?? [])];
+  const stepRoles = new Map(workflow.steps.map((step) => [step.id, step.role]));
+  let workflowFailed = attempts.some(
+    (attempt) => attempt.status === 'failed' && stepRoles.get(attempt.stepId) !== 'reporter'
+  );
+  let failedStepId = attempts.find(
+    (attempt) => attempt.status === 'failed' && stepRoles.get(attempt.stepId) !== 'reporter'
+  )?.stepId;
+  let reportingStatus: WorkflowResult['reportingStatus'] =
+    resume?.reportingStatus ?? 'not-run';
 
   const emit = async (
     type: WorkflowEvent['type'],
@@ -189,7 +200,7 @@ export async function executeWorkflow(
     await emit('workflow-blocked', { reason: 'workflow is not executable' });
     return result('blocked');
   }
-  await emit('workflow-started');
+  await emit(resume ? 'workflow-resumed' : 'workflow-started');
 
   for (const precondition of workflow.preconditions) {
     const decision = await ports.preconditions.check(precondition, command);
@@ -199,7 +210,11 @@ export async function executeWorkflow(
     }
   }
 
+  const completedStepIds = new Set(
+    attempts.filter(({ status }) => status === 'succeeded').map(({ stepId }) => stepId)
+  );
   for (const step of workflow.steps) {
+    if (completedStepIds.has(step.id)) continue;
     const runIf = step.runIf ?? 'success';
     if (
       (runIf === 'success' && workflowFailed) ||

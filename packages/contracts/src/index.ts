@@ -469,6 +469,7 @@ export const WorkflowEventSchema = z
     attempt: WorkflowAttemptSchema.optional(),
     type: z.enum([
       'workflow-started',
+      'workflow-resumed',
       'step-started',
       'step-succeeded',
       'step-failed',

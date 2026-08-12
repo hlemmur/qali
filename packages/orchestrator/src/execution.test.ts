@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   NormalizedCommand,
   WorkflowDescriptor,
+  WorkflowResult,
   WorkflowStep
 } from '../../contracts/src/index.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -81,6 +82,7 @@ const dependencies = () => ({
   ]),
   events: new FakeEventStore(),
   outputValidator: new FakeOutputValidator(),
+  resume: undefined as WorkflowResult | undefined,
   now: () => new Date('2026-08-10T20:00:00.000Z'),
   id: (() => {
     let id = 0;
@@ -234,6 +236,39 @@ describe('workflow execution', () => {
     expect(result.status).toBe('failed');
     expect(result.reportingStatus).toBe('succeeded');
     expect(result.events.at(-1)?.type).toBe('workflow-failed');
+  });
+
+  it('resumes a run without repeating completed steps or outputs', async () => {
+    const initialPorts = dependencies();
+    const initial = await executeWorkflow(command, initialPorts);
+    const executeAttempt = initial.attempts.find(({ stepId }) => stepId === 'execute')!;
+
+    const resumedPorts = dependencies();
+    resumedPorts.resume = {
+      ...initial,
+      status: 'failed',
+      reportingStatus: 'not-run',
+      outputs: initial.outputs.filter(({ artifact }) => artifact === 'evidence'),
+      attempts: [executeAttempt],
+      events: initial.events.slice(0, 3)
+    };
+    resumedPorts.executor.results = [
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'reports', path: 'projects/demo/derived/reports/run.md' }]
+      }
+    ];
+
+    const resumed = await executeWorkflow(command, resumedPorts);
+
+    expect(resumed.runId).toBe(initial.runId);
+    expect(resumedPorts.executor.steps).toEqual(['report']);
+    expect(resumed.outputs).toEqual([
+      { artifact: 'evidence', path: 'projects/demo/observations/evidence/run' },
+      { artifact: 'reports', path: 'projects/demo/derived/reports/run.md' }
+    ]);
+    expect(resumed.events.filter(({ type }) => type === 'workflow-resumed')).toHaveLength(1);
+    expect(resumed.attempts.filter(({ stepId }) => stepId === 'execute')).toHaveLength(1);
   });
 
   it('rejects declared outputs that were not materialized on disk', async () => {
