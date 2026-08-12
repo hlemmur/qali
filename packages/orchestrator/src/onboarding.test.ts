@@ -56,11 +56,7 @@ describe('deterministic project onboarding', () => {
       join(process.cwd(), 'harness/profiles.json')
     ).find(({ id }) => id === 'project-onboarding')!;
 
-    const result = await executeOnboardingMockStep(
-      workspace,
-      workflow.steps[0]!,
-      command
-    );
+    const result = await executeOnboardingMockStep(workspace, workflow.steps[0]!, command);
 
     expect(result.status).toBe('succeeded');
     const context = readFileSync(join(projectRoot, 'sources/project-context.md'), 'utf8');
@@ -124,26 +120,11 @@ describe('deterministic project onboarding', () => {
       });
     }
 
-    const journeys = readFileSync(
-      join(projectRoot, 'sources/reference/journeys.md'),
-      'utf8'
-    );
-    const risks = readFileSync(
-      join(projectRoot, 'derived/reports/risk-assessment.md'),
-      'utf8'
-    );
-    const scenario = readFileSync(
-      join(projectRoot, 'derived/scenarios/smoke-proposal.md'),
-      'utf8'
-    );
-    const plan = readFileSync(
-      join(projectRoot, 'derived/reports/initial-test-plan.md'),
-      'utf8'
-    );
-    const canonicalRisks = readFileSync(
-      join(projectRoot, 'sources/reference/risks.md'),
-      'utf8'
-    );
+    const journeys = readFileSync(join(projectRoot, 'sources/reference/journeys.md'), 'utf8');
+    const risks = readFileSync(join(projectRoot, 'derived/reports/risk-assessment.md'), 'utf8');
+    const scenario = readFileSync(join(projectRoot, 'derived/scenarios/smoke-proposal.md'), 'utf8');
+    const plan = readFileSync(join(projectRoot, 'derived/reports/initial-test-plan.md'), 'utf8');
+    const canonicalRisks = readFileSync(join(projectRoot, 'sources/reference/risks.md'), 'utf8');
     const strategy = readFileSync(join(projectRoot, 'derived/strategy.md'), 'utf8');
     const canonicalPlan = readFileSync(join(projectRoot, 'derived/plan.md'), 'utf8');
     expect(journeys).toContain('Source: `requirements.md#REQ-001`');

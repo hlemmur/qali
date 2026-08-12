@@ -122,27 +122,28 @@ export async function executeOnboardingMockStep(
   const evidencePath = join(projectRoot, 'sources/reference/onboarding-evidence.json');
   const evidence = OnboardingEvidenceSchema.parse(JSON.parse(readFileSync(evidencePath, 'utf8')));
   const outputs = outputsFor(step, command);
-  for (const output of outputs) mkdirSync(dirname(join(workspace, output.path)), { recursive: true });
+  for (const output of outputs)
+    mkdirSync(dirname(join(workspace, output.path)), { recursive: true });
 
   if (step.id === 'discover-project') {
     const context = [
-    '# QA Project Context',
-    '',
-    ...SECTIONS.flatMap(({ title, category }) => {
-      const facts = evidence.facts.filter((fact) => fact.category === category);
-      return [
-        `## ${title}`,
-        '',
-        ...(facts.length
-          ? facts.flatMap((fact) => [
-              `- ${fact.id} | ${fact.statement}`,
-              `  - Source: \`${fact.source}\``,
-              `  - Observed: ${evidence.observedAt}`
-            ])
-          : ['Unknown']),
-        ''
-      ];
-    })
+      '# QA Project Context',
+      '',
+      ...SECTIONS.flatMap(({ title, category }) => {
+        const facts = evidence.facts.filter((fact) => fact.category === category);
+        return [
+          `## ${title}`,
+          '',
+          ...(facts.length
+            ? facts.flatMap((fact) => [
+                `- ${fact.id} | ${fact.statement}`,
+                `  - Source: \`${fact.source}\``,
+                `  - Observed: ${evidence.observedAt}`
+              ])
+            : ['Unknown']),
+          ''
+        ];
+      })
     ].join('\n');
     writeFileSync(join(projectRoot, 'sources/project-context.md'), `${context.trimEnd()}\n`);
 
