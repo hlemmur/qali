@@ -22,7 +22,9 @@ function fixture(): string {
     'packages/browser-facade/src/index.ts': 'export const browser = true;\n',
     'scripts/browser-facade-mcp.ts': 'export {};\n',
     'workflows/example.yaml': 'version: 1\n',
+    'packages/agent-runtime/src/index.ts': 'export const sandbox = true;\n',
     'packages/orchestrator/src/workflows.ts': 'export const permissions = [];\n',
+    'scripts/execute.ts': 'export const failClosed = true;\n',
     'qualification/evaluation-suite.json': '{"version":1,"cases":[]}'
   };
   for (const [path, content] of Object.entries(files)) {
@@ -64,6 +66,8 @@ describe('runtime qualification identity', () => {
       'export const browser = false;\n'
     ],
     ['permissionHash', 'workflows/example.yaml', 'version: 1\npermissions: changed\n'],
+    ['permissionHash', 'packages/agent-runtime/src/index.ts', 'export const sandbox = false;\n'],
+    ['permissionHash', 'scripts/execute.ts', 'export const failClosed = false;\n'],
     ['evaluationSuiteHash', 'qualification/evaluation-suite.json', '{"version":1,"cases":[1]}']
   ] as const)('changes %s when its reviewed inputs change', (field, path, content) => {
     const root = fixture();
