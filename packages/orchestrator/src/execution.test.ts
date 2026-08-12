@@ -209,6 +209,29 @@ describe('workflow execution', () => {
     ).toEqual(['running', 'failed', 'running', 'succeeded']);
   });
 
+  it('records thrown executor errors as retryable failed attempts', async () => {
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [{ ...workflow.steps[0]!, retries: 1 }]
+    };
+    ports.executor.execute = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('spawn failed'))
+      .mockResolvedValueOnce({
+        status: 'succeeded',
+        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
+      });
+
+    const result = await executeWorkflow(command, ports);
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts.map(({ status, error }) => ({ status, error }))).toEqual([
+      { status: 'failed', error: 'spawn failed' },
+      { status: 'succeeded', error: undefined }
+    ]);
+  });
+
   it('continues failure analysis and reporting while preserving the failed outcome', async () => {
     const ports = dependencies();
     ports.loader.workflow = {

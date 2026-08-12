@@ -93,10 +93,17 @@ async function executeWithTimeout(
   });
 
   try {
-    return await Promise.race([
-      executor.execute(step, command, { signal: controller.signal }),
-      timeout
-    ]);
+    try {
+      return await Promise.race([
+        executor.execute(step, command, { signal: controller.signal }),
+        timeout
+      ]);
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
