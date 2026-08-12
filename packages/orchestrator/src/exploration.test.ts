@@ -186,7 +186,11 @@ describe('bounded exploratory testing', () => {
     expect(browser.calls).toEqual(['navigate:/']);
     expect(
       existsSync(
-        join(workspace, command.project.root, 'observations/evidence/exploration/session-obs-exp-001.json')
+        join(
+          workspace,
+          command.project.root,
+          'observations/evidence/exploration/session-obs-exp-001.json'
+        )
       )
     ).toBe(true);
   });
@@ -210,10 +214,7 @@ describe('bounded exploratory testing', () => {
     expect(result).toMatchObject({ status: 'succeeded', truncated: true });
     expect(browser.calls).toEqual(['navigate:/']);
     expect(
-      readFileSync(
-        join(workspace, command.project.root, 'observations/exploration.md'),
-        'utf8'
-      )
+      readFileSync(join(workspace, command.project.root, 'observations/exploration.md'), 'utf8')
     ).toContain('session-obs-exp-001.json');
   });
 

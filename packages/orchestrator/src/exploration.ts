@@ -134,9 +134,7 @@ export async function executeExplorationStep(
   let navigation: { url: string } | undefined;
   let snapshot: { untrustedPageData: string } | undefined;
   let evidence: { evidenceId: string; artifacts: string[] } | undefined;
-  let diagnostics:
-    | Awaited<ReturnType<ExplorationBrowser['readDiagnostics']>>
-    | undefined;
+  let diagnostics: Awaited<ReturnType<ExplorationBrowser['readDiagnostics']>> | undefined;
   const observedAt = command.receivedAt.slice(0, 10);
   const finish = (truncationReason?: string) => {
     const evidenceRefs = (evidence?.artifacts ?? []).map(
@@ -155,9 +153,7 @@ export async function executeExplorationStep(
             ? {
                 page: {
                   url: navigation.url,
-                  ...(snapshot
-                    ? { accessibilitySnapshot: snapshot.untrustedPageData }
-                    : {})
+                  ...(snapshot ? { accessibilitySnapshot: snapshot.untrustedPageData } : {})
                 }
               }
             : {}),
