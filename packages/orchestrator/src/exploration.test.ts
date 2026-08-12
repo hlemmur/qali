@@ -20,7 +20,7 @@ const command: NormalizedCommand = {
   requestedBy: 'U1',
   externalRole: 'qa-lead-admin',
   receivedAt: '2026-08-13T00:00:00.000Z',
-  parameters: { focus: 'login', maxSteps: 2, timeBudgetMs: 5_000 }
+  parameters: { area: 'login', maxSteps: '2', timeBudgetMs: '5000' }
 };
 
 class FakeBrowser implements ExplorationBrowser {
@@ -107,6 +107,13 @@ describe('bounded exploratory testing', () => {
     expect(existsSync(join(projectRoot, 'observations/evidence/exploration/session.json'))).toBe(
       true
     );
+    const session = JSON.parse(
+      readFileSync(join(projectRoot, 'observations/evidence/exploration/session.json'), 'utf8')
+    );
+    expect(session).toMatchObject({
+      focus: 'login',
+      budget: { maxSteps: 2, timeBudgetMs: 5_000 }
+    });
   });
 
   it('blocks exploration when the configured budget is exhausted before an action', async () => {

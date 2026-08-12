@@ -29,10 +29,32 @@ const generatedMarkdown = (body: string): string => {
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
 };
 
-const positiveInteger = (value: unknown, fallback: number, maximum: number): number =>
-  typeof value === 'number' && Number.isInteger(value) && value > 0
-    ? Math.min(value, maximum)
+const positiveInteger = (value: unknown, fallback: number, maximum: number): number => {
+  const parsed = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+  return typeof parsed === 'number' && Number.isInteger(parsed) && parsed > 0
+    ? Math.min(parsed, maximum)
     : fallback;
+};
+
+const cleanFocusValue = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value.replace(/[\r\n|`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return cleaned || undefined;
+};
+
+function explorationFocus(parameters: NormalizedCommand['parameters']): string {
+  for (const key of ['focus', 'area', 'charter', 'journey', 'suite']) {
+    const value = cleanFocusValue(parameters[key]);
+    if (value) return value;
+  }
+  const declarative = Object.entries(parameters)
+    .filter(([key]) => !['maxSteps', 'timeBudgetMs'].includes(key))
+    .flatMap(([key, value]) => {
+      const cleaned = cleanFocusValue(value);
+      return cleaned ? [`${key}: ${cleaned}`] : [];
+    });
+  return declarative.join(', ').slice(0, 120) || 'project';
+}
 
 export async function executeExplorationStep(
   workspace: string,
@@ -46,7 +68,7 @@ export async function executeExplorationStep(
     path: expand(path, command)
   }));
   const projectRoot = join(workspace, command.project.root);
-  const focus = typeof command.parameters.focus === 'string' ? command.parameters.focus : 'project';
+  const focus = explorationFocus(command.parameters);
   if (step.id === 'charter') {
     const explorationPath = join(projectRoot, 'observations/exploration.md');
     mkdirSync(dirname(explorationPath), { recursive: true });
