@@ -64,6 +64,7 @@ describe('Playwright adapter', () => {
     const pending = runner.run({
       workspace: '/repo',
       projectId: '_demo',
+      targetBaseUrl: 'https://staging.example.test',
       reportPath: 'test-results/report.json'
     });
     queueMicrotask(() => child.emit('close', 0));
@@ -74,6 +75,34 @@ describe('Playwright adapter', () => {
     expect(args[0]).toContain('@playwright/test/cli.js');
     expect(args).toEqual(expect.arrayContaining(['test', 'projects/_demo/tests']));
     expect(options).toMatchObject({ cwd: '/repo', shell: false });
+    expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
+  });
+
+  it('injects mock web-server env for Playwright when provided', async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    const spawn = vi.fn<PlaywrightSpawn>(() => child);
+    const runner = new SpawnPlaywrightRunner(spawn);
+    const pending = runner.run({
+      workspace: '/repo',
+      projectId: '_demo',
+      targetBaseUrl: 'http://127.0.0.1:4173',
+      reportPath: 'test-results/report.json',
+      webServer: {
+        command: 'node projects/_demo/app/server.mjs',
+        url: 'http://127.0.0.1:4173/health'
+      }
+    });
+    queueMicrotask(() => child.emit('close', 0));
+
+    await expect(pending).resolves.toMatchObject({ status: 'passed' });
+    const options = spawn.mock.calls[0]![2]!;
+    expect(options.env.QALI_WEB_SERVER_COMMAND).toBe('node projects/_demo/app/server.mjs');
+    expect(options.env.QALI_WEB_SERVER_URL).toBe('http://127.0.0.1:4173/health');
   });
 
   it('provides deterministic fakes and a traceable generation contract', async () => {
@@ -86,7 +115,12 @@ describe('Playwright adapter', () => {
     ).toThrow();
     const fake = new FakePlaywrightRunner([{ status: 'passed', exitCode: 0 }]);
     await expect(
-      fake.run({ workspace: '/repo', projectId: '_demo', reportPath: 'report.json' })
+      fake.run({
+        workspace: '/repo',
+        projectId: '_demo',
+        targetBaseUrl: 'http://127.0.0.1:4173',
+        reportPath: 'report.json'
+      })
     ).resolves.toMatchObject({ status: 'passed' });
     expect(fake.requests).toHaveLength(1);
   });

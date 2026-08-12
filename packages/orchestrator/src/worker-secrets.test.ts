@@ -5,6 +5,7 @@ import {
   parseDotEnv,
   parseEnvSyncGroups,
   selectActionsConfigToSync,
+  selectProjectEnvironmentConfigToSync,
   selectSecretsToSync
 } from './worker-secrets.js';
 
@@ -69,6 +70,34 @@ GITHUB_APP_ID=123
 });
 
 describe('GitHub Actions env sync helpers', () => {
+  it('selects the standard target interface for a named GitHub Environment', () => {
+    expect(
+      selectProjectEnvironmentConfigToSync(
+        {
+          QALI_TARGET_BASE_URL: 'http://127.0.0.1:4173',
+          QALI_ALLOWED_ORIGINS_JSON: '["http://127.0.0.1:4173"]',
+          QALI_TEST_CREDENTIALS_JSON: '{}',
+          QALI_TEST_DATA_JSON: '{}'
+        },
+        'qali-demo'
+      )
+    ).toEqual({
+      environment: 'qali-demo',
+      secrets: [{ name: 'QALI_TEST_CREDENTIALS_JSON', value: '{}' }],
+      variables: [
+        { name: 'QALI_TARGET_BASE_URL', value: 'http://127.0.0.1:4173' },
+        {
+          name: 'QALI_ALLOWED_ORIGINS_JSON',
+          value: '["http://127.0.0.1:4173"]'
+        },
+        { name: 'QALI_TEST_DATA_JSON', value: '{}' }
+      ]
+    });
+    expect(() => selectProjectEnvironmentConfigToSync({}, 'qali-demo')).toThrow(
+      'QALI_TARGET_BASE_URL'
+    );
+  });
+
   it('maps .env Cursor + callback values onto Actions secrets and variables', () => {
     const decision = selectActionsConfigToSync({
       CURSOR_API_KEY: 'key-123',

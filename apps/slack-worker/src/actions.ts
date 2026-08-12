@@ -1,4 +1,11 @@
-import { NormalizedCommandSchema, type NormalizedCommand } from '@qali/contracts';
+import {
+  NormalizedCommandSchema,
+  type NormalizedCommand,
+  type ProjectExecutionProfile,
+  type ProjectRegistry
+} from '@qali/contracts';
+import { resolveTrustedCommand } from '@qali/project-config';
+import { DEFAULT_EXECUTION_PROFILES, DEFAULT_PROJECT_REGISTRY } from './project-registry.js';
 import type {
   ControlStore,
   Correlation,
@@ -50,31 +57,35 @@ async function resolveCorrelation(
 function rebuildCommand(
   correlation: Correlation,
   work: InboundWork,
-  intent: NormalizedCommand['intent']
+  intent: NormalizedCommand['intent'],
+  registry: ProjectRegistry,
+  profiles: readonly ProjectExecutionProfile[]
 ): NormalizedCommand {
+  let projectId = '_demo';
+  let focus: Record<string, unknown> = {
+    sourceRequestId: correlation.requestId,
+    ...(correlation.runId ? { sourceRunId: correlation.runId } : {})
+  };
   if (correlation.commandJson) {
     const stored = NormalizedCommandSchema.parse(JSON.parse(correlation.commandJson));
-    return NormalizedCommandSchema.parse({
-      ...stored,
-      intent,
+    projectId = stored.project.id;
+    focus = {
+      ...stored.parameters,
+      sourceRequestId: correlation.requestId,
+      ...(correlation.runId ? { sourceRunId: correlation.runId } : {})
+    };
+  }
+  return resolveTrustedCommand(
+    { intent, projectId, focus },
+    {
       requestedBy: work.requestedBy,
       externalRole: work.externalRole,
       receivedAt: work.receivedAt,
       slack: work.slack
-    });
-  }
-  return NormalizedCommandSchema.parse({
-    intent,
-    project: { id: '_demo', root: 'projects/_demo' },
-    parameters: {
-      sourceRequestId: correlation.requestId,
-      ...(correlation.runId ? { sourceRunId: correlation.runId } : {})
     },
-    requestedBy: work.requestedBy,
-    externalRole: work.externalRole,
-    receivedAt: work.receivedAt,
-    slack: work.slack
-  });
+    registry,
+    profiles
+  );
 }
 
 function summaryFromAction(
@@ -98,8 +109,12 @@ export async function handleSlackAction(input: {
   store: ControlStore;
   github: GitHubPort;
   slack: SlackPort;
+  projectRegistry?: ProjectRegistry;
+  executionProfiles?: readonly ProjectExecutionProfile[];
 }): Promise<void> {
   const { work, store, github, slack } = input;
+  const registry = input.projectRegistry ?? DEFAULT_PROJECT_REGISTRY;
+  const profiles = input.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
   const actionId = work.actionId ?? '';
   const value = parseActionValue(work.actionValue ?? work.text);
 
@@ -143,7 +158,7 @@ export async function handleSlackAction(input: {
       actionId === 'triage_failures'
         ? 'triage-failure'
         : ((correlation.workflowId as NormalizedCommand['intent'] | undefined) ?? 'run-test-suite');
-    const command = rebuildCommand(correlation, work, intent);
+    const command = rebuildCommand(correlation, work, intent, registry, profiles);
     const childRequestId = `${actionId === 'triage_failures' ? 'triage' : 'rerun'}-${Date.now().toString(36)}`;
     const childWork: InboundWork = {
       ...work,

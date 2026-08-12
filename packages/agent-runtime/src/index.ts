@@ -74,7 +74,7 @@ export interface CursorCliOptions {
 
 function safeEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(
-    Object.entries(source).filter(([name]) => !/^(?:GITHUB_|GH_|SLACK_)/i.test(name))
+    Object.entries(source).filter(([name]) => !/^(?:GITHUB_|GH_|SLACK_|QALI_)/i.test(name))
   );
 }
 

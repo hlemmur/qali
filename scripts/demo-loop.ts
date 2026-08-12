@@ -161,7 +161,8 @@ class MockModeStepExecutor implements StepExecutor {
 
   constructor(
     private readonly workspace: string,
-    private readonly playwright: PlaywrightRunner
+    private readonly playwright: PlaywrightRunner,
+    private readonly targetBaseUrl: string
   ) {}
 
   async execute(step: WorkflowStep, command: NormalizedCommand) {
@@ -269,6 +270,7 @@ class MockModeStepExecutor implements StepExecutor {
       const run = await this.playwright.run({
         workspace: this.workspace,
         projectId: command.project.id,
+        targetBaseUrl: this.targetBaseUrl,
         reportPath,
         ...(typeof command.parameters.suite === 'string' &&
         command.parameters.suite !== 'all' &&
@@ -390,7 +392,8 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
   );
   const executor = new MockModeStepExecutor(
     workspace,
-    options.playwright ?? new SpawnPlaywrightRunner()
+    options.playwright ?? new SpawnPlaywrightRunner(),
+    process.env.QALI_TARGET_BASE_URL ?? 'http://127.0.0.1:4173'
   );
   const sequence: DemoSequenceResult[] = [];
   const eventPaths: string[] = [];

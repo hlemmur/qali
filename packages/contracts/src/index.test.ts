@@ -1,13 +1,83 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ClassifiedIntentSchema,
   ExternalRoleSchema,
   NormalizedCommandSchema,
+  ProjectExecutionProfileSchema,
+  ProjectRegistrySchema,
   RoleProfileSchema,
   WorkflowDescriptorSchema,
   WorkflowResultSchema
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('limits untrusted classification to intent, project id, and declarative focus', () => {
+    expect(
+      ClassifiedIntentSchema.parse({
+        intent: 'explore-project',
+        projectId: 'checkout',
+        focus: { area: 'checkout' }
+      })
+    ).toEqual({ intent: 'explore-project', projectId: 'checkout', focus: { area: 'checkout' } });
+    expect(() =>
+      ClassifiedIntentSchema.parse({
+        intent: 'explore-project',
+        projectId: 'checkout',
+        focus: {},
+        projectRoot: 'projects/attacker'
+      })
+    ).toThrow();
+  });
+
+  it('validates trusted project registries and environment-labelled execution profiles', () => {
+    const registry = ProjectRegistrySchema.parse({
+      version: 1,
+      projects: [
+        {
+          id: '_demo',
+          root: 'projects/_demo',
+          githubEnvironment: 'qali-demo',
+          allowedSlack: {
+            teamIds: ['T1'],
+            channelIds: ['C1'],
+            userIds: ['U1'],
+            roles: ['qa-lead-admin']
+          },
+          publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+          enabledWorkflows: ['run-test-suite'],
+          schedules: [],
+          activeExecutionProfile: 'demo-mock'
+        }
+      ]
+    });
+    const profile = ProjectExecutionProfileSchema.parse({
+      version: 1,
+      id: 'demo-mock',
+      projectId: '_demo',
+      environmentLabel: 'mock',
+      targetVariables: {
+        baseUrl: 'QALI_TARGET_BASE_URL',
+        allowedOrigins: 'QALI_ALLOWED_ORIGINS_JSON',
+        credentials: 'QALI_TEST_CREDENTIALS_JSON',
+        testData: 'QALI_TEST_DATA_JSON'
+      },
+      browser: { name: 'chromium', allowDownloads: false, allowPopups: false },
+      rate: { maxActionsPerMinute: 60 },
+      mutation: { allowed: ['append-observation', 'append-evidence'] },
+      cleanup: { strategy: 'fixture-reset' },
+      redaction: { patterns: [] },
+      retention: { evidenceDays: 14 },
+      publication: { reviewOnly: true },
+      displayBadge: 'MOCK MODE'
+    });
+
+    expect(registry.projects[0]?.root).toBe('projects/_demo');
+    expect(profile.environmentLabel).toBe('mock');
+    expect(() =>
+      ProjectExecutionProfileSchema.parse({ ...profile, displayBadge: undefined })
+    ).toThrow();
+  });
+
   it('represents Developer and QA Lead/Admin external request authority', () => {
     expect(ExternalRoleSchema.parse('developer')).toBe('developer');
     expect(ExternalRoleSchema.parse('qa-lead-admin')).toBe('qa-lead-admin');

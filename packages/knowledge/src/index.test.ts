@@ -108,6 +108,7 @@ describe('project knowledge validation', () => {
 describe('canonical project template', () => {
   it('contains every workflow-owned physical area and governed knowledge artifact', () => {
     const required = [
+      'execution-profile.json',
       'sources/project-context.md',
       'sources/reference/requirements.md',
       'sources/reference/journeys.md',
@@ -197,6 +198,32 @@ describe('canonical project template', () => {
       });
 
       expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects execution profiles that do not belong to the project', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('profile-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      const path = join(projectRoot, 'execution-profile.json');
+      const profile = JSON.parse(readFileSync(path, 'utf8')) as { projectId: string };
+      profile.projectId = 'other-project';
+      writeFileSync(path, JSON.stringify(profile));
+
+      expect(validateProjectDirectory(projectRoot).issues).toContainEqual(
+        expect.objectContaining({
+          code: 'invalid-execution-profile',
+          path: 'execution-profile.json'
+        })
+      );
     } finally {
       rmSync(projectsRoot, { recursive: true, force: true });
     }

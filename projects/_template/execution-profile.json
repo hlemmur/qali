@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "{{PROJECT_ID}}-mock",
+  "projectId": "{{PROJECT_ID}}",
+  "environmentLabel": "mock",
+  "targetVariables": {
+    "baseUrl": "QALI_TARGET_BASE_URL",
+    "allowedOrigins": "QALI_ALLOWED_ORIGINS_JSON",
+    "credentials": "QALI_TEST_CREDENTIALS_JSON",
+    "testData": "QALI_TEST_DATA_JSON"
+  },
+  "browser": {
+    "name": "chromium",
+    "allowDownloads": false,
+    "allowPopups": false
+  },
+  "rate": {
+    "maxActionsPerMinute": 60
+  },
+  "mutation": {
+    "allowed": ["append-observation", "append-evidence", "render-derived-report"]
+  },
+  "cleanup": {
+    "strategy": "fixture-reset"
+  },
+  "redaction": {
+    "patterns": []
+  },
+  "retention": {
+    "evidenceDays": 14
+  },
+  "publication": {
+    "reviewOnly": true
+  },
+  "displayBadge": "MOCK MODE",
+  "webServer": {
+    "command": "node projects/{{PROJECT_ID}}/app/server.mjs",
+    "url": "http://127.0.0.1:4173/health"
+  }
+}

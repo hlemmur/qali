@@ -14,6 +14,7 @@ npm run project:validate -- projects/my-app
 
 ```
 projects/<id>/
+├── execution-profile.json   # Environment label and deterministic execution policy
 ├── sources/                 # Governed truth (Qali-authored by default)
 │   ├── project-context.md
 │   ├── questions.md
@@ -76,7 +77,16 @@ npm run demo:loop
 
 ## Environment configuration
 
-Record in `sources/project-context.md`:
+Every target has `execution-profile.json`, and `projects/registry.json` is the only trusted map from a classified project ID to its root, GitHub Environment, Slack scope, publication target, enabled workflows, schedules, and active profile. The classifier never supplies those values.
+
+Configure these names in the selected GitHub Environment; do not commit their values:
+
+- `QALI_TARGET_BASE_URL`
+- `QALI_ALLOWED_ORIGINS_JSON`
+- `QALI_TEST_CREDENTIALS_JSON`
+- `QALI_TEST_DATA_JSON`
+
+Record non-secret context in `sources/project-context.md`:
 
 - Base URL (production today for real targets)
 - Test credentials (never commit secrets — use CI secrets)
@@ -84,11 +94,13 @@ Record in `sources/project-context.md`:
 
 ## Adding a real target
 
-1. Scaffold from `_template`
-2. Fill project context and journeys
-3. Set autonomy mode in `sources/autonomy-policy.md`
-4. Run `onboard-project` workflow (via Slack or `npm run execute`)
-5. Approve first scenarios in `derived/scenarios/approved/`
-6. Generate and run suites
+1. Scaffold from `_template`.
+2. Add the canonical root and allowed Slack scope to `projects/registry.json`.
+3. Set the active profile and create its named GitHub Environment.
+4. Configure the four standard target variables/secrets in that Environment.
+5. Fill project context and journeys.
+6. Set autonomy mode in `sources/autonomy-policy.md`.
+7. Run `onboard-project` through Slack or `npm run execute`.
+8. Approve first scenarios, then generate and run suites.
 
 No preview URL is required; document the exact URL Qali should hit.
