@@ -6,7 +6,7 @@ import type {
   WorkflowDescriptor,
   WorkflowStep
 } from '../../contracts/src/index.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FileSystemOutputValidator,
   FakeEventStore,
@@ -89,6 +89,10 @@ const dependencies = () => ({
 });
 
 describe('workflow execution', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('loads, executes, validates, and persists ordered state transitions', async () => {
     const ports = dependencies();
     const result = await executeWorkflow(command, ports);
@@ -134,6 +138,35 @@ describe('workflow execution', () => {
     const invalid = await executeWorkflow(command, invalidPorts);
     expect(invalid.status).toBe('failed');
     expect(invalidPorts.executor.steps).toEqual(['execute']);
+  });
+
+  it('aborts a step when its declared timeout elapses', async () => {
+    vi.useFakeTimers();
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [{ ...workflow.steps[0]!, timeoutMs: 1_000 }]
+    };
+    let aborted = false;
+    ports.executor.execute = vi.fn(async (_step, _command, context) => {
+      await new Promise<void>((resolve) => {
+        context.signal.addEventListener('abort', () => {
+          aborted = true;
+          resolve();
+        });
+      });
+      return { status: 'failed', error: 'cancelled' } as const;
+    });
+
+    const pending = executeWorkflow(command, ports);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const result = await pending;
+
+    expect(result.status).toBe('failed');
+    expect(aborted).toBe(true);
+    expect(result.events.find(({ type }) => type === 'step-failed')?.detail).toEqual({
+      error: 'step execute timed out after 1000ms'
+    });
   });
 
   it('rejects declared outputs that were not materialized on disk', async () => {

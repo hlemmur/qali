@@ -37,8 +37,16 @@ export type StepExecutionResult =
   | { status: 'blocked'; reason: string }
   | { status: 'failed'; error: string };
 
+export interface StepExecutionContext {
+  signal: AbortSignal;
+}
+
 export interface StepExecutor {
-  execute(step: WorkflowStep, command: NormalizedCommand): Promise<StepExecutionResult>;
+  execute(
+    step: WorkflowStep,
+    command: NormalizedCommand,
+    context: StepExecutionContext
+  ): Promise<StepExecutionResult>;
 }
 
 export interface WorkflowEventStore {
@@ -66,6 +74,30 @@ export interface WorkflowExecutionPorts {
 
 const expandOutputPath = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
+
+async function executeWithTimeout(
+  executor: StepExecutor,
+  step: WorkflowStep,
+  command: NormalizedCommand
+): Promise<StepExecutionResult> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<StepExecutionResult>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve({ status: 'failed', error: `step ${step.id} timed out after ${step.timeoutMs}ms` });
+    }, step.timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      executor.execute(step, command, { signal: controller.signal }),
+      timeout
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 export class FileSystemOutputValidator implements OutputValidator {
   constructor(private readonly workspace: string) {}
@@ -165,7 +197,7 @@ export async function executeWorkflow(
       return result('blocked');
     }
     await emit('step-started', {}, step.id);
-    const execution = await ports.executor.execute(step, command);
+    const execution = await executeWithTimeout(ports.executor, step, command);
     if (execution.status === 'blocked') {
       await emit('workflow-blocked', { reason: execution.reason }, step.id);
       return result('blocked');
@@ -217,7 +249,11 @@ export class FakePolicyEnforcer implements PolicyEnforcer {
 export class FakeStepExecutor implements StepExecutor {
   readonly steps: string[] = [];
   constructor(public results: StepExecutionResult[] = []) {}
-  async execute(step: WorkflowStep): Promise<StepExecutionResult> {
+  async execute(
+    step: WorkflowStep,
+    _command: NormalizedCommand,
+    _context: StepExecutionContext
+  ): Promise<StepExecutionResult> {
     this.steps.push(step.id);
     return this.results.shift() ?? { status: 'succeeded', outputs: [] };
   }
