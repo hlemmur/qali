@@ -198,9 +198,11 @@ describe('workflow execution', () => {
         });
       }
       return {
-        status: 'succeeded',
-        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
-      } as const;
+        status: 'succeeded' as const,
+        outputs: [
+          { artifact: 'evidence' as const, path: 'projects/demo/observations/evidence/run' }
+        ]
+      };
     });
 
     const pending = executeWorkflow(command, ports);
@@ -346,6 +348,34 @@ describe('workflow execution', () => {
     ]);
     expect(resumed.events.filter(({ type }) => type === 'workflow-resumed')).toHaveLength(1);
     expect(resumed.attempts.filter(({ stepId }) => stepId === 'execute')).toHaveLength(1);
+  });
+
+  it('reruns a completed step when its harness identity changed', async () => {
+    const initialPorts = dependencies();
+    const initial = await executeWorkflow(command, initialPorts);
+    const ports = dependencies();
+    ports.loader.workflow = { ...workflow, steps: [workflow.steps[0]!] };
+    ports.resume = {
+      ...initial,
+      outputs: initial.outputs.filter(({ artifact }) => artifact === 'evidence'),
+      attempts: initial.attempts
+        .filter(({ stepId }) => stepId === 'execute')
+        .map((attempt) => ({ ...attempt, harnessHash: 'b'.repeat(64) })),
+      events: []
+    };
+    ports.executor.results = [
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
+      }
+    ];
+
+    const resumed = await executeWorkflow(command, ports);
+
+    expect(ports.executor.steps).toEqual(['execute']);
+    expect(resumed.attempts).toHaveLength(1);
+    expect(resumed.attempts[0]?.harnessHash).toBe('a'.repeat(64));
+    expect(resumed.outputs).toHaveLength(1);
   });
 
   it('continues retry numbering and budget after resume', async () => {

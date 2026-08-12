@@ -170,9 +170,34 @@ export async function executeWorkflow(
   const runId = resume?.runId ?? id();
   const startedAt = resume?.startedAt ?? now().toISOString();
   const events: WorkflowEvent[] = [...(resume?.events ?? [])];
-  const outputs: ArtifactReference[] = [...(resume?.outputs ?? [])];
-  const attempts: WorkflowAttempt[] = [...(resume?.attempts ?? [])];
   const stepsById = new Map(workflow.steps.map((step) => [step.id, step]));
+  const invalidResumeStepIds = new Set(
+    (resume?.attempts ?? [])
+      .filter(({ stepId, status, harnessHash, harnessProfileId }) => {
+        const step = stepsById.get(stepId);
+        return (
+          status === 'succeeded' &&
+          step !== undefined &&
+          (harnessProfileId !== step.harnessProfileId || harnessHash !== ports.harnessHash(step))
+        );
+      })
+      .map(({ stepId }) => stepId)
+  );
+  const invalidOutputKeys = new Set(
+    workflow.steps
+      .filter(({ id: stepId }) => invalidResumeStepIds.has(stepId))
+      .flatMap(({ outputs: stepOutputs }) =>
+        stepOutputs.map(
+          ({ artifact, path }) => `${artifact}:${expandOutputPath(path, command)}`
+        )
+      )
+  );
+  const outputs: ArtifactReference[] = (resume?.outputs ?? []).filter(
+    ({ artifact, path }) => !invalidOutputKeys.has(`${artifact}:${path}`)
+  );
+  const attempts: WorkflowAttempt[] = (resume?.attempts ?? []).filter(
+    ({ stepId }) => !invalidResumeStepIds.has(stepId)
+  );
   let workflowFailed = attempts.some(
     (attempt) =>
       attempt.status === 'failed' &&
