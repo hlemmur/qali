@@ -91,11 +91,147 @@ export const SlackCorrelationContextSchema = z
   .strict();
 export type SlackCorrelationContext = z.infer<typeof SlackCorrelationContextSchema>;
 
+export const ClassifiedIntentSchema = z
+  .object({
+    intent: IntentSchema,
+    projectId: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
+    focus: z.record(z.string(), z.unknown()).default({})
+  })
+  .strict();
+export type ClassifiedIntent = z.infer<typeof ClassifiedIntentSchema>;
+
+export const ProjectPublicationSchema = z
+  .object({
+    owner: z.string().min(1),
+    repo: z.string().min(1),
+    branch: z.string().min(1),
+    reviewOnly: z.boolean()
+  })
+  .strict();
+
+export const ProjectSlackScopeSchema = z
+  .object({
+    teamIds: z.array(z.string().min(1)).default([]),
+    channelIds: z.array(z.string().min(1)).min(1),
+    userIds: z.array(z.string().min(1)).default([]),
+    roles: z.array(ExternalRoleSchema).min(1)
+  })
+  .strict();
+
+export const ProjectRegistryEntrySchema = z
+  .object({
+    id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
+    root: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*$/),
+    githubEnvironment: z.string().min(1),
+    allowedSlack: ProjectSlackScopeSchema,
+    publication: ProjectPublicationSchema,
+    enabledWorkflows: z.array(IntentSchema).min(1),
+    schedules: z.array(
+      z
+        .object({
+          workflowId: IntentSchema,
+          cron: z.string().min(1),
+          enabled: z.boolean().default(true)
+        })
+        .strict()
+    ),
+    activeExecutionProfile: z.string().regex(/^[a-z][a-z0-9-]*$/)
+  })
+  .strict()
+  .superRefine((entry, context) => {
+    if (entry.root !== `projects/${entry.id}`) {
+      context.addIssue({
+        code: 'custom',
+        path: ['root'],
+        message: `project root must be projects/${entry.id}`
+      });
+    }
+  });
+export type ProjectRegistryEntry = z.infer<typeof ProjectRegistryEntrySchema>;
+
+export const ProjectRegistrySchema = z
+  .object({
+    version: z.literal(1),
+    projects: z.array(ProjectRegistryEntrySchema).min(1)
+  })
+  .strict()
+  .superRefine((registry, context) => {
+    const ids = new Set<string>();
+    registry.projects.forEach((project, index) => {
+      if (ids.has(project.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['projects', index, 'id'],
+          message: `duplicate project id ${project.id}`
+        });
+      }
+      ids.add(project.id);
+    });
+  });
+export type ProjectRegistry = z.infer<typeof ProjectRegistrySchema>;
+
+const StandardTargetVariablesSchema = z
+  .object({
+    baseUrl: z.literal('QALI_TARGET_BASE_URL'),
+    allowedOrigins: z.literal('QALI_ALLOWED_ORIGINS_JSON'),
+    credentials: z.literal('QALI_TEST_CREDENTIALS_JSON'),
+    testData: z.literal('QALI_TEST_DATA_JSON')
+  })
+  .strict();
+
+export const ProjectExecutionProfileSchema = z
+  .object({
+    version: z.literal(1),
+    id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    projectId: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
+    environmentLabel: z.enum(['mock', 'staging', 'production']),
+    targetVariables: StandardTargetVariablesSchema,
+    browser: z
+      .object({
+        name: z.enum(['chromium', 'firefox', 'webkit']),
+        allowDownloads: z.boolean(),
+        allowPopups: z.boolean()
+      })
+      .strict(),
+    rate: z.object({ maxActionsPerMinute: z.number().int().positive() }).strict(),
+    mutation: z.object({ allowed: z.array(MutationClassSchema) }).strict(),
+    cleanup: z.object({ strategy: z.enum(['none', 'fixture-reset', 'ephemeral-data']) }).strict(),
+    redaction: z.object({ patterns: z.array(z.string()) }).strict(),
+    retention: z.object({ evidenceDays: z.number().int().positive() }).strict(),
+    publication: z.object({ reviewOnly: z.boolean() }).strict(),
+    displayBadge: z.string().min(1).optional()
+  })
+  .strict()
+  .superRefine((profile, context) => {
+    if (profile.environmentLabel === 'mock' && profile.displayBadge !== 'MOCK MODE') {
+      context.addIssue({
+        code: 'custom',
+        path: ['displayBadge'],
+        message: 'mock profiles must display the MOCK MODE badge'
+      });
+    }
+    if (profile.environmentLabel !== 'mock' && profile.displayBadge === 'MOCK MODE') {
+      context.addIssue({
+        code: 'custom',
+        path: ['displayBadge'],
+        message: 'non-mock profiles cannot display the MOCK MODE badge'
+      });
+    }
+  });
+export type ProjectExecutionProfile = z.infer<typeof ProjectExecutionProfileSchema>;
+
 export const ProjectMetadataSchema = z
   .object({
     id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
     root: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*$/),
-    environment: z.string().min(1).optional()
+    environment: z.string().min(1).optional(),
+    environmentLabel: z.enum(['mock', 'staging', 'production']).optional(),
+    executionProfileId: z
+      .string()
+      .regex(/^[a-z][a-z0-9-]*$/)
+      .optional(),
+    publication: ProjectPublicationSchema.optional(),
+    displayBadge: z.string().min(1).optional()
   })
   .strict();
 export type ProjectMetadata = z.infer<typeof ProjectMetadataSchema>;

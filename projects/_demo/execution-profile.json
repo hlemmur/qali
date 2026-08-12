@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "demo-mock",
+  "projectId": "_demo",
+  "environmentLabel": "mock",
+  "targetVariables": {
+    "baseUrl": "QALI_TARGET_BASE_URL",
+    "allowedOrigins": "QALI_ALLOWED_ORIGINS_JSON",
+    "credentials": "QALI_TEST_CREDENTIALS_JSON",
+    "testData": "QALI_TEST_DATA_JSON"
+  },
+  "browser": {
+    "name": "chromium",
+    "allowDownloads": false,
+    "allowPopups": false
+  },
+  "rate": {
+    "maxActionsPerMinute": 60
+  },
+  "mutation": {
+    "allowed": [
+      "append-observation",
+      "append-evidence",
+      "render-derived-report",
+      "format-document",
+      "create-test",
+      "modify-test"
+    ]
+  },
+  "cleanup": {
+    "strategy": "fixture-reset"
+  },
+  "redaction": {
+    "patterns": []
+  },
+  "retention": {
+    "evidenceDays": 14
+  },
+  "publication": {
+    "reviewOnly": true
+  },
+  "displayBadge": "MOCK MODE"
+}

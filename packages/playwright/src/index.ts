@@ -76,6 +76,7 @@ export type PlaywrightTestGenerationRequest = z.infer<typeof PlaywrightTestGener
 export interface PlaywrightRunRequest {
   workspace: string;
   projectId: string;
+  targetBaseUrl: string;
   reportPath: string;
   grep?: string;
 }
@@ -120,7 +121,11 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
     return new Promise((resolve) => {
       const child = this.spawn(process.execPath, args, {
         cwd: request.workspace,
-        env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath },
+        env: {
+          ...process.env,
+          QALI_TARGET_BASE_URL: request.targetBaseUrl,
+          PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath
+        },
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe']
       });

@@ -28,6 +28,33 @@ export interface ActionsConfigToSync {
   skipped: string[];
 }
 
+export interface ProjectEnvironmentConfigToSync {
+  environment: string;
+  secrets: SecretValue[];
+  variables: SecretValue[];
+}
+
+export function selectProjectEnvironmentConfigToSync(
+  env: Record<string, string>,
+  environment: string
+): ProjectEnvironmentConfigToSync {
+  if (!environment.trim()) throw new Error('GitHub Environment name is required');
+  const requireValue = (name: string): SecretValue => {
+    const value = env[name]?.trim() ?? '';
+    if (!value) throw new Error(`Missing required project target value in .env: ${name}`);
+    return { name, value };
+  };
+  return {
+    environment,
+    variables: [
+      requireValue('QALI_TARGET_BASE_URL'),
+      requireValue('QALI_ALLOWED_ORIGINS_JSON'),
+      requireValue('QALI_TEST_DATA_JSON')
+    ],
+    secrets: [requireValue('QALI_TEST_CREDENTIALS_JSON')]
+  };
+}
+
 export function parseDotEnv(contents: string): Record<string, string> {
   const values: Record<string, string> = {};
   const lines = contents.split(/\r?\n/);

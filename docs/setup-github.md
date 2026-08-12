@@ -257,6 +257,23 @@ Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
 | `CURSOR_MODEL`                        | GitHub Actions repo **variable**  | Optional agent model             |
 | `CURSOR_API_KEY`                      | **GitHub Actions** repo secret    | Cursor Agent CLI auth in Actions |
 
+Each registry entry names a GitHub Environment. Configure the target values on that Environment so one workflow cannot inherit another project's target:
+
+| Name                         | Environment location | Purpose                                                      |
+| ---------------------------- | -------------------- | ------------------------------------------------------------ |
+| `QALI_TARGET_BASE_URL`       | Variable             | Exact target URL injected into Playwright                    |
+| `QALI_ALLOWED_ORIGINS_JSON`  | Variable             | JSON array containing every permitted origin                 |
+| `QALI_TEST_CREDENTIALS_JSON` | Secret               | Named test credentials; use `{}` when none are needed        |
+| `QALI_TEST_DATA_JSON`        | Variable             | Named non-secret fixture data; use `{}` when none are needed |
+
+The job fails closed if a value is missing, malformed, uses an unsafe origin, or does not match the active execution profile.
+
+Sync the selected project's Environment through the same entrypoint. If more than one project is registered, use a project-scoped env file and select the project explicitly so values cannot be copied across projects:
+
+```bash
+QALI_ENV_FILE=.env.my-app npm run control-plane:sync-secrets -- --only actions --project my-app
+```
+
 ---
 
 ## Workflow reference: `execute.yml`

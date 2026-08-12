@@ -39,9 +39,14 @@ permissions:
 jobs:
   validate-and-execute:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.project_json && fromJSON(inputs.project_json).environment || 'qali-demo' }}
     timeout-minutes: 30
     env:
       CI: 'true'
+      QALI_TARGET_BASE_URL: ${{ vars.QALI_TARGET_BASE_URL }}
+      QALI_ALLOWED_ORIGINS_JSON: ${{ vars.QALI_ALLOWED_ORIGINS_JSON }}
+      QALI_TEST_CREDENTIALS_JSON: ${{ secrets.QALI_TEST_CREDENTIALS_JSON }}
+      QALI_TEST_DATA_JSON: ${{ vars.QALI_TEST_DATA_JSON }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

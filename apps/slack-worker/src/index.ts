@@ -5,6 +5,11 @@ import { GitHubAppClient } from './github.js';
 import { verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
+import {
+  DEFAULT_EXECUTION_PROFILES,
+  DEFAULT_PROJECT_REGISTRY,
+  resolveTrustedCommand
+} from './project-registry.js';
 import type {
   ControlStore,
   Correlation,
@@ -15,6 +20,7 @@ import type {
   SlackPort,
   SlackRunSummary
 } from './types.js';
+import type { ProjectExecutionProfile, ProjectRegistry } from '@qali/contracts';
 
 interface QueueMessage<T> {
   body: T;
@@ -32,6 +38,8 @@ export interface WorkerDependencies {
   github?: GitHubPort;
   slack?: SlackPort;
   now?: () => Date;
+  projectRegistry?: ProjectRegistry;
+  executionProfiles?: ProjectExecutionProfile[];
 }
 
 const csv = (value?: string): Set<string> =>
@@ -469,7 +477,13 @@ export function createWorker(overrides: WorkerDependencies = {}) {
               ackError instanceof Error ? ackError.message : String(ackError)
             );
           }
-          const command = await classifier.classify(message.body);
+          const classification = await classifier.classify(message.body);
+          const command = resolveTrustedCommand(
+            classification,
+            message.body,
+            overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
+            overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
+          );
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {
             const reason = authorization.reason;

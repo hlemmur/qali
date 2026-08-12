@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const targetBaseUrl = process.env.QALI_TARGET_BASE_URL?.trim();
+if (!targetBaseUrl) throw new Error('QALI_TARGET_BASE_URL is required');
+const webServerCommand = process.env.QALI_WEB_SERVER_COMMAND?.trim();
+const webServerUrl = process.env.QALI_WEB_SERVER_URL?.trim();
+if (Boolean(webServerCommand) !== Boolean(webServerUrl)) {
+  throw new Error('QALI_WEB_SERVER_COMMAND and QALI_WEB_SERVER_URL must be configured together');
+}
+
 export default defineConfig({
   testDir: './projects',
   testMatch: '**/tests/**/*.spec.ts',
@@ -13,7 +21,7 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }]
   ],
   use: {
-    baseURL: process.env.DEMO_BASE_URL ?? 'http://127.0.0.1:4173',
+    baseURL: targetBaseUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -27,12 +35,16 @@ export default defineConfig({
   },
   snapshotPathTemplate:
     '{testDir}/{testFileDir}/__snapshots__/{testFileName}/{projectName}/{arg}{ext}',
-  webServer: {
-    command: 'node projects/_demo/app/server.mjs',
-    url: 'http://127.0.0.1:4173/health',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000
-  },
+  ...(webServerCommand && webServerUrl
+    ? {
+        webServer: {
+          command: webServerCommand,
+          url: webServerUrl,
+          reuseExistingServer: false,
+          timeout: 30_000
+        }
+      }
+    : {}),
   projects: [
     {
       name: 'functional-chromium',

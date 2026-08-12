@@ -75,7 +75,9 @@ describe('agent runtime', () => {
         PATH: '/bin',
         CURSOR_MODEL: 'test-model',
         GITHUB_TOKEN: 'never',
-        SLACK_BOT_TOKEN: 'never'
+        SLACK_BOT_TOKEN: 'never',
+        QALI_TEST_CREDENTIALS_JSON: '{"password":"never"}',
+        QALI_TEST_DATA_JSON: '{"customer":"never"}'
       }
     });
 
@@ -103,6 +105,8 @@ describe('agent runtime', () => {
     expect(options.shell).toBe(false);
     expect(options.env).not.toHaveProperty('GITHUB_TOKEN');
     expect(options.env).not.toHaveProperty('SLACK_BOT_TOKEN');
+    expect(options.env).not.toHaveProperty('QALI_TEST_CREDENTIALS_JSON');
+    expect(options.env).not.toHaveProperty('QALI_TEST_DATA_JSON');
   });
 
   it('disables sandbox automatically in CI unless overridden', async () => {

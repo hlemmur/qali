@@ -1,7 +1,12 @@
-import type { NormalizedCommand } from '@qali/contracts';
+import type {
+  ClassifiedIntent,
+  NormalizedCommand,
+  ProjectExecutionProfile,
+  ProjectRegistry
+} from '@qali/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { signHmacForTest } from './security.js';
-import { createWorker } from './index.js';
+import { createWorker as createProductionWorker, type WorkerDependencies } from './index.js';
 import { SlackWebClient } from './slack.js';
 import type {
   ControlStore,
@@ -84,15 +89,88 @@ class MemoryStore implements ControlStore {
   }
 }
 
-const command = (work: InboundWork): NormalizedCommand => ({
+const command = (work: InboundWork): ClassifiedIntent => {
+  void work;
+  return {
+    intent: 'run-test-suite',
+    projectId: '_demo',
+    focus: { suite: 'smoke' }
+  };
+};
+
+const resolvedCommand = (work: InboundWork): NormalizedCommand => ({
   intent: 'run-test-suite',
-  project: { id: 'demo', root: 'projects/demo' },
+  project: {
+    id: '_demo',
+    root: 'projects/_demo',
+    environment: 'qali-demo',
+    environmentLabel: 'mock',
+    executionProfileId: 'demo-mock',
+    publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+    displayBadge: 'MOCK MODE'
+  },
   requestedBy: work.requestedBy,
   externalRole: work.externalRole,
   receivedAt: work.receivedAt,
   parameters: { suite: 'smoke' },
   slack: work.slack
 });
+
+const testProjectRegistry: ProjectRegistry = {
+  version: 1,
+  projects: [
+    {
+      id: '_demo',
+      root: 'projects/_demo',
+      githubEnvironment: 'qali-demo',
+      allowedSlack: {
+        teamIds: ['T1'],
+        channelIds: ['C1'],
+        userIds: ['U1'],
+        roles: ['developer', 'qa-lead-admin']
+      },
+      publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+      enabledWorkflows: [
+        'onboard-project',
+        'explore-project',
+        'generate-test-suite',
+        'run-test-suite',
+        'triage-failure',
+        'maintain-knowledge',
+        'maintain-suite',
+        'quality-pulse'
+      ],
+      schedules: [],
+      activeExecutionProfile: 'demo-mock'
+    }
+  ]
+};
+const testExecutionProfile: ProjectExecutionProfile = {
+  version: 1,
+  id: 'demo-mock',
+  projectId: '_demo',
+  environmentLabel: 'mock',
+  targetVariables: {
+    baseUrl: 'QALI_TARGET_BASE_URL',
+    allowedOrigins: 'QALI_ALLOWED_ORIGINS_JSON',
+    credentials: 'QALI_TEST_CREDENTIALS_JSON',
+    testData: 'QALI_TEST_DATA_JSON'
+  },
+  browser: { name: 'chromium', allowDownloads: false, allowPopups: false },
+  rate: { maxActionsPerMinute: 60 },
+  mutation: { allowed: [] },
+  cleanup: { strategy: 'fixture-reset' },
+  redaction: { patterns: [] },
+  retention: { evidenceDays: 14 },
+  publication: { reviewOnly: true },
+  displayBadge: 'MOCK MODE'
+};
+const createWorker = (overrides: WorkerDependencies = {}) =>
+  createProductionWorker({
+    projectRegistry: testProjectRegistry,
+    executionProfiles: [testExecutionProfile],
+    ...overrides
+  });
 
 const baseEnv = (queue: InboundWork[]): Env =>
   ({
@@ -476,7 +554,7 @@ describe('Slack control worker', () => {
     } satisfies InboundWork;
     await store.accept(work);
     await store.claim('Ev1');
-    await store.markDispatched('Ev1', command(work), '42');
+    await store.markDispatched('Ev1', resolvedCommand(work), '42');
     const slack: SlackPort = {
       postResult: vi.fn(async () => '2.2'),
       updateResult: vi.fn(async () => undefined),

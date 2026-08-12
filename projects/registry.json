@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "_demo",
+      "root": "projects/_demo",
+      "githubEnvironment": "qali-demo",
+      "allowedSlack": {
+        "teamIds": [],
+        "channelIds": ["C0BPN1KEHC4"],
+        "userIds": ["U099MTX6423"],
+        "roles": ["developer", "qa-lead-admin"]
+      },
+      "publication": {
+        "owner": "hlemmur",
+        "repo": "qali",
+        "branch": "main",
+        "reviewOnly": true
+      },
+      "enabledWorkflows": [
+        "onboard-project",
+        "explore-project",
+        "generate-test-suite",
+        "run-test-suite",
+        "triage-failure",
+        "maintain-knowledge",
+        "maintain-suite",
+        "quality-pulse"
+      ],
+      "schedules": [
+        {
+          "workflowId": "quality-pulse",
+          "cron": "17 6 * * *",
+          "enabled": true
+        }
+      ],
+      "activeExecutionProfile": "demo-mock"
+    }
+  ]
+}

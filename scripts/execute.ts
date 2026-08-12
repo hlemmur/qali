@@ -5,10 +5,12 @@ import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
 import {
   NormalizedCommandSchema,
+  ProjectExecutionProfileSchema,
   type NormalizedCommand,
   type WorkflowEvent,
   type WorkflowStep
 } from '../packages/contracts/src/index.js';
+import { resolveExecutionTarget } from '../packages/project-config/src/index.js';
 import { renderGeneratedJson } from '../packages/knowledge/src/index.js';
 import {
   FileSystemOutputValidator,
@@ -195,6 +197,8 @@ class RoutedStepExecutor implements StepExecutor {
     ).skills.map((skill) => [skill.id, JSON.stringify(skill.instructions)])
   );
 
+  constructor(private readonly targetBaseUrl: string) {}
+
   private shouldUseCursorCli(): boolean {
     return (
       Boolean(process.env.CURSOR_MODEL?.trim()) &&
@@ -306,6 +310,7 @@ class RoutedStepExecutor implements StepExecutor {
       const run = await this.playwright.run({
         workspace,
         projectId: command.project.id,
+        targetBaseUrl: this.targetBaseUrl,
         reportPath: join(evidenceDir, 'results.json')
       });
       if (existsSync(join(evidenceDir, 'results.json'))) {
@@ -361,6 +366,18 @@ function commandInput(): NormalizedCommand {
 }
 
 const command = commandInput();
+if (!command.project.executionProfileId) {
+  throw new Error('Resolved command is missing project.executionProfileId');
+}
+const executionProfile = ProjectExecutionProfileSchema.parse(
+  JSON.parse(readFileSync(join(workspace, command.project.root, 'execution-profile.json'), 'utf8'))
+);
+if (executionProfile.id !== command.project.executionProfileId) {
+  throw new Error(
+    `Execution profile mismatch: expected ${command.project.executionProfileId}, found ${executionProfile.id}`
+  );
+}
+const executionTarget = resolveExecutionTarget(executionProfile, process.env);
 mkdirSync(join(workspace, '.qali'), { recursive: true });
 const agentMode =
   Boolean(process.env.CURSOR_MODEL?.trim()) &&
@@ -395,7 +412,7 @@ const result = await executeWorkflow(command, {
   loader: { load: () => descriptor },
   preconditions: new FilePreconditions(),
   policy: new WorkflowPolicy(),
-  executor: new RoutedStepExecutor(),
+  executor: new RoutedStepExecutor(executionTarget.baseUrl),
   events: new FileEventStore(eventPath),
   outputValidator: new FileSystemOutputValidator(workspace)
 });

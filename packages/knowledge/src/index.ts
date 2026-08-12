@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { cpSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ProjectExecutionProfileSchema } from '@qali/contracts';
 
 export const EVIDENCE_STATUSES = [
   'confirmed',
@@ -179,6 +180,7 @@ export function renderGeneratedJson(value: object): string {
 }
 
 export const REQUIRED_PROJECT_PATHS = [
+  'execution-profile.json',
   'sources/project-context.md',
   'sources/reference/requirements.md',
   'sources/reference/journeys.md',
@@ -208,6 +210,7 @@ const GENERATED_PROJECT_PATHS = REQUIRED_PROJECT_PATHS.filter((path) =>
 export interface ProjectValidationIssue {
   code:
     | 'missing-required-file'
+    | 'invalid-execution-profile'
     | 'invalid-generated-marker'
     | 'modified-generated-file'
     | 'generated-marker-in-source';
@@ -278,6 +281,25 @@ export function validateProjectDirectory(projectRoot: string | URL): ProjectVali
         code: 'missing-required-file',
         path: relativePath,
         message: `missing required project file: ${relativePath}`
+      });
+    }
+  }
+
+  const executionProfilePath = join(root, 'execution-profile.json');
+  if (existsSync(executionProfilePath)) {
+    try {
+      const profile = ProjectExecutionProfileSchema.parse(
+        JSON.parse(readFileSync(executionProfilePath, 'utf8'))
+      );
+      const projectId = root.split(/[\\/]/).filter(Boolean).at(-1);
+      if (profile.projectId !== projectId) {
+        throw new Error(`profile projectId ${profile.projectId} does not match ${projectId}`);
+      }
+    } catch (error) {
+      issues.push({
+        code: 'invalid-execution-profile',
+        path: 'execution-profile.json',
+        message: `invalid execution profile: ${error instanceof Error ? error.message : String(error)}`
       });
     }
   }

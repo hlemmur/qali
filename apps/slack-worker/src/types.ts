@@ -1,4 +1,9 @@
-import type { ExternalRole, NormalizedCommand, SlackCorrelationContext } from '@qali/contracts';
+import type {
+  ClassifiedIntent,
+  ExternalRole,
+  NormalizedCommand,
+  SlackCorrelationContext
+} from '@qali/contracts';
 import type { D1Database } from '@cloudflare/workers-types';
 
 export interface QueueSender {
@@ -84,7 +89,7 @@ export interface ControlStore {
 }
 
 export interface IntentClassifier {
-  classify(work: InboundWork): Promise<NormalizedCommand>;
+  classify(work: InboundWork): Promise<ClassifiedIntent>;
 }
 
 export interface DispatchResult {
