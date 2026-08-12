@@ -69,6 +69,10 @@ steps:
       - artifact: reference
         path: projects/{projectId}/sources/reference
     outputs:
+      - artifact: strategy
+        path: projects/{projectId}/derived/strategy.md
+      - artifact: plan
+        path: projects/{projectId}/derived/plan.md
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/smoke-proposal.md
       - artifact: reports

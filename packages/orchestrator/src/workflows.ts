@@ -59,7 +59,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'scenarios',
         'evidence'
       ],
-      writableArtifacts: ['scenarios', 'reports', 'questions'],
+      writableArtifacts: ['strategy', 'plan', 'scenarios', 'reports', 'questions'],
       tools: ['file-read', 'file-write', 'report-renderer'],
       mutations: ['append-observation', 'render-derived-report', 'format-document']
     }
@@ -162,6 +162,8 @@ const ARTIFACT_PATHS: Record<ArtifactClass, RegExp> = {
   decisions: /^projects\/\{projectId\}\/sources\/decisions\.md$/,
   'known-issues': /^projects\/\{projectId\}\/observations\/known-issues\.md$/,
   exploration: /^projects\/\{projectId\}\/observations\/exploration\.md$/,
+  strategy: /^projects\/\{projectId\}\/derived\/strategy\.md$/,
+  plan: /^projects\/\{projectId\}\/derived\/plan\.md$/,
   scenarios: /^projects\/\{projectId\}\/derived\/scenarios(?:\/|$)/,
   tests: /^projects\/\{projectId\}\/tests(?:\/|$)/,
   evidence: /^projects\/\{projectId\}\/observations\/evidence(?:\/|$)/,

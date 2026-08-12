@@ -6,6 +6,7 @@ import {
 
 export * from './workflows.js';
 export * from './execution.js';
+export * from './onboarding.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 
