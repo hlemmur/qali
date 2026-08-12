@@ -315,7 +315,11 @@ class RoutedStepExecutor implements StepExecutor {
     return { status: 'succeeded' as const, outputs };
   }
 
-  async execute(step: WorkflowStep, command: NormalizedCommand) {
+  async execute(
+    step: WorkflowStep,
+    command: NormalizedCommand,
+    context: Parameters<StepExecutor['execute']>[2]
+  ) {
     const outputs = step.outputs.map(({ artifact, path }) => ({
       artifact,
       path: expand(path, command)
@@ -342,6 +346,7 @@ class RoutedStepExecutor implements StepExecutor {
         projectId: command.project.id,
         targetBaseUrl: this.targetBaseUrl,
         reportPath: join(evidenceDir, 'results.json'),
+        signal: context.signal,
         ...(this.webServer ? { webServer: this.webServer } : {})
       });
       if (existsSync(join(evidenceDir, 'results.json'))) {
@@ -399,7 +404,8 @@ class RoutedStepExecutor implements StepExecutor {
         .join('\n\n'),
       context: JSON.stringify(command.parameters),
       timeoutMs: step.timeoutMs,
-      permissions: step.requiredTools
+      permissions: step.requiredTools,
+      signal: context.signal
     });
     if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
     if (result.status === 'blocked') return { status: 'blocked', reason: result.output } as const;

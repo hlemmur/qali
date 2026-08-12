@@ -173,6 +173,28 @@ describe('agent runtime', () => {
     expect(hangingChild.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
+  it('terminates the Agent CLI process when execution is cancelled', async () => {
+    const hangingChild = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
+    };
+    hangingChild.stdout = new EventEmitter();
+    hangingChild.stderr = new EventEmitter();
+    hangingChild.kill = vi.fn(() => true);
+    const controller = new AbortController();
+    const runtime = new CursorCliAgentRuntime({
+      spawn: vi.fn<AgentSpawn>(() => hangingChild),
+      env: {}
+    });
+
+    const pending = runtime.execute(request({ signal: controller.signal }));
+    controller.abort();
+
+    await expect(pending).resolves.toMatchObject({ status: 'failed', error: 'cancelled' });
+    expect(hangingChild.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
   it('provides a deterministic fake', async () => {
     const runtime = new FakeAgentRuntime([{ status: 'succeeded', output: 'ok' }]);
     await expect(runtime.execute(request())).resolves.toMatchObject({ output: 'ok' });

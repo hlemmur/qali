@@ -11,6 +11,7 @@ export interface AgentExecutionRequest {
   context?: string;
   timeoutMs?: number;
   permissions?: readonly string[];
+  signal?: AbortSignal;
 }
 
 export type AgentExecutionResult =
@@ -138,9 +139,14 @@ export class CursorCliAgentRuntime implements AgentRuntime {
       let stdout = '';
       let stderr = '';
       let settled = false;
+      const cancel = (): void => {
+        child.kill('SIGTERM');
+        finish({ status: 'failed', error: 'cancelled' });
+      };
       const finish = (result: AgentExecutionResult): void => {
         if (settled) return;
         settled = true;
+        request.signal?.removeEventListener('abort', cancel);
         (this.options.clearTimer ?? ((value) => clearTimeout(value as NodeJS.Timeout)))(timer);
         resolve(result);
       };
@@ -160,6 +166,8 @@ export class CursorCliAgentRuntime implements AgentRuntime {
         child.kill('SIGTERM');
         finish({ status: 'failed', error: `Agent execution timed out after ${timeoutMs}ms` });
       }, timeoutMs);
+      request.signal?.addEventListener('abort', cancel, { once: true });
+      if (request.signal?.aborted) cancel();
     });
   }
 }
