@@ -44,6 +44,7 @@ import {
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
+import { selectAgentExecutionRoute } from './execute-routing.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -237,9 +238,6 @@ class RoutedStepExecutor implements StepExecutor {
     outputs: Array<{ artifact: WorkflowStep['outputs'][number]['artifact']; path: string }>
   ) {
     const projectRoot = join(workspace, command.project.root);
-    if (command.intent === 'onboard-project') {
-      return executeOnboardingMockStep(workspace, step, command);
-    }
     if (step.id === 'analyze-failures') {
       const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
       if (!existsSync(reportPath) && !this.playwrightSummary) {
@@ -372,7 +370,11 @@ class RoutedStepExecutor implements StepExecutor {
         : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
     }
 
-    if (!this.shouldUseCursorCli()) {
+    const agentExecutionRoute = selectAgentExecutionRoute(command, this.shouldUseCursorCli());
+    if (agentExecutionRoute === 'deterministic-onboarding') {
+      return executeOnboardingMockStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
         return {
           status: 'blocked',
