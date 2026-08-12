@@ -291,6 +291,50 @@ describe('workflow execution', () => {
     expect(resumed.attempts.filter(({ stepId }) => stepId === 'execute')).toHaveLength(1);
   });
 
+  it('continues retry numbering and budget after resume', async () => {
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [{ ...workflow.steps[0]!, retries: 1 }]
+    };
+    ports.resume = {
+      workflowId: workflow.id,
+      runId: 'existing-run',
+      status: 'failed',
+      reportingStatus: 'not-run',
+      startedAt: command.receivedAt,
+      finishedAt: command.receivedAt,
+      outputs: [],
+      attempts: [
+        {
+          id: 'attempt-1',
+          workflowId: workflow.id,
+          runId: 'existing-run',
+          stepId: 'execute',
+          attempt: 1,
+          harnessProfileId: 'host-test-execution',
+          harnessHash: 'a'.repeat(64),
+          status: 'failed',
+          startedAt: command.receivedAt,
+          finishedAt: command.receivedAt,
+          error: 'transient failure'
+        }
+      ],
+      events: []
+    };
+    ports.executor.results = [
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
+      }
+    ];
+
+    const resumed = await executeWorkflow(command, ports);
+
+    expect(resumed.status).toBe('succeeded');
+    expect(resumed.attempts.map(({ attempt }) => attempt)).toEqual([1, 2]);
+  });
+
   it('rejects declared outputs that were not materialized on disk', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-output-'));
     const validator = new FileSystemOutputValidator(workspace);

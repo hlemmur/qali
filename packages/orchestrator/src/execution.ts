@@ -155,12 +155,18 @@ export async function executeWorkflow(
   const events: WorkflowEvent[] = [...(resume?.events ?? [])];
   const outputs: ArtifactReference[] = [...(resume?.outputs ?? [])];
   const attempts: WorkflowAttempt[] = [...(resume?.attempts ?? [])];
-  const stepRoles = new Map(workflow.steps.map((step) => [step.id, step.role]));
+  const stepsById = new Map(workflow.steps.map((step) => [step.id, step]));
   let workflowFailed = attempts.some(
-    (attempt) => attempt.status === 'failed' && stepRoles.get(attempt.stepId) !== 'reporter'
+    (attempt) =>
+      attempt.status === 'failed' &&
+      stepsById.get(attempt.stepId)?.role !== 'reporter' &&
+      attempt.attempt >= (stepsById.get(attempt.stepId)?.retries ?? 0) + 1
   );
   let failedStepId = attempts.find(
-    (attempt) => attempt.status === 'failed' && stepRoles.get(attempt.stepId) !== 'reporter'
+    (attempt) =>
+      attempt.status === 'failed' &&
+      stepsById.get(attempt.stepId)?.role !== 'reporter' &&
+      attempt.attempt >= (stepsById.get(attempt.stepId)?.retries ?? 0) + 1
   )?.stepId;
   let reportingStatus: WorkflowResult['reportingStatus'] =
     resume?.reportingStatus ?? 'not-run';
@@ -229,7 +235,12 @@ export async function executeWorkflow(
       await emit('workflow-blocked', { reason: policy.reason }, step.id);
       return result('blocked');
     }
-    for (let attemptNumber = 1; attemptNumber <= step.retries + 1; attemptNumber += 1) {
+    const previousAttempts = attempts.filter(({ stepId }) => stepId === step.id).length;
+    for (
+      let attemptNumber = previousAttempts + 1;
+      attemptNumber <= step.retries + 1;
+      attemptNumber += 1
+    ) {
       const runningAttempt: WorkflowAttempt = {
         id: id(),
         workflowId: workflow.id,
