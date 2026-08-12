@@ -440,10 +440,7 @@ if (executionProfile.id !== command.project.executionProfileId) {
   );
 }
 const executionTarget = resolveExecutionTarget(executionProfile, process.env);
-const executionMode = qualificationExecutionMode(
-  executionProfile.environmentLabel,
-  process.env.QALI_QUALIFICATION_MODE === 'true'
-);
+const executionMode = qualificationExecutionMode(executionProfile.environmentLabel, false);
 if (executionMode !== 'mock') {
   const primaryModel = process.env.CURSOR_MODEL?.trim();
   if (!primaryModel || !process.env.CURSOR_API_KEY?.trim() || !agentCliAvailable()) {
