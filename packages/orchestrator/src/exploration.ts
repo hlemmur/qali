@@ -41,7 +41,7 @@ export async function executeExplorationStep(
   workspace: string,
   step: WorkflowStep,
   command: NormalizedCommand,
-  browser: ExplorationBrowser,
+  browser: ExplorationBrowser | undefined,
   clock: ExplorationClock = { now: () => Date.now() }
 ) {
   const outputs = step.outputs.map(({ artifact, path }) => ({
@@ -70,6 +70,7 @@ export async function executeExplorationStep(
   if (step.id !== 'explore') {
     return { status: 'blocked' as const, reason: `unsupported exploration step: ${step.id}` };
   }
+  if (!browser) return { status: 'blocked' as const, reason: 'browser facade is unavailable' };
 
   const startedAt = clock.now();
   const maxSteps = positiveInteger(command.parameters.maxSteps, 10, 50);

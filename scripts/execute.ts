@@ -4,6 +4,9 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
+import { RestrictedBrowserFacade } from '@qali/browser-facade';
+import { PlaywrightBrowserDriver } from '@qali/browser-facade/playwright-driver';
+import { resolveBrowserServiceConfig } from '@qali/browser-facade/service-config';
 import {
   harnessExecutionKind,
   loadHarnessProfiles,
@@ -21,6 +24,7 @@ import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
   type NormalizedCommand,
+  type ProjectExecutionProfile,
   type WorkflowEvent,
   type WorkflowStep
 } from '../packages/contracts/src/index.js';
@@ -29,6 +33,7 @@ import { renderGeneratedJson } from '../packages/knowledge/src/index.js';
 import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
+  executeExplorationStep,
   executeOnboardingMockStep,
   executeWorkflow,
   loadWorkflowDirectory,
@@ -221,6 +226,7 @@ class RoutedStepExecutor implements StepExecutor {
   constructor(
     private readonly targetBaseUrl: string,
     private readonly executionMode: QualificationExecutionMode,
+    private readonly executionProfile: ProjectExecutionProfile,
     private readonly webServer?: { command: string; url: string }
   ) {}
 
@@ -370,9 +376,38 @@ class RoutedStepExecutor implements StepExecutor {
         : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
     }
 
-    const agentExecutionRoute = selectAgentExecutionRoute(command, this.shouldUseCursorCli());
+    const agentExecutionRoute = selectAgentExecutionRoute(
+      command,
+      this.shouldUseCursorCli(),
+      this.executionMode === 'mock'
+    );
     if (agentExecutionRoute === 'deterministic-onboarding') {
       return executeOnboardingMockStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-exploration') {
+      if (step.id !== 'explore') {
+        return executeExplorationStep(workspace, step, command, undefined);
+      }
+      const evidenceDirectory = join(
+        workspace,
+        command.project.root,
+        'observations/evidence/exploration'
+      );
+      const config = resolveBrowserServiceConfig(this.executionProfile, {
+        ...process.env,
+        QALI_BROWSER_EVIDENCE_DIR: evidenceDirectory
+      });
+      const driver = await PlaywrightBrowserDriver.launch({
+        allowedOrigins: config.allowedOrigins,
+        browserName: config.browserName,
+        ...(config.executablePath ? { executablePath: config.executablePath } : {})
+      });
+      try {
+        const browser = new RestrictedBrowserFacade(driver, config);
+        return await executeExplorationStep(workspace, step, command, browser);
+      } finally {
+        await driver.close();
+      }
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
@@ -529,6 +564,7 @@ const result = await executeWorkflow(command, {
   executor: new RoutedStepExecutor(
     executionTarget.baseUrl,
     executionMode,
+    executionProfile,
     executionTarget.webServer
   ),
   events: new FileEventStore(eventPath),
