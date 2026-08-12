@@ -24,7 +24,7 @@ const request = (overrides: Partial<AgentExecutionRequest> = {}): AgentExecution
   step: {
     id: 'run',
     role: 'executor',
-    skill: 'playwright-automation',
+    harnessProfileId: 'host-test-execution',
     needs: [],
     inputs: [],
     outputs: [],

@@ -4,6 +4,12 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
 import {
+  harnessExecutionKind,
+  loadHarnessProfiles,
+  selectHarnessProfile
+} from '../packages/agent-runtime/src/harness-profiles.js';
+import { loadRuntimeSkillAssets } from '../packages/agent-runtime/src/skill-assets.js';
+import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
   type NormalizedCommand,
@@ -190,11 +196,16 @@ class RoutedStepExecutor implements StepExecutor {
   private readonly agent = new CursorCliAgentRuntime();
   private playwrightSummary: PlaywrightEvidenceSummary | undefined;
   private readonly skills = new Map(
-    (
-      JSON.parse(readFileSync(join(workspace, 'skills/catalog.json'), 'utf8')) as {
-        skills: Array<{ id: string; instructions: unknown }>;
-      }
-    ).skills.map((skill) => [skill.id, JSON.stringify(skill.instructions)])
+    loadRuntimeSkillAssets(join(workspace, 'skills/runtime')).map((skill) => [
+      skill.id,
+      skill.content
+    ])
+  );
+  private readonly harnessProfiles = new Map(
+    loadHarnessProfiles(
+      join(workspace, 'harness/profiles.json'),
+      join(workspace, 'skills/runtime')
+    ).map((profile) => [profile.id, profile])
   );
 
   constructor(
@@ -225,19 +236,12 @@ class RoutedStepExecutor implements StepExecutor {
         this.playwrightSummary ??
         parsePlaywrightJsonReport(JSON.parse(readFileSync(reportPath, 'utf8')));
       this.playwrightSummary = summary;
-      const analysisDirectory = join(projectRoot, 'observations/evidence/failure-analysis');
-      mkdirSync(analysisDirectory, { recursive: true });
+      const analysisPath = join(projectRoot, 'derived/reports/failure-analysis.md');
+      mkdirSync(dirname(analysisPath), { recursive: true });
       writeFileSync(
-        join(analysisDirectory, 'summary.json'),
-        JSON.stringify(
-          {
-            mode: 'deterministic-fallback',
-            failed: summary.failed,
-            classification: summary.failed === 0 ? 'no-failures' : 'needs-triage',
-            note: 'Cursor Agent CLI unavailable; wrote deterministic failure analysis.'
-          },
-          null,
-          2
+        analysisPath,
+        generatedMarkdown(
+          `# Failure analysis\n\nFailed: ${summary.failed}\n\nClassification: ${summary.failed === 0 ? 'no-failures' : 'needs-triage'}\n\nDeterministic fallback; Cursor Agent CLI was unavailable.\n`
         )
       );
       return { status: 'succeeded' as const, outputs };
@@ -307,7 +311,21 @@ class RoutedStepExecutor implements StepExecutor {
       artifact,
       path: expand(path, command)
     }));
-    if (step.skill === 'playwright-automation' && step.role === 'executor') {
+    const baseHarnessProfile = this.harnessProfiles.get(step.harnessProfileId);
+    if (!baseHarnessProfile) {
+      return {
+        status: 'blocked',
+        reason: `unknown harness profile: ${step.harnessProfileId}`
+      } as const;
+    }
+    const executionKind = harnessExecutionKind(baseHarnessProfile);
+    if (executionKind === 'host') {
+      if (step.id !== 'execute' || step.role !== 'executor') {
+        return {
+          status: 'blocked',
+          reason: `host harness profile violates execution contract: ${step.harnessProfileId}`
+        } as const;
+      }
       const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
       mkdirSync(evidenceDir, { recursive: true });
       const run = await this.playwright.run({
@@ -340,11 +358,30 @@ class RoutedStepExecutor implements StepExecutor {
       return this.deterministicAgentStep(step, command, outputs);
     }
 
+    const harnessProfile = selectHarnessProfile(
+      [...this.harnessProfiles.values()],
+      baseHarnessProfile.id,
+      {
+        visualTesting:
+          command.intent === 'generate-test-suite' && command.parameters.visualTesting === true,
+        journeyChange:
+          command.intent === 'maintain-knowledge' &&
+          command.parameters.knowledgeChangeKind === 'journey'
+      }
+    );
+    if (harnessExecutionKind(harnessProfile) !== 'agent') {
+      return {
+        status: 'blocked',
+        reason: `host harness profile cannot execute through the agent runtime: ${harnessProfile.id}`
+      } as const;
+    }
     const result = await this.agent.execute({
       workspace,
       role: ROLE_PROFILES[step.role],
       step,
-      skillInstructions: this.skills.get(step.skill) ?? '',
+      skillInstructions: harnessProfile.skillIds
+        .map((skillId) => this.skills.get(skillId) ?? '')
+        .join('\n\n'),
       context: JSON.stringify(command.parameters),
       timeoutMs: step.timeoutMs,
       permissions: step.requiredTools
@@ -403,7 +440,7 @@ writeFileSync(
 );
 const workflows = loadWorkflowDirectory(
   join(workspace, 'workflows'),
-  join(workspace, 'skills/catalog.json')
+  join(workspace, 'harness/profiles.json')
 );
 const descriptor = routeCommand(command, workflows);
 const eventPath = join(

@@ -4,6 +4,10 @@ import { MutationClassSchema } from '@qali/contracts';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 import type { HarnessProfile } from './harness-workspace.js';
 
+export function harnessExecutionKind(profile: HarnessProfile): 'agent' | 'host' {
+  return profile.kind === 'host' ? 'host' : 'agent';
+}
+
 const requiredPolicies = [
   'core/policies/operating-model.md',
   'core/policies/evidence-and-provenance.md',
@@ -42,8 +46,16 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     }
     if (ids.has(item.id)) throw new Error(`Duplicate harness profile ${item.id}`);
     ids.add(item.id);
+    const kind = item.kind === undefined ? 'agent' : item.kind;
+    if (kind !== 'agent' && kind !== 'host') {
+      throw new Error(`Harness profile ${item.id} has invalid kind`);
+    }
     const skillIds = strings(item.skillIds, 'skillIds');
-    if (skillIds.length === 0 || new Set(skillIds).size !== skillIds.length) {
+    if (
+      new Set(skillIds).size !== skillIds.length ||
+      (kind === 'agent' && skillIds.length === 0) ||
+      (kind === 'host' && skillIds.length > 0)
+    ) {
       throw new Error(`Harness profile ${item.id} has invalid skills`);
     }
     for (const skill of skillIds) {
@@ -77,6 +89,7 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     }
     return {
       id: item.id,
+      kind,
       skillIds,
       policyPaths,
       templatePaths: safePaths(item.templatePaths, 'templatePaths'),
@@ -86,4 +99,40 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
       validators
     };
   });
+}
+
+export function selectHarnessProfile(
+  profiles: readonly HarnessProfile[],
+  baseProfileId: string,
+  selection: { visualTesting: boolean; journeyChange?: boolean }
+): HarnessProfile {
+  const selectedId = (() => {
+    if (baseProfileId === 'test-generation' && selection.visualTesting) {
+      return 'visual-test-generation';
+    }
+    if (baseProfileId === 'knowledge-reconciliation' && selection.journeyChange) {
+      return 'knowledge-reconciliation-journey';
+    }
+    return baseProfileId;
+  })();
+  const profile = profiles.find(({ id }) => id === selectedId);
+  if (!profile) throw new Error(`Unknown harness profile ${selectedId}`);
+  if (selectedId !== baseProfileId) {
+    const base = profiles.find(({ id }) => id === baseProfileId);
+    if (!base) throw new Error(`Unknown harness profile ${baseProfileId}`);
+    const authorityFields = [
+      'policyPaths',
+      'writableOutputDirectories',
+      'tools',
+      'mutations'
+    ] as const;
+    if (
+      authorityFields.some(
+        (field) => JSON.stringify(profile[field]) !== JSON.stringify(base[field])
+      )
+    ) {
+      throw new Error('conditional harness profile widens authority');
+    }
+  }
+  return profile;
 }

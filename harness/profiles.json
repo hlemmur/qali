@@ -143,6 +143,21 @@
       "validators": ["typescript", "playwright-list", "visual-policy"]
     },
     {
+      "id": "host-test-execution",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": ["core/templates/job.md"],
+      "writableOutputDirectories": ["outputs/evidence", "outputs/jobs"],
+      "tools": [],
+      "mutations": ["append-evidence"],
+      "validators": ["playwright-results", "test-run-job-schema"]
+    },
+    {
       "id": "failure-explanation",
       "skillIds": ["ai-bug-triage"],
       "policyPaths": [
@@ -153,7 +168,7 @@
       "templatePaths": ["core/templates/bug-report.md"],
       "writableOutputDirectories": ["outputs/analysis"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["render-derived-report"],
       "validators": ["failure-analysis-schema"]
     },
     {
@@ -168,7 +183,7 @@
       "templatePaths": ["core/templates/bug-report.md", "core/templates/scenario-spec.md"],
       "writableOutputDirectories": ["outputs/reproduction", "outputs/tests"],
       "tools": [],
-      "mutations": ["create-test", "append-evidence"],
+      "mutations": ["create-test", "append-observation", "append-evidence"],
       "validators": ["reproduction-schema", "typescript"]
     },
     {
@@ -187,6 +202,21 @@
       "validators": ["project-context-schema"]
     },
     {
+      "id": "knowledge-reconciliation-journey",
+      "skillIds": ["qa-project-context", "journey-mapping"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
+      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["project-context-schema", "journey-schema"]
+    },
+    {
       "id": "reliability-diagnosis",
       "skillIds": ["test-reliability"],
       "policyPaths": [
@@ -198,7 +228,7 @@
       "templatePaths": ["core/templates/task.md"],
       "writableOutputDirectories": ["outputs/diagnosis"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["render-derived-report"],
       "validators": ["reliability-diagnosis-schema"]
     },
     {

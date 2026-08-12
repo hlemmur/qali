@@ -362,7 +362,7 @@ export const WorkflowStepSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]*$/),
     role: RoleIdSchema,
-    skill: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    harnessProfileId: z.string().regex(/^[a-z][a-z0-9-]*$/),
     needs: z.array(z.string()).default([]),
     inputs: z.array(ArtifactReferenceSchema),
     outputs: z.array(ArtifactReferenceSchema),

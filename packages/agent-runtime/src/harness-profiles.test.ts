@@ -10,7 +10,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadHarnessProfiles } from './harness-profiles.js';
+import {
+  harnessExecutionKind,
+  loadHarnessProfiles,
+  selectHarnessProfile
+} from './harness-profiles.js';
 import { assembleHarnessWorkspace } from './harness-workspace.js';
 
 const expectedIds = [
@@ -23,9 +27,11 @@ const expectedIds = [
   'coverage-design',
   'test-generation',
   'visual-test-generation',
+  'host-test-execution',
   'failure-explanation',
   'reproduction',
   'knowledge-reconciliation',
+  'knowledge-reconciliation-journey',
   'reliability-diagnosis',
   'selector-repair',
   'human-reporting'
@@ -48,6 +54,57 @@ afterEach(() => {
 });
 
 describe('harness profile catalog', () => {
+  it('selects visual test generation only from a typed visual request', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+
+    expect(selectHarnessProfile(profiles, 'test-generation', { visualTesting: false }).id).toBe(
+      'test-generation'
+    );
+    expect(selectHarnessProfile(profiles, 'test-generation', { visualTesting: true }).id).toBe(
+      'visual-test-generation'
+    );
+  });
+
+  it('binds deterministic Playwright execution to a host-only profile without agent skills', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+    const profile = profiles.find(({ id }) => id === 'host-test-execution');
+
+    expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
+    expect(harnessExecutionKind(profile!)).toBe('host');
+
+    const agentProfile = profiles.find(({ id }) => id === 'browser-exploration')!;
+    expect(harnessExecutionKind(agentProfile)).toBe('agent');
+  });
+
+  it('adds journey mapping to reconciliation only for a typed journey change', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+
+    expect(
+      selectHarnessProfile(profiles, 'knowledge-reconciliation', {
+        visualTesting: false,
+        journeyChange: false
+      }).skillIds
+    ).toEqual(['qa-project-context']);
+    expect(
+      selectHarnessProfile(profiles, 'knowledge-reconciliation', {
+        visualTesting: false,
+        journeyChange: true
+      }).skillIds
+    ).toEqual(['qa-project-context', 'journey-mapping']);
+  });
+
+  it('rejects conditional profiles that widen tools, mutations, outputs, or policies', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+    const visual = profiles.find(({ id }) => id === 'visual-test-generation')!;
+    const widened = profiles.map((profile) =>
+      profile.id === visual.id ? { ...profile, tools: ['browser'] as Array<'browser'> } : profile
+    );
+
+    expect(() => selectHarnessProfile(widened, 'test-generation', { visualTesting: true })).toThrow(
+      'conditional harness profile widens authority'
+    );
+  });
+
   it('assembles the exact selected skills and browser configuration for every profile', () => {
     const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
     expect(profiles.map(({ id }) => id)).toEqual(expectedIds);

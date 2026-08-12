@@ -11,7 +11,7 @@ preconditions:
 steps:
   - id: design-coverage
     role: test-architect
-    skill: test-planning
+    harnessProfileId: coverage-design
     needs: []
     inputs:
       - artifact: project-context
@@ -32,7 +32,7 @@ steps:
     timeoutMs: 180000
   - id: generate-tests
     role: test-generator
-    skill: ai-test-generation
+    harnessProfileId: test-generation
     needs: [design-coverage]
     inputs:
       - artifact: project-context
@@ -46,10 +46,8 @@ steps:
     outputs:
       - artifact: tests
         path: projects/{projectId}/tests
-      - artifact: evidence
-        path: projects/{projectId}/observations/evidence/test-generation
-    requiredTools: [file-read, file-write, shell, playwright]
-    mutations: [create-test, append-evidence]
+    requiredTools: [file-read, file-write]
+    mutations: [create-test]
     policyGates: [execution, approved-scenario]
     retries: 1
     timeoutMs: 900000

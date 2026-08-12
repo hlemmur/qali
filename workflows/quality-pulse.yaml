@@ -12,7 +12,7 @@ preconditions: [project-exists]
 steps:
   - id: report
     role: reporter
-    skill: qa-report-humanizer
+    harnessProfileId: human-reporting
     needs: []
     inputs:
       - artifact: project-context

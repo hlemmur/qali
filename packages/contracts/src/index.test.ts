@@ -182,7 +182,7 @@ describe('workflow contracts', () => {
         {
           id: 'execute',
           role: 'executor',
-          skill: 'playwright-automation',
+          harnessProfileId: 'reproduction',
           needs: [],
           inputs: [{ artifact: 'tests', path: 'projects/{projectId}/tests' }],
           outputs: [
@@ -210,5 +210,12 @@ describe('workflow contracts', () => {
     });
 
     expect(result.status).toBe('succeeded');
+    expect(workflow.steps[0]?.harnessProfileId).toBe('reproduction');
+    expect(() =>
+      WorkflowDescriptorSchema.parse({
+        ...workflow,
+        steps: [{ ...workflow.steps[0], harnessProfileId: undefined, skill: 'bug-reproduction' }]
+      })
+    ).toThrow();
   });
 });

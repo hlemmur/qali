@@ -1,7 +1,7 @@
 version: 1
 id: suite-maintenance
 title: Suite maintenance
-description: Diagnose suite reliability and propose policy-gated repairs.
+description: Diagnose suite reliability and propose policy-gated selector repairs.
 executable: true
 triggers:
   - type: command
@@ -10,9 +10,9 @@ triggers:
     event: suite-changed
 preconditions: [project-exists, execution-unblocked, approved-scenario-present, test-suite-present]
 steps:
-  - id: maintain
+  - id: diagnose
     role: suite-maintainer
-    skill: test-reliability
+    harnessProfileId: reliability-diagnosis
     needs: []
     inputs:
       - artifact: project-context
@@ -26,14 +26,31 @@ steps:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/test-runs
     outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/reliability-diagnosis.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
+  - id: repair-selectors
+    role: suite-maintainer
+    harnessProfileId: selector-repair
+    needs: [diagnose]
+    inputs:
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
       - artifact: tests
         path: projects/{projectId}/tests
-      - artifact: evidence
-        path: projects/{projectId}/observations/evidence/suite-maintenance
       - artifact: reports
-        path: projects/{projectId}/derived/reports/suite-maintenance.md
-    requiredTools: [file-read, file-write, shell, playwright, report-renderer]
-    mutations: [modify-test, append-evidence, render-derived-report]
+        path: projects/{projectId}/derived/reports/reliability-diagnosis.md
+    outputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+    requiredTools: [file-read, file-write]
+    mutations: [modify-test]
     policyGates: [execution, approved-scenario]
     retries: 1
-    timeoutMs: 1200000
+    timeoutMs: 600000

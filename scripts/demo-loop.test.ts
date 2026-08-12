@@ -53,7 +53,7 @@ describe('complete demo loop', () => {
     const step = {
       id: 'protected-step',
       role: 'suite-maintainer',
-      skill: 'test-reliability',
+      harnessProfileId: 'reliability-diagnosis',
       needs: [],
       inputs: [],
       outputs: [],
