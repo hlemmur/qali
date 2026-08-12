@@ -42,8 +42,16 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     }
     if (ids.has(item.id)) throw new Error(`Duplicate harness profile ${item.id}`);
     ids.add(item.id);
+    const kind = item.kind === undefined ? 'agent' : item.kind;
+    if (kind !== 'agent' && kind !== 'host') {
+      throw new Error(`Harness profile ${item.id} has invalid kind`);
+    }
     const skillIds = strings(item.skillIds, 'skillIds');
-    if (skillIds.length === 0 || new Set(skillIds).size !== skillIds.length) {
+    if (
+      new Set(skillIds).size !== skillIds.length ||
+      (kind === 'agent' && skillIds.length === 0) ||
+      (kind === 'host' && skillIds.length > 0)
+    ) {
       throw new Error(`Harness profile ${item.id} has invalid skills`);
     }
     for (const skill of skillIds) {
@@ -77,6 +85,7 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     }
     return {
       id: item.id,
+      kind,
       skillIds,
       policyPaths,
       templatePaths: safePaths(item.templatePaths, 'templatePaths'),

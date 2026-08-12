@@ -23,6 +23,7 @@ const expectedIds = [
   'coverage-design',
   'test-generation',
   'visual-test-generation',
+  'host-test-execution',
   'failure-explanation',
   'reproduction',
   'knowledge-reconciliation',
@@ -58,6 +59,13 @@ describe('harness profile catalog', () => {
     expect(selectHarnessProfile(profiles, 'test-generation', { visualTesting: true }).id).toBe(
       'visual-test-generation'
     );
+  });
+
+  it('binds deterministic Playwright execution to a host-only profile without agent skills', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+    const profile = profiles.find(({ id }) => id === 'host-test-execution');
+
+    expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
   });
 
   it('adds journey mapping to reconciliation only for a typed journey change', () => {

@@ -39,7 +39,7 @@ const workflow: WorkflowDescriptor = {
     {
       id: 'execute',
       role: 'executor',
-      harnessProfileId: 'test-generation',
+      harnessProfileId: 'host-test-execution',
       needs: [],
       inputs: [],
       outputs: [{ artifact: 'evidence', path: 'projects/{projectId}/observations/evidence/run' }],

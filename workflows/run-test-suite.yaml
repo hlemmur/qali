@@ -10,7 +10,7 @@ preconditions: [project-exists, execution-unblocked, test-suite-present]
 steps:
   - id: execute
     role: executor
-    harnessProfileId: test-generation
+    harnessProfileId: host-test-execution
     needs: []
     inputs:
       - artifact: project-context

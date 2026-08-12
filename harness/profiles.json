@@ -143,6 +143,21 @@
       "validators": ["typescript", "playwright-list", "visual-policy"]
     },
     {
+      "id": "host-test-execution",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": ["core/templates/job.md"],
+      "writableOutputDirectories": ["outputs/evidence", "outputs/jobs"],
+      "tools": [],
+      "mutations": ["append-evidence"],
+      "validators": ["playwright-results", "test-run-job-schema"]
+    },
+    {
       "id": "failure-explanation",
       "skillIds": ["ai-bug-triage"],
       "policyPaths": [

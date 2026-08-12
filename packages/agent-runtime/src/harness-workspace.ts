@@ -19,6 +19,7 @@ import { loadRuntimeSkillAssets } from './skill-assets.js';
 
 export interface HarnessProfile {
   id: string;
+  kind?: 'agent' | 'host';
   skillIds: string[];
   policyPaths: string[];
   templatePaths: string[];
