@@ -388,7 +388,7 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
   const classifier = options.classifier ?? new MockStructuredClassifier();
   const workflows = loadWorkflowDirectory(
     join(repositoryRoot, 'workflows'),
-    join(repositoryRoot, 'skills/catalog.json')
+    join(repositoryRoot, 'harness/profiles.json')
   );
   const executor = new MockModeStepExecutor(
     workspace,

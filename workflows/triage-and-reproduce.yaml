@@ -12,7 +12,7 @@ preconditions: [project-exists, failure-evidence-present]
 steps:
   - id: reproduce
     role: failure-analyst
-    skill: bug-reproduction
+    harnessProfileId: reproduction
     needs: []
     inputs:
       - artifact: project-context
@@ -37,7 +37,7 @@ steps:
     timeoutMs: 1200000
   - id: report
     role: reporter
-    skill: qa-report-humanizer
+    harnessProfileId: human-reporting
     needs: [reproduce]
     inputs:
       - artifact: evidence

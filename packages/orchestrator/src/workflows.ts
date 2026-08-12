@@ -181,7 +181,7 @@ const APPROVAL_MUTATIONS = new Set([
 ]);
 
 export interface WorkflowValidationContext {
-  skillIds: ReadonlySet<string>;
+  harnessProfileIds: ReadonlySet<string>;
   roles?: Readonly<Record<string, RoleProfile>>;
 }
 
@@ -220,8 +220,8 @@ export function validateWorkflow(
     if (!profile) {
       throw new Error(`unknown role reference: ${step.role}`);
     }
-    if (!context.skillIds.has(step.skill)) {
-      throw new Error(`unknown skill reference: ${step.skill}`);
+    if (!context.harnessProfileIds.has(step.harnessProfileId)) {
+      throw new Error(`unknown harness profile reference: ${step.harnessProfileId}`);
     }
 
     requireSubset(
@@ -281,13 +281,13 @@ const localPath = (path: URL | string): string =>
 
 export function loadWorkflowDirectory(
   directory: URL | string,
-  skillCatalog: URL | string
+  harnessProfileCatalog: URL | string
 ): WorkflowDescriptor[] {
-  const catalog = JSON.parse(readFileSync(localPath(skillCatalog), 'utf8')) as {
-    skills?: Array<{ id?: unknown }>;
+  const catalog = JSON.parse(readFileSync(localPath(harnessProfileCatalog), 'utf8')) as {
+    profiles?: Array<{ id?: unknown }>;
   };
-  const skillIds = new Set(
-    (catalog.skills ?? []).flatMap(({ id }) => (typeof id === 'string' ? [id] : []))
+  const harnessProfileIds = new Set(
+    (catalog.profiles ?? []).flatMap(({ id }) => (typeof id === 'string' ? [id] : []))
   );
   const directoryName = localPath(directory);
 
@@ -295,7 +295,9 @@ export function loadWorkflowDirectory(
     .filter((file) => file.endsWith('.yaml') || file.endsWith('.yml'))
     .sort()
     .map((file) =>
-      validateWorkflow(parseYaml(readFileSync(`${directoryName}/${file}`, 'utf8')), { skillIds })
+      validateWorkflow(parseYaml(readFileSync(`${directoryName}/${file}`, 'utf8')), {
+        harnessProfileIds
+      })
     );
 }
 

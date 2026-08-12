@@ -11,7 +11,7 @@ preconditions:
 steps:
   - id: design-coverage
     role: test-architect
-    skill: test-planning
+    harnessProfileId: coverage-design
     needs: []
     inputs:
       - artifact: project-context
@@ -32,7 +32,7 @@ steps:
     timeoutMs: 180000
   - id: generate-tests
     role: test-generator
-    skill: ai-test-generation
+    harnessProfileId: test-generation
     needs: [design-coverage]
     inputs:
       - artifact: project-context

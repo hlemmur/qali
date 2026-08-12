@@ -10,7 +10,7 @@ preconditions: [project-exists, project-context-present]
 steps:
   - id: explore
     role: explorer
-    skill: exploratory-testing
+    harnessProfileId: browser-exploration
     needs: []
     inputs:
       - artifact: project-context
@@ -33,7 +33,7 @@ steps:
     timeoutMs: 3600000
   - id: report
     role: reporter
-    skill: qa-report-humanizer
+    harnessProfileId: human-reporting
     needs: [explore]
     inputs:
       - artifact: evidence

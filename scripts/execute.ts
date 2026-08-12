@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
+import { loadHarnessProfiles } from '../packages/agent-runtime/src/harness-profiles.js';
+import { loadRuntimeSkillAssets } from '../packages/agent-runtime/src/skill-assets.js';
 import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
@@ -190,11 +192,16 @@ class RoutedStepExecutor implements StepExecutor {
   private readonly agent = new CursorCliAgentRuntime();
   private playwrightSummary: PlaywrightEvidenceSummary | undefined;
   private readonly skills = new Map(
-    (
-      JSON.parse(readFileSync(join(workspace, 'skills/catalog.json'), 'utf8')) as {
-        skills: Array<{ id: string; instructions: unknown }>;
-      }
-    ).skills.map((skill) => [skill.id, JSON.stringify(skill.instructions)])
+    loadRuntimeSkillAssets(join(workspace, 'skills/runtime')).map((skill) => [
+      skill.id,
+      skill.content
+    ])
+  );
+  private readonly harnessProfiles = new Map(
+    loadHarnessProfiles(
+      join(workspace, 'harness/profiles.json'),
+      join(workspace, 'skills/runtime')
+    ).map((profile) => [profile.id, profile])
   );
 
   constructor(
@@ -307,7 +314,7 @@ class RoutedStepExecutor implements StepExecutor {
       artifact,
       path: expand(path, command)
     }));
-    if (step.skill === 'playwright-automation' && step.role === 'executor') {
+    if (step.id === 'execute' && step.role === 'executor') {
       const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
       mkdirSync(evidenceDir, { recursive: true });
       const run = await this.playwright.run({
@@ -340,11 +347,20 @@ class RoutedStepExecutor implements StepExecutor {
       return this.deterministicAgentStep(step, command, outputs);
     }
 
+    const harnessProfile = this.harnessProfiles.get(step.harnessProfileId);
+    if (!harnessProfile) {
+      return {
+        status: 'blocked',
+        reason: `unknown harness profile: ${step.harnessProfileId}`
+      } as const;
+    }
     const result = await this.agent.execute({
       workspace,
       role: ROLE_PROFILES[step.role],
       step,
-      skillInstructions: this.skills.get(step.skill) ?? '',
+      skillInstructions: harnessProfile.skillIds
+        .map((skillId) => this.skills.get(skillId) ?? '')
+        .join('\n\n'),
       context: JSON.stringify(command.parameters),
       timeoutMs: step.timeoutMs,
       permissions: step.requiredTools
@@ -403,7 +419,7 @@ writeFileSync(
 );
 const workflows = loadWorkflowDirectory(
   join(workspace, 'workflows'),
-  join(workspace, 'skills/catalog.json')
+  join(workspace, 'harness/profiles.json')
 );
 const descriptor = routeCommand(command, workflows);
 const eventPath = join(

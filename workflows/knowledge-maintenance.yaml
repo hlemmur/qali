@@ -12,7 +12,7 @@ preconditions: [project-exists, project-context-present]
 steps:
   - id: curate
     role: knowledge-curator
-    skill: qa-project-context
+    harnessProfileId: knowledge-reconciliation
     needs: []
     inputs:
       - artifact: project-context

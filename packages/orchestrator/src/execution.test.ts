@@ -39,7 +39,7 @@ const workflow: WorkflowDescriptor = {
     {
       id: 'execute',
       role: 'executor',
-      skill: 'playwright-automation',
+      harnessProfileId: 'test-generation',
       needs: [],
       inputs: [],
       outputs: [{ artifact: 'evidence', path: 'projects/{projectId}/observations/evidence/run' }],
@@ -52,7 +52,7 @@ const workflow: WorkflowDescriptor = {
     {
       id: 'report',
       role: 'reporter',
-      skill: 'qa-report-humanizer',
+      harnessProfileId: 'human-reporting',
       needs: ['execute'],
       inputs: [],
       outputs: [{ artifact: 'reports', path: 'projects/{projectId}/derived/reports/run.md' }],

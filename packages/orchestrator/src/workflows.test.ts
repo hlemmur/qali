@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ROLE_PROFILES, loadWorkflowDirectory, routeCommand, validateWorkflow } from './index.js';
 
 const workflowDirectory = new URL('../../../workflows/', import.meta.url);
-const skillCatalog = new URL('../../../skills/catalog.json', import.meta.url);
+const harnessProfileCatalog = new URL('../../../harness/profiles.json', import.meta.url);
 
 describe('workflow catalog', () => {
   it('loads and validates all eight workflow descriptors', () => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
 
     expect(workflows.map(({ id }) => id).sort()).toEqual(
       [
@@ -23,7 +23,7 @@ describe('workflow catalog', () => {
   });
 
   it('keeps workflow artifacts in the canonical physical layout', () => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const expectedRoot = {
       'project-context': 'sources',
       reference: 'sources',
@@ -52,7 +52,7 @@ describe('workflow catalog', () => {
   });
 
   it('keeps observed exploration knowledge in its single observation owner', () => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const exploration = workflows.find(({ id }) => id === 'exploratory-testing')!;
     const outputs = exploration.steps.flatMap((step) => step.outputs);
 
@@ -65,8 +65,8 @@ describe('workflow catalog', () => {
     );
   });
 
-  it('rejects unknown role and skill references', () => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+  it('rejects unknown role and harness profile references', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const valid = workflows[0]!;
 
     expect(() =>
@@ -75,7 +75,7 @@ describe('workflow catalog', () => {
           ...valid,
           steps: [{ ...valid.steps[0]!, role: 'missing-role' }]
         },
-        { skillIds: new Set(['exploratory-testing']) }
+        { harnessProfileIds: new Set([valid.steps[0]!.harnessProfileId]) }
       )
     ).toThrow(/role/i);
 
@@ -83,15 +83,15 @@ describe('workflow catalog', () => {
       validateWorkflow(
         {
           ...valid,
-          steps: [{ ...valid.steps[0]!, skill: 'missing-skill' }]
+          steps: [{ ...valid.steps[0]!, harnessProfileId: 'missing-profile' }]
         },
-        { skillIds: new Set() }
+        { harnessProfileIds: new Set() }
       )
-    ).toThrow(/skill/i);
+    ).toThrow(/harness profile/i);
   });
 
   it('prevents workflow steps from exceeding role permissions', () => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const run = workflows.find(({ id }) => id === 'run-test-suite')!;
     const execute = run.steps.find(({ role }) => role === 'executor')!;
 
@@ -113,7 +113,7 @@ describe('workflow catalog', () => {
           ]
         },
         {
-          skillIds: new Set(['playwright-automation', 'ai-bug-triage', 'qa-report-humanizer'])
+          harnessProfileIds: new Set(run.steps.map(({ harnessProfileId }) => harnessProfileId))
         }
       )
     ).toThrow(/permission/i);
@@ -131,7 +131,7 @@ describe('deterministic intent routing', () => {
     ['maintain-suite', 'suite-maintenance'],
     ['quality-pulse', 'quality-pulse']
   ] as const)('routes %s to %s', (intent, workflowId) => {
-    const workflows = loadWorkflowDirectory(workflowDirectory, skillCatalog);
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const routed = routeCommand(
       {
         intent,

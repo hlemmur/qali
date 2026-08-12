@@ -10,7 +10,7 @@ preconditions: [project-exists, execution-unblocked, test-suite-present]
 steps:
   - id: execute
     role: executor
-    skill: playwright-automation
+    harnessProfileId: test-generation
     needs: []
     inputs:
       - artifact: project-context
@@ -29,7 +29,7 @@ steps:
     timeoutMs: 1800000
   - id: analyze-failures
     role: failure-analyst
-    skill: ai-bug-triage
+    harnessProfileId: failure-explanation
     needs: [execute]
     inputs:
       - artifact: tests
@@ -50,7 +50,7 @@ steps:
     timeoutMs: 300000
   - id: report
     role: reporter
-    skill: qa-report-humanizer
+    harnessProfileId: human-reporting
     needs: [analyze-failures]
     inputs:
       - artifact: evidence

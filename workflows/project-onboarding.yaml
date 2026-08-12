@@ -10,7 +10,7 @@ preconditions: []
 steps:
   - id: plan-intake
     role: intake-planner
-    skill: qa-start
+    harnessProfileId: strategy-initial-plan
     needs: []
     inputs: []
     outputs:
@@ -25,7 +25,7 @@ steps:
     timeoutMs: 120000
   - id: build-context
     role: knowledge-curator
-    skill: qa-project-context
+    harnessProfileId: onboarding-discovery
     needs: [plan-intake]
     inputs:
       - artifact: questions
@@ -42,7 +42,7 @@ steps:
     timeoutMs: 300000
   - id: design-foundation
     role: test-architect
-    skill: risk-based-testing
+    harnessProfileId: risk-assessment
     needs: [build-context]
     inputs:
       - artifact: project-context

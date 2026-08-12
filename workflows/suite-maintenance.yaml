@@ -12,7 +12,7 @@ preconditions: [project-exists, execution-unblocked, approved-scenario-present, 
 steps:
   - id: maintain
     role: suite-maintainer
-    skill: test-reliability
+    harnessProfileId: reliability-diagnosis
     needs: []
     inputs:
       - artifact: project-context
