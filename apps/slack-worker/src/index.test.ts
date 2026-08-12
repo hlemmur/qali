@@ -510,12 +510,12 @@ describe('Slack control worker', () => {
     const store = new MemoryStore();
     const worker = createWorker({
       store,
-      classifier: { classify: async (work) => command(work) },
-      github: {
-        dispatch: async () => {
-          throw new Error('GitHub API returned 503');
+      classifier: {
+        classify: async () => {
+          throw new Error('Workers AI returned 503');
         }
       },
+      github: { dispatch: vi.fn() },
       slack: {
         postResult: vi.fn(),
         updateResult: vi.fn(),
@@ -531,6 +531,35 @@ describe('Slack control worker', () => {
     expect(message.retry).toHaveBeenCalledOnce();
     expect(message.ack).not.toHaveBeenCalled();
     expect(store.correlations.get('Ev1')).toMatchObject({ status: 'queued' });
+  });
+
+  it('does not dispatch twice when a transient failure happens after dispatch', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const dispatch = vi.fn(async () => ({ runId: '42' }));
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => command(work) },
+      github: { dispatch },
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async ({ text }) => {
+          if (text.startsWith('Started')) throw new Error('Slack network timeout');
+        })
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    const first = { body: queue[0]!, attempts: 1, ack: vi.fn(), retry: vi.fn() };
+    const redelivery = { body: queue[0]!, attempts: 2, ack: vi.fn(), retry: vi.fn() };
+
+    await worker.queue({ messages: [first] }, baseEnv(queue));
+    await worker.queue({ messages: [redelivery] }, baseEnv(queue));
+
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(first.retry).not.toHaveBeenCalled();
+    expect(store.correlations.get('Ev1')).toMatchObject({ status: 'dispatched', runId: '42' });
   });
 
   it('dead-letters an exhausted transient queue delivery', async () => {

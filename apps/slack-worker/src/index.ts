@@ -460,8 +460,11 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           message.ack();
           continue;
         }
+        let dispatchAttempted = false;
+        let dispatchSucceeded = false;
         try {
           if (message.body.kind === 'action') {
+            dispatchAttempted = true;
             await handleSlackAction({
               work: message.body,
               store,
@@ -504,7 +507,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
+          dispatchAttempted = true;
           const dispatched = await github.dispatch(command, message.body.requestId);
+          dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
           await slack.postThreadNotice({
             channelId: message.body.slack.channelId,
@@ -521,9 +526,22 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             requestId: message.body.requestId,
             detail
           });
-          if (transient && (message.attempts ?? 1) < 3) {
+          if (transient && !dispatchAttempted && (message.attempts ?? 1) < 3) {
             await store.requeue(message.body.requestId);
             message.retry();
+            continue;
+          }
+          if (dispatchSucceeded) {
+            const correlation = await store.findByRequestId(message.body.requestId);
+            if (correlation?.status !== 'dispatched' && !correlation?.runId) {
+              await store.markCompleted(
+                message.body.requestId,
+                'dispatch-uncertain',
+                undefined,
+                detail.slice(0, 1000)
+              );
+            }
+            message.ack();
             continue;
           }
           try {
