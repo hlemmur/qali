@@ -116,4 +116,12 @@ describe('product documentation assets', () => {
     expect(workflow).toContain('QALI_PUBLISH_GITHUB_TOKEN');
     expect(workflow).not.toMatch(/git push\s+(?:origin\s+)?main/);
   });
+
+  it('does not expose qualification bypass controls to the shared execute workflow', () => {
+    const workflow = read('.github/workflows/execute.yml');
+    const executeScript = read('scripts/execute.ts');
+
+    expect(workflow).not.toContain('QALI_QUALIFICATION_MODE');
+    expect(executeScript).not.toContain('process.env.QALI_QUALIFICATION_MODE');
+  });
 });

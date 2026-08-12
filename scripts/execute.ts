@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -9,6 +10,13 @@ import {
   selectHarnessProfile
 } from '../packages/agent-runtime/src/harness-profiles.js';
 import { loadRuntimeSkillAssets } from '../packages/agent-runtime/src/skill-assets.js';
+import { computeRuntimeQualificationIdentity } from '../packages/agent-runtime/src/qualification-identity.js';
+import {
+  loadQualificationRegistry,
+  qualificationExecutionMode,
+  selectQualifiedCombination,
+  type QualificationExecutionMode
+} from '../packages/agent-runtime/src/qualification.js';
 import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
@@ -210,6 +218,7 @@ class RoutedStepExecutor implements StepExecutor {
 
   constructor(
     private readonly targetBaseUrl: string,
+    private readonly executionMode: QualificationExecutionMode,
     private readonly webServer?: { command: string; url: string }
   ) {}
 
@@ -355,6 +364,12 @@ class RoutedStepExecutor implements StepExecutor {
     }
 
     if (!this.shouldUseCursorCli()) {
+      if (this.executionMode !== 'mock') {
+        return {
+          status: 'blocked',
+          reason: 'qualified Cursor Agent runtime is unavailable'
+        } as const;
+      }
       return this.deterministicAgentStep(step, command, outputs);
     }
 
@@ -393,6 +408,12 @@ class RoutedStepExecutor implements StepExecutor {
         result.error
       )
     ) {
+      if (this.executionMode !== 'mock') {
+        return {
+          status: 'blocked',
+          reason: 'qualified Cursor Agent runtime became unavailable'
+        } as const;
+      }
       return this.deterministicAgentStep(step, command, outputs);
     }
     return { status: 'failed', error: result.error } as const;
@@ -419,6 +440,43 @@ if (executionProfile.id !== command.project.executionProfileId) {
   );
 }
 const executionTarget = resolveExecutionTarget(executionProfile, process.env);
+const executionMode = qualificationExecutionMode(executionProfile.environmentLabel, false);
+if (executionMode !== 'mock') {
+  const primaryModel = process.env.CURSOR_MODEL?.trim();
+  if (!primaryModel || !process.env.CURSOR_API_KEY?.trim() || !agentCliAvailable()) {
+    throw new Error('Qualified Cursor Agent runtime is required outside Mock Mode');
+  }
+  const failoverModels = (() => {
+    const raw = process.env.QALI_CURSOR_FAILOVER_MODELS_JSON;
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !Array.isArray(parsed) ||
+      parsed.some((model) => typeof model !== 'string' || !model.trim())
+    ) {
+      throw new Error('QALI_CURSOR_FAILOVER_MODELS_JSON must be a JSON string array');
+    }
+    return parsed.map((model) => model.trim());
+  })();
+  const cursorCliVersion = execFileSync('agent', ['--version'], { encoding: 'utf8' }).trim();
+  if (!cursorCliVersion) throw new Error('Cursor Agent CLI did not report a version');
+  const candidates = [primaryModel, ...failoverModels].map((modelIdentifier) =>
+    computeRuntimeQualificationIdentity({
+      repositoryRoot: workspace,
+      cursorCliVersion,
+      modelIdentifier
+    })
+  );
+  const registry = loadQualificationRegistry(join(workspace, 'qualification/registry.json'));
+  const qualification = selectQualifiedCombination({
+    mode: executionMode,
+    candidates,
+    records: registry.records,
+    now: new Date()
+  });
+  if (!qualification.allowed) throw new Error(qualification.reason);
+  process.env.CURSOR_MODEL = qualification.candidate.modelIdentifier;
+}
 mkdirSync(join(workspace, '.qali'), { recursive: true });
 const agentMode =
   Boolean(process.env.CURSOR_MODEL?.trim()) &&
@@ -453,7 +511,11 @@ const result = await executeWorkflow(command, {
   loader: { load: () => descriptor },
   preconditions: new FilePreconditions(),
   policy: new WorkflowPolicy(),
-  executor: new RoutedStepExecutor(executionTarget.baseUrl, executionTarget.webServer),
+  executor: new RoutedStepExecutor(
+    executionTarget.baseUrl,
+    executionMode,
+    executionTarget.webServer
+  ),
   events: new FileEventStore(eventPath),
   outputValidator: new FileSystemOutputValidator(workspace)
 });

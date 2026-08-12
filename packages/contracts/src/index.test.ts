@@ -6,12 +6,42 @@ import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
   ProjectRegistrySchema,
+  ModelQualificationRecordSchema,
   RoleProfileSchema,
   WorkflowDescriptorSchema,
   WorkflowResultSchema
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('validates model qualification records with an exact 30-day lifetime', () => {
+    const record = ModelQualificationRecordSchema.parse({
+      version: 1,
+      cursorCliVersion: '1.7.2',
+      modelIdentifier: 'composer-2.5',
+      harnessVersion: '1',
+      harnessHash: 'a'.repeat(64),
+      skillHash: 'b'.repeat(64),
+      ruleHash: 'c'.repeat(64),
+      templateHash: 'd'.repeat(64),
+      browserFacadeHash: 'e'.repeat(64),
+      permissionHash: 'f'.repeat(64),
+      evaluationSuiteHash: '1'.repeat(64),
+      qualificationRunUrl: 'https://github.com/hlemmur/qali/actions/runs/123',
+      result: 'passed',
+      qualifiedAt: '2026-08-01T00:00:00.000Z',
+      expiresAt: '2026-08-31T00:00:00.000Z',
+      state: 'active'
+    });
+
+    expect(record.modelIdentifier).toBe('composer-2.5');
+    expect(() =>
+      ModelQualificationRecordSchema.parse({
+        ...record,
+        expiresAt: '2026-09-01T00:00:00.000Z'
+      })
+    ).toThrow(/30 days/i);
+  });
+
   it('validates fingerprinted agent harness manifests', () => {
     const manifest = AgentHarnessManifestSchema.parse({
       version: 1,
