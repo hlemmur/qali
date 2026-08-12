@@ -38,7 +38,11 @@ const positiveInteger = (value: unknown, fallback: number, maximum: number): num
 
 const cleanFocusValue = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
-  const cleaned = value.replace(/[\r\n|`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const cleaned = value
+    .replace(/[\r\n|`]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
   return cleaned || undefined;
 };
 
@@ -79,16 +83,11 @@ export async function executeExplorationStep(
   if (step.id === 'charter') {
     const explorationPath = join(projectRoot, 'observations/exploration.md');
     mkdirSync(dirname(explorationPath), { recursive: true });
-    const existing = existsSync(explorationPath)
-      ? readFileSync(explorationPath, 'utf8')
-      : '';
+    const existing = existsSync(explorationPath) ? readFileSync(explorationPath, 'utf8') : '';
     const sessionOffset = existing.indexOf('## Session Log');
     const priorSessions = sessionOffset >= 0 ? existing.slice(sessionOffset).trim() : '';
     const charter = `# Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.`;
-    writeFileSync(
-      explorationPath,
-      `${charter}${priorSessions ? `\n\n${priorSessions}` : ''}\n`
-    );
+    writeFileSync(explorationPath, `${charter}${priorSessions ? `\n\n${priorSessions}` : ''}\n`);
     return { status: 'succeeded' as const, outputs };
   }
   if (step.id === 'report') {

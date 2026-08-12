@@ -122,10 +122,7 @@ describe('bounded exploratory testing', () => {
       browser,
       { now: () => 1_000 }
     );
-    const rerunExploration = readFileSync(
-      join(projectRoot, 'observations/exploration.md'),
-      'utf8'
-    );
+    const rerunExploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
     const rerunQuestions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
     expect(rerunExploration.match(/OBS-EXP-001/g)).toHaveLength(1);
     expect(rerunExploration.match(/OBS-EXP-002/g)).toHaveLength(1);
