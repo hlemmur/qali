@@ -39,12 +39,10 @@ steps:
       - artifact: known-issues
         path: projects/{projectId}/observations/known-issues.md
     outputs:
-      - artifact: evidence
-        path: projects/{projectId}/observations/evidence/failure-analysis
-      - artifact: known-issues
-        path: projects/{projectId}/observations/known-issues.md
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/failure-analysis.md
     requiredTools: [file-read, file-write, report-renderer]
-    mutations: [append-evidence, append-observation]
+    mutations: [render-derived-report]
     policyGates: []
     retries: 0
     timeoutMs: 300000
@@ -55,8 +53,8 @@ steps:
     inputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/test-runs
-      - artifact: known-issues
-        path: projects/{projectId}/observations/known-issues.md
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/failure-analysis.md
     outputs:
       - artifact: reports
         path: projects/{projectId}/derived/reports/test-run.md

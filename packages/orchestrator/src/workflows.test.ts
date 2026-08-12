@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { ROLE_PROFILES, loadWorkflowDirectory, routeCommand, validateWorkflow } from './index.js';
 
 const workflowDirectory = new URL('../../../workflows/', import.meta.url);
@@ -147,6 +148,58 @@ describe('workflow catalog', () => {
         }
       )
     ).toThrow(/permission/i);
+  });
+
+  it('prevents agent steps from exceeding their harness profile permissions', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
+    const exploration = workflows.find(({ id }) => id === 'exploratory-testing')!;
+    const charter = exploration.steps.find(({ id }) => id === 'charter')!;
+    const catalog = JSON.parse(readFileSync(harnessProfileCatalog, 'utf8')) as {
+      profiles: Array<{
+        id: string;
+        kind?: 'agent' | 'host';
+        tools: string[];
+        mutations: string[];
+      }>;
+    };
+
+    expect(() =>
+      validateWorkflow(
+        {
+          ...exploration,
+          steps: [{ ...charter, requiredTools: [...charter.requiredTools, 'browser'] }]
+        },
+        {
+          harnessProfileIds: new Set(catalog.profiles.map(({ id }) => id)),
+          harnessProfiles: new Map(catalog.profiles.map((profile) => [profile.id, profile]))
+        } as unknown as Parameters<typeof validateWorkflow>[1]
+      )
+    ).toThrow(/harness profile permission/i);
+
+    const context = {
+      harnessProfileIds: new Set(catalog.profiles.map(({ id }) => id)),
+      harnessProfiles: new Map(catalog.profiles.map((profile) => [profile.id, profile]))
+    } as unknown as Parameters<typeof validateWorkflow>[1];
+    expect(() =>
+      validateWorkflow(
+        {
+          ...exploration,
+          steps: [{ ...charter, mutations: [...charter.mutations, 'append-evidence'] }]
+        },
+        context
+      )
+    ).toThrow(/harness profile permission/i);
+
+    const browser = exploration.steps.find(({ id }) => id === 'explore')!;
+    expect(() =>
+      validateWorkflow(
+        {
+          ...exploration,
+          steps: [charter, { ...browser, requiredTools: ['file-read', 'file-write'] }]
+        },
+        context
+      )
+    ).toThrow(/harness profile permission/i);
   });
 });
 

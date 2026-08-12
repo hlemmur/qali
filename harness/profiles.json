@@ -168,7 +168,7 @@
       "templatePaths": ["core/templates/bug-report.md"],
       "writableOutputDirectories": ["outputs/analysis"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["render-derived-report"],
       "validators": ["failure-analysis-schema"]
     },
     {
@@ -183,7 +183,7 @@
       "templatePaths": ["core/templates/bug-report.md", "core/templates/scenario-spec.md"],
       "writableOutputDirectories": ["outputs/reproduction", "outputs/tests"],
       "tools": [],
-      "mutations": ["create-test", "append-evidence"],
+      "mutations": ["create-test", "append-observation", "append-evidence"],
       "validators": ["reproduction-schema", "typescript"]
     },
     {

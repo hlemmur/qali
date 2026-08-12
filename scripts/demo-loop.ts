@@ -257,21 +257,6 @@ class MockModeStepExecutor implements StepExecutor {
           { ...FORMAT_OPTIONS, parser: 'typescript' }
         )
       );
-      const evidenceDirectory = join(projectRoot, 'observations/evidence/test-generation');
-      mkdirSync(evidenceDirectory, { recursive: true });
-      writeFileSync(
-        join(evidenceDirectory, 'traceability.json'),
-        JSON.stringify(
-          {
-            mode: 'mock',
-            scenario: 'derived/scenarios/approved/demo-smoke.md',
-            test: 'tests/generated/dashboard.generated.spec.ts',
-            testId: 'DEMO-GEN-001'
-          },
-          null,
-          2
-        )
-      );
       return { status: 'succeeded', outputs } as const;
     }
 
@@ -313,18 +298,12 @@ class MockModeStepExecutor implements StepExecutor {
 
     if (step.id === 'analyze-failures') {
       if (!this.summary) return { status: 'failed' as const, error: 'Missing Playwright summary' };
-      const analysisDirectory = join(projectRoot, 'observations/evidence/failure-analysis');
-      mkdirSync(analysisDirectory, { recursive: true });
+      const analysisPath = join(projectRoot, 'derived/reports/failure-analysis.md');
+      mkdirSync(dirname(analysisPath), { recursive: true });
       writeFileSync(
-        join(analysisDirectory, 'summary.json'),
-        JSON.stringify(
-          {
-            mode: 'mock',
-            failed: this.summary.failed,
-            classification: this.summary.failed === 0 ? 'no-failures' : 'deterministic-demo-failure'
-          },
-          null,
-          2
+        analysisPath,
+        await generatedMarkdown(
+          `\n# Failure analysis\n\nFailed: ${this.summary.failed}\n\nClassification: ${this.summary.failed === 0 ? 'no-failures' : 'deterministic-demo-failure'}\n`
         )
       );
       return { status: 'succeeded', outputs } as const;
@@ -379,7 +358,6 @@ export interface DemoLoopResult {
     explorationEvidence: string;
     coverageMap: string;
     generatedTest: string;
-    generationEvidence: string;
     evidence: string;
     job: string;
     markdownReport: string;
@@ -490,7 +468,6 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
       explorationEvidence: join(projectRoot, 'observations/evidence/exploration'),
       coverageMap: join(projectRoot, 'derived/scenarios/coverage-map.md'),
       generatedTest: join(projectRoot, 'tests/generated/dashboard.generated.spec.ts'),
-      generationEvidence: join(projectRoot, 'observations/evidence/test-generation'),
       evidence: join(projectRoot, 'observations/evidence/test-runs'),
       job: join(projectRoot, 'derived/jobs/test-run.md'),
       markdownReport: join(reportDirectory, 'test-run.md'),

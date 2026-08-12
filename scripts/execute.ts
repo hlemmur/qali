@@ -235,19 +235,12 @@ class RoutedStepExecutor implements StepExecutor {
         this.playwrightSummary ??
         parsePlaywrightJsonReport(JSON.parse(readFileSync(reportPath, 'utf8')));
       this.playwrightSummary = summary;
-      const analysisDirectory = join(projectRoot, 'observations/evidence/failure-analysis');
-      mkdirSync(analysisDirectory, { recursive: true });
+      const analysisPath = join(projectRoot, 'derived/reports/failure-analysis.md');
+      mkdirSync(dirname(analysisPath), { recursive: true });
       writeFileSync(
-        join(analysisDirectory, 'summary.json'),
-        JSON.stringify(
-          {
-            mode: 'deterministic-fallback',
-            failed: summary.failed,
-            classification: summary.failed === 0 ? 'no-failures' : 'needs-triage',
-            note: 'Cursor Agent CLI unavailable; wrote deterministic failure analysis.'
-          },
-          null,
-          2
+        analysisPath,
+        generatedMarkdown(
+          `# Failure analysis\n\nFailed: ${summary.failed}\n\nClassification: ${summary.failed === 0 ? 'no-failures' : 'needs-triage'}\n\nDeterministic fallback; Cursor Agent CLI was unavailable.\n`
         )
       );
       return { status: 'succeeded' as const, outputs };

@@ -33,7 +33,7 @@ steps:
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
     requiredTools: [file-read, file-write]
-    mutations: [append-observation, append-evidence, format-document]
+    mutations: [format-document]
     policyGates: []
     retries: 0
     timeoutMs: 300000

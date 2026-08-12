@@ -99,9 +99,9 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
     displayName: 'Failure Analyst',
     permissions: {
       readableArtifacts: ['project-context', 'reference', 'tests', 'evidence', 'known-issues'],
-      writableArtifacts: ['evidence', 'known-issues', 'reports', 'questions'],
+      writableArtifacts: ['tests', 'evidence', 'known-issues', 'reports', 'questions'],
       tools: ['file-read', 'file-write', 'shell', 'playwright', 'report-renderer'],
-      mutations: ['append-observation', 'append-evidence', 'render-derived-report']
+      mutations: ['create-test', 'append-observation', 'append-evidence', 'render-derived-report']
     }
   }),
   'suite-maintainer': role({
@@ -183,6 +183,10 @@ const APPROVAL_MUTATIONS = new Set([
 
 export interface WorkflowValidationContext {
   harnessProfileIds: ReadonlySet<string>;
+  harnessProfiles?: ReadonlyMap<
+    string,
+    { id: string; kind?: 'agent' | 'host'; tools: readonly string[]; mutations: readonly string[] }
+  >;
   roles?: Readonly<Record<string, RoleProfile>>;
 }
 
@@ -195,6 +199,20 @@ function requireSubset(
   const denied = values.filter((value) => !allowed.includes(value));
   if (denied.length > 0) {
     throw new Error(`step "${stepId}" exceeds role permission for ${label}: ${denied.join(', ')}`);
+  }
+}
+
+function requireHarnessSubset(
+  values: readonly string[],
+  allowed: readonly string[],
+  label: string,
+  stepId: string
+): void {
+  const denied = values.filter((value) => !allowed.includes(value));
+  if (denied.length > 0) {
+    throw new Error(
+      `step "${stepId}" exceeds harness profile permission for ${label}: ${denied.join(', ')}`
+    );
   }
 }
 
@@ -224,6 +242,10 @@ export function validateWorkflow(
     if (!context.harnessProfileIds.has(step.harnessProfileId)) {
       throw new Error(`unknown harness profile reference: ${step.harnessProfileId}`);
     }
+    const harnessProfile = context.harnessProfiles?.get(step.harnessProfileId);
+    if (context.harnessProfiles && !harnessProfile) {
+      throw new Error(`missing harness profile definition: ${step.harnessProfileId}`);
+    }
 
     requireSubset(
       step.inputs.map(({ artifact }) => artifact),
@@ -239,6 +261,16 @@ export function validateWorkflow(
     );
     requireSubset(step.requiredTools, profile.permissions.tools, 'tools', step.id);
     requireSubset(step.mutations, profile.permissions.mutations, 'mutations', step.id);
+    if (harnessProfile) {
+      const agentTools = step.requiredTools.filter((tool) =>
+        ['browser', 'shell', 'playwright'].includes(tool)
+      );
+      if (harnessProfile.kind !== 'host') {
+        requireHarnessSubset(agentTools, harnessProfile.tools, 'tools', step.id);
+        requireHarnessSubset(harnessProfile.tools, agentTools, 'required tools', step.id);
+      }
+      requireHarnessSubset(step.mutations, harnessProfile.mutations, 'mutations', step.id);
+    }
 
     for (const reference of [...step.inputs, ...step.outputs]) {
       if (
@@ -285,19 +317,57 @@ export function loadWorkflowDirectory(
   harnessProfileCatalog: URL | string
 ): WorkflowDescriptor[] {
   const catalog = JSON.parse(readFileSync(localPath(harnessProfileCatalog), 'utf8')) as {
-    profiles?: Array<{ id?: unknown }>;
+    profiles?: Array<{
+      id?: unknown;
+      kind?: unknown;
+      tools?: unknown;
+      mutations?: unknown;
+    }>;
   };
   const harnessProfileIds = new Set(
     (catalog.profiles ?? []).flatMap(({ id }) => (typeof id === 'string' ? [id] : []))
   );
   const directoryName = localPath(directory);
+  const harnessProfiles = new Map<
+    string,
+    {
+      id: string;
+      kind?: 'agent' | 'host';
+      tools: readonly string[];
+      mutations: readonly string[];
+    }
+  >(
+    (catalog.profiles ?? []).flatMap((profile) =>
+      typeof profile.id === 'string' &&
+      (profile.kind === undefined || profile.kind === 'agent' || profile.kind === 'host') &&
+      Array.isArray(profile.tools) &&
+      profile.tools.every((tool) => typeof tool === 'string') &&
+      Array.isArray(profile.mutations) &&
+      profile.mutations.every((mutation) => typeof mutation === 'string')
+        ? [
+            [
+              profile.id,
+              {
+                id: profile.id,
+                ...(profile.kind === 'agent' || profile.kind === 'host'
+                  ? { kind: profile.kind }
+                  : {}),
+                tools: profile.tools as string[],
+                mutations: profile.mutations as string[]
+              }
+            ] as const
+          ]
+        : []
+    )
+  );
 
   return readdirSync(directoryName)
     .filter((file) => file.endsWith('.yaml') || file.endsWith('.yml'))
     .sort()
     .map((file) =>
       validateWorkflow(parseYaml(readFileSync(`${directoryName}/${file}`, 'utf8')), {
-        harnessProfileIds
+        harnessProfileIds,
+        harnessProfiles
       })
     );
 }

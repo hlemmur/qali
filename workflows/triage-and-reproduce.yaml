@@ -30,9 +30,11 @@ steps:
         path: projects/{projectId}/observations/known-issues.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
-    requiredTools: [file-read, file-write, shell, playwright]
-    mutations: [append-observation, append-evidence]
-    policyGates: [execution]
+      - artifact: tests
+        path: projects/{projectId}/tests
+    requiredTools: [file-read, file-write]
+    mutations: [create-test, append-observation, append-evidence]
+    policyGates: [execution, approved-scenario]
     retries: 1
     timeoutMs: 1200000
   - id: report

@@ -46,10 +46,8 @@ steps:
     outputs:
       - artifact: tests
         path: projects/{projectId}/tests
-      - artifact: evidence
-        path: projects/{projectId}/observations/evidence/test-generation
-    requiredTools: [file-read, file-write, shell, playwright]
-    mutations: [create-test, append-evidence]
+    requiredTools: [file-read, file-write]
+    mutations: [create-test]
     policyGates: [execution, approved-scenario]
     retries: 1
     timeoutMs: 900000
