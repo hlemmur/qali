@@ -23,6 +23,11 @@ export interface ResolvedExecutionTarget {
   allowedOrigins: string[];
   credentials: Record<string, unknown>;
   testData: Record<string, unknown>;
+  browser: {
+    name: ProjectExecutionProfile['browser']['name'];
+    allowedSubmissions: Array<{ role: string; name: string }>;
+  };
+  redactionPatterns: string[];
   webServer?: { command: string; url: string };
 }
 
@@ -76,6 +81,11 @@ export function resolveExecutionTarget(
     allowedOrigins: [...new Set(allowedOrigins)],
     credentials: jsonRecord(variables, names.credentials),
     testData: jsonRecord(variables, names.testData),
+    browser: {
+      name: profile.browser.name,
+      allowedSubmissions: profile.browser.allowedSubmissions ?? []
+    },
+    redactionPatterns: profile.redaction.patterns,
     ...(profile.webServer ? { webServer: profile.webServer } : {})
   };
 }

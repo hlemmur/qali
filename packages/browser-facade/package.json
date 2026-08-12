@@ -1,0 +1,19 @@
+{
+  "name": "@qali/browser-facade",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mcp": "./src/mcp.ts",
+    "./playwright-driver": "./src/playwright-driver.ts",
+    "./service-config": "./src/service-config.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@playwright/test": "^1.62.1",
+    "@qali/contracts": "*",
+    "@qali/project-config": "*",
+    "zod": "^4.4.3"
+  }
+}

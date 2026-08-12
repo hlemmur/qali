@@ -12,7 +12,8 @@
   "browser": {
     "name": "chromium",
     "allowDownloads": false,
-    "allowPopups": false
+    "allowPopups": false,
+    "allowedSubmissions": []
   },
   "rate": {
     "maxActionsPerMinute": 60

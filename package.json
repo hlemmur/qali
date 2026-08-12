@@ -19,6 +19,7 @@
     "demo:test": "QALI_TARGET_BASE_URL=http://127.0.0.1:4173 QALI_WEB_SERVER_COMMAND='node projects/_demo/app/server.mjs' QALI_WEB_SERVER_URL=http://127.0.0.1:4173/health playwright test projects/_demo/tests",
     "demo:loop": "tsx scripts/demo-loop.ts",
     "execute": "tsx scripts/execute.ts",
+    "browser:mcp": "tsx scripts/browser-facade-mcp.ts",
     "post:run-summary": "tsx scripts/post-run-summary.ts",
     "publish:prepare": "tsx scripts/prepare-publication.ts",
     "publish": "tsx scripts/publish.ts",

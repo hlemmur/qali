@@ -36,7 +36,12 @@ const profile = (environmentLabel: ProjectExecutionProfile['environmentLabel']) 
       credentials: 'QALI_TEST_CREDENTIALS_JSON',
       testData: 'QALI_TEST_DATA_JSON'
     },
-    browser: { name: 'chromium', allowDownloads: false, allowPopups: false },
+    browser: {
+      name: 'chromium',
+      allowDownloads: false,
+      allowPopups: false,
+      allowedSubmissions: [{ role: 'button', name: 'Sign in' }]
+    },
     rate: { maxActionsPerMinute: 60 },
     mutation: { allowed: ['append-observation', 'append-evidence'] },
     cleanup: { strategy: 'fixture-reset' },
@@ -138,7 +143,11 @@ describe('execution target resolution', () => {
       expect(target).toMatchObject({
         environmentLabel: label,
         baseUrl: 'https://app.example.test/login',
-        allowedOrigins: ['https://app.example.test']
+        allowedOrigins: ['https://app.example.test'],
+        browser: {
+          name: 'chromium',
+          allowedSubmissions: [{ role: 'button', name: 'Sign in' }]
+        }
       });
     }
   );

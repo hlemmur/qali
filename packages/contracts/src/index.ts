@@ -190,7 +190,10 @@ export const ProjectExecutionProfileSchema = z
       .object({
         name: z.enum(['chromium', 'firefox', 'webkit']),
         allowDownloads: z.boolean(),
-        allowPopups: z.boolean()
+        allowPopups: z.boolean(),
+        allowedSubmissions: z
+          .array(z.object({ role: z.string().min(1), name: z.string().min(1) }).strict())
+          .optional()
       })
       .strict(),
     rate: z.object({ maxActionsPerMinute: z.number().int().positive() }).strict(),

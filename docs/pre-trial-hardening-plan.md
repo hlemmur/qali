@@ -107,7 +107,8 @@ Prohibit arbitrary JavaScript evaluation, unrestricted URLs, raw cookie access, 
 Tests:
 
 - Allowed navigation and interaction.
-- Origin escape, redirect, popup, download, and credential-exfiltration rejection.
+- Origin escape, redirect (document and subresource), popup, download, and credential-exfiltration rejection.
+- Traces are refused after named credentials are filled; tracing never stores DOM snapshots.
 - Secret values never appear in model-visible context, logs, or evidence indexes.
 - Prompt-injection text remains page data.
 

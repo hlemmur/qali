@@ -47,15 +47,16 @@ Two jobs with isolated permissions:
 
 ### Packages
 
-| Package               | Role                                                         |
-| --------------------- | ------------------------------------------------------------ |
-| `@qali/contracts`     | Zod schemas for intents, roles, workflows, Slack correlation |
-| `@qali/knowledge`     | Provenance, mutation classification, project scaffolding     |
-| `@qali/orchestrator`  | Workflow validation, routing, step execution                 |
-| `@qali/agent-runtime` | Cursor CLI adapter (sandboxed)                               |
-| `@qali/playwright`    | Test runner and JSON report parsing                          |
-| `@qali/reporting`     | Slack Block Kit summaries and Markdown reports               |
-| `@qali/publication`   | Safe auto-commit policy and GitHub adapter                   |
+| Package                | Role                                                         |
+| ---------------------- | ------------------------------------------------------------ |
+| `@qali/contracts`      | Zod schemas for intents, roles, workflows, Slack correlation |
+| `@qali/knowledge`      | Provenance, mutation classification, project scaffolding     |
+| `@qali/orchestrator`   | Workflow validation, routing, step execution                 |
+| `@qali/agent-runtime`  | Cursor CLI adapter (sandboxed)                               |
+| `@qali/browser-facade` | Restricted local MCP browser and secret-safe evidence        |
+| `@qali/playwright`     | Test runner and JSON report parsing                          |
+| `@qali/reporting`      | Slack Block Kit summaries and Markdown reports               |
+| `@qali/publication`    | Safe auto-commit policy and GitHub adapter                   |
 
 ## Knowledge model
 
