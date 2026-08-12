@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type {
   NormalizedCommand,
@@ -90,11 +90,20 @@ export async function executeExplorationStep(
     return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
   }
   const snapshot = await browser.accessibilitySnapshot();
+  if (clock.now() - startedAt >= timeBudgetMs) {
+    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
+  }
   const evidence = await browser.captureEvidence('session-home', {
     screenshot: true,
     trace: false
   });
+  if (clock.now() - startedAt >= timeBudgetMs) {
+    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
+  }
   const diagnostics = await browser.readDiagnostics();
+  if (clock.now() - startedAt >= timeBudgetMs) {
+    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
+  }
   const observedAt = command.receivedAt.slice(0, 10);
   const evidenceRefs = evidence.artifacts.map(
     (artifact) => `observations/evidence/exploration/${artifact}`
@@ -116,12 +125,17 @@ export async function executeExplorationStep(
   );
   const explorationPath = join(projectRoot, 'observations/exploration.md');
   mkdirSync(dirname(explorationPath), { recursive: true });
+  const existingExploration = existsSync(explorationPath)
+    ? readFileSync(explorationPath, 'utf8').trim()
+    : '# Exploration Log';
   writeFileSync(
     explorationPath,
     [
-      '# Exploration Log',
+      existingExploration,
       '',
-      `Focus: ${focus}`,
+      '## Session Log',
+      '',
+      `Focus: ${focus}. Accessible nodes observed: ${snapshot.untrustedPageData.split('\n').filter(Boolean).length}.`,
       '',
       '| ID | Observation | Status | Evidence | Observed at | Session |',
       '| --- | --- | --- | --- | --- | --- |',
@@ -131,10 +145,15 @@ export async function executeExplorationStep(
   );
   const questionsPath = join(projectRoot, 'sources/questions.md');
   mkdirSync(dirname(questionsPath), { recursive: true });
+  const existingQuestions = existsSync(questionsPath)
+    ? readFileSync(questionsPath, 'utf8').trim()
+    : '# Open Questions';
   writeFileSync(
     questionsPath,
     [
-      '# Open Questions',
+      existingQuestions,
+      '',
+      '## Exploration Questions',
       '',
       '| ID | Question | Status | Blocking | Evidence |',
       '| --- | --- | --- | --- | --- |',

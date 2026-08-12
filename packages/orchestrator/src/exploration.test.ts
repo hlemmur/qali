@@ -72,6 +72,11 @@ describe('bounded exploratory testing', () => {
     mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
     mkdirSync(join(projectRoot, 'observations'), { recursive: true });
     writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
+    writeFileSync(
+      join(projectRoot, 'observations/exploration.md'),
+      '# Exploration Charter\n\nFocus: login\n'
+    );
+    writeFileSync(join(projectRoot, 'sources/questions.md'), '# Open Questions\n\nQ-EXISTING\n');
     const workflow = loadWorkflowDirectory(
       join(process.cwd(), 'workflows'),
       join(process.cwd(), 'harness/profiles.json')
@@ -93,10 +98,12 @@ describe('bounded exploratory testing', () => {
       'evidence:session-home',
       'diagnostics'
     ]);
-    expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
-      'session-home/screenshot.png'
-    );
-    expect(readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8')).toContain('Q-EXP-001');
+    const exploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
+    expect(exploration).toContain('# Exploration Charter');
+    expect(exploration).toContain('session-home/screenshot.png');
+    const questions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
+    expect(questions).toContain('Q-EXISTING');
+    expect(questions).toContain('Q-EXP-001');
     expect(existsSync(join(projectRoot, 'observations/evidence/exploration/session.json'))).toBe(
       true
     );
