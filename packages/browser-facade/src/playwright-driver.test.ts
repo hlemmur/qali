@@ -120,18 +120,101 @@ describe('Playwright browser driver security boundary', () => {
         'Downloads are prohibited'
       );
 
+      await expect(
+        browser.captureEvidence('live-login', { screenshot: true, trace: true })
+      ).rejects.toThrow('Traces are prohibited after filling credentials');
       const evidence = await browser.captureEvidence('live-login', {
         screenshot: true,
-        trace: true
+        trace: false
       });
-      expect(evidence.artifacts).toHaveLength(2);
+      expect(evidence.artifacts).toEqual(['live-login/screenshot.png']);
       expect(existsSync(join(evidenceDirectory, 'live-login/screenshot.png'))).toBe(true);
-      expect(existsSync(join(evidenceDirectory, 'live-login/trace.zip'))).toBe(true);
       expect(readFileSync(join(evidenceDirectory, 'live-login/index.json'), 'utf8')).not.toContain(
         'live-super-secret'
       );
     } finally {
       await driver.close();
     }
-  }, 30_000);
+  }, 90_000);
+
+  it('blocks unapproved POST navigations, formmethod overrides, and subresource redirects', async () => {
+    let autoSubmissions = 0;
+    let getSubmissions = 0;
+    let attackerRequests = 0;
+    const attacker = await listen((_request, response) => {
+      attackerRequests += 1;
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.end('stolen');
+    });
+    const target = await listen((request, response) => {
+      if (request.url?.startsWith('/auto') && request.method === 'POST') {
+        autoSubmissions += 1;
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end('<p>auto submitted</p>');
+        return;
+      }
+      if (request.url?.startsWith('/get-submit') && request.method === 'GET') {
+        getSubmissions += 1;
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end('<p>get submitted</p>');
+        return;
+      }
+      if (request.url?.startsWith('/redirect')) {
+        response.writeHead(302, { location: `${attacker.origin}/steal` });
+        response.end();
+        return;
+      }
+      if (request.url === '/formmethod') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(`<!doctype html>
+          <form action="/get-submit" method="post">
+            <button formmethod="get">Override submit</button>
+          </form>`);
+        return;
+      }
+      if (request.url === '/fetch-escape') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(`<!doctype html>
+          <button type="button" id="leak" onclick="fetch('/redirect?to=attacker')">Leak via redirect</button>
+          <script>fetch('/redirect?to=attacker')</script>`);
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(`<!doctype html>
+        <form id="auto" action="/auto" method="post"><input name="x" value="1"></form>
+        <script>document.getElementById('auto').submit()</script>`);
+    });
+    const evidenceDirectory = mkdtempSync(join(tmpdir(), 'qali-browser-policy-'));
+    temporaryDirectories.push(evidenceDirectory);
+    const driver = await PlaywrightBrowserDriver.launch({ allowedOrigins: [target.origin] });
+    const browser = new RestrictedBrowserFacade(driver, {
+      baseUrl: target.origin,
+      allowedOrigins: [target.origin],
+      credentials: {},
+      testData: {},
+      evidenceDirectory,
+      allowedSubmissions: [{ role: 'button', name: 'Override submit' }]
+    });
+
+    try {
+      await expect(browser.navigate('/')).rejects.toThrow(/blocked by policy|Navigation blocked/);
+      expect(autoSubmissions).toBe(0);
+
+      await browser.navigate('/formmethod');
+      await expect(browser.click('button', 'Override submit')).rejects.toThrow(
+        'Form submissions must use POST'
+      );
+      expect(getSubmissions).toBe(0);
+
+      await browser.navigate('/fetch-escape');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(attackerRequests).toBe(0);
+      await expect(browser.click('button', 'Leak via redirect')).rejects.toThrow(
+        'Network escape blocked by policy'
+      );
+      expect(attackerRequests).toBe(0);
+    } finally {
+      await driver.close();
+    }
+  }, 90_000);
 });

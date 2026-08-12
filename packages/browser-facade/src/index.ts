@@ -41,6 +41,7 @@ export class RestrictedBrowserFacade {
   private readonly allowedOrigins: Set<string>;
   private readonly maskedLabels = new Set<string>();
   private readonly redactors: RegExp[];
+  private credentialsFilled = false;
 
   constructor(
     private readonly driver: BrowserDriver,
@@ -109,6 +110,7 @@ export class RestrictedBrowserFacade {
     const value = String(values[field]);
     await this.driver.fillByLabel(label, value);
     this.maskedLabels.add(label);
+    if (source === 'credential') this.credentialsFilled = true;
     return { filled: true, source };
   }
 
@@ -118,6 +120,9 @@ export class RestrictedBrowserFacade {
   ): Promise<{ evidenceId: string; artifacts: string[] }> {
     if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(evidenceId)) {
       throw new Error('Invalid evidence id');
+    }
+    if (options.trace && this.credentialsFilled) {
+      throw new Error('Traces are prohibited after filling credentials');
     }
     const directory = join(this.config.evidenceDirectory, evidenceId);
     mkdirSync(directory, { recursive: true });

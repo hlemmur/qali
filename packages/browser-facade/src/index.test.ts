@@ -131,28 +131,47 @@ describe('restricted browser facade', () => {
     try {
       await browser.fillNamed('Password', 'credential', 'primaryPassword');
       await browser.fillNamed('Email', 'testData', 'seededEmail');
+      await expect(
+        browser.captureEvidence('run-123-login', { screenshot: true, trace: true })
+      ).rejects.toThrow('Traces are prohibited after filling credentials');
       const result = await browser.captureEvidence('run-123-login', {
         screenshot: true,
-        trace: true
+        trace: false
       });
 
       expect(result).toEqual({
         evidenceId: 'run-123-login',
-        artifacts: ['run-123-login/screenshot.png', 'run-123-login/trace.zip']
+        artifacts: ['run-123-login/screenshot.png']
       });
       expect(driver.captureScreenshot).toHaveBeenCalledWith(
         join(evidenceDirectory, 'run-123-login/screenshot.png'),
         ['Password', 'Email']
       );
-      expect(driver.captureTrace).toHaveBeenCalledWith(
-        join(evidenceDirectory, 'run-123-login/trace.zip')
-      );
+      expect(driver.captureTrace).not.toHaveBeenCalled();
       const index = readFileSync(join(evidenceDirectory, 'run-123-login/index.json'), 'utf8');
       expect(index).not.toContain('super-secret');
       expect(index).not.toContain('alex@example.test');
       await expect(
         browser.captureEvidence('../escape', { screenshot: true, trace: false })
       ).rejects.toThrow('Invalid evidence id');
+    } finally {
+      rmSync(evidenceDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('allows traces before credentials are filled', async () => {
+    const evidenceDirectory = mkdtempSync(join(tmpdir(), 'qali-browser-trace-'));
+    const { browser, driver } = facade(new FakeBrowserDriver(), { evidenceDirectory });
+
+    try {
+      const result = await browser.captureEvidence('pre-auth', {
+        screenshot: false,
+        trace: true
+      });
+      expect(result.artifacts).toEqual(['pre-auth/trace.zip']);
+      expect(driver.captureTrace).toHaveBeenCalledWith(
+        join(evidenceDirectory, 'pre-auth/trace.zip')
+      );
     } finally {
       rmSync(evidenceDirectory, { recursive: true, force: true });
     }

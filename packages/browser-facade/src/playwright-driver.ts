@@ -20,6 +20,8 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
   private readonly popupUrls: string[] = [];
   private readonly downloadNames: string[] = [];
   private blockedRequests = 0;
+  private blockedDocumentNavigations = 0;
+  private pendingSubmissionApproval = false;
 
   private constructor(
     private readonly browser: Browser,
@@ -49,14 +51,32 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
       new Set(options.allowedOrigins.map((value) => new URL(value).origin))
     );
     await driver.installPolicy();
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
+    // Snapshots omitted: DOM snapshots can retain filled credential values.
+    await context.tracing.start({ screenshots: true, snapshots: false, sources: false });
     return driver;
+  }
+
+  private recordBlocked(
+    method: string,
+    url: string,
+    options: { status?: number; documentNavigation?: boolean } = {}
+  ): void {
+    this.blockedRequests += 1;
+    if (options.documentNavigation) this.blockedDocumentNavigations += 1;
+    this.networkEntries.push({
+      method,
+      url,
+      ...(options.status === undefined ? {} : { status: options.status }),
+      blocked: true
+    });
   }
 
   private async installPolicy(): Promise<void> {
     await this.context.route('**/*', async (route) => {
       const request = route.request();
       const rawUrl = request.url();
+      const isDocumentNavigation =
+        request.isNavigationRequest() && request.resourceType() === 'document';
       let allowed: boolean;
       try {
         const url = new URL(rawUrl);
@@ -65,23 +85,56 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
         allowed = false;
       }
       if (!allowed) {
-        this.blockedRequests += 1;
-        this.networkEntries.push({ method: request.method(), url: rawUrl, blocked: true });
+        this.recordBlocked(request.method(), rawUrl, { documentNavigation: isDocumentNavigation });
         await route.abort('blockedbyclient');
         return;
       }
-      if (request.isNavigationRequest() && request.resourceType() === 'document') {
-        const response = await route.fetch({ maxRedirects: 0 });
-        const headers = response.headers();
-        const contentDisposition = headers['content-disposition'];
-        if (/^\s*attachment(?:;|$)/i.test(contentDisposition ?? '')) {
-          this.blockedRequests += 1;
-          this.downloadNames.push('blocked-download');
-          this.networkEntries.push({
-            method: request.method(),
-            url: rawUrl,
+
+      if (isDocumentNavigation && request.method().toUpperCase() === 'POST') {
+        if (!this.pendingSubmissionApproval) {
+          this.recordBlocked(request.method(), rawUrl, { documentNavigation: true });
+          await route.fulfill({
+            status: 403,
+            contentType: 'text/plain',
+            body: 'Blocked by browser policy'
+          });
+          return;
+        }
+        this.pendingSubmissionApproval = false;
+      }
+
+      const response =
+        isDocumentNavigation ||
+        request.resourceType() === 'xhr' ||
+        request.resourceType() === 'fetch'
+          ? await route.fetch({ maxRedirects: 0 })
+          : null;
+      if (!response) {
+        await route.continue();
+        return;
+      }
+      const headers = response.headers();
+      const contentDisposition = headers['content-disposition'];
+      if (/^\s*attachment(?:;|$)/i.test(contentDisposition ?? '')) {
+        this.recordBlocked(request.method(), rawUrl, {
+          status: response.status(),
+          documentNavigation: isDocumentNavigation
+        });
+        this.downloadNames.push('blocked-download');
+        await route.fulfill({
+          status: 403,
+          contentType: 'text/plain',
+          body: 'Blocked by browser policy'
+        });
+        return;
+      }
+      const location = headers.location;
+      if (location) {
+        const redirectUrl = new URL(location, rawUrl);
+        if (!this.allowedOrigins.has(redirectUrl.origin)) {
+          this.recordBlocked(request.method(), redirectUrl.href, {
             status: response.status(),
-            blocked: true
+            documentNavigation: isDocumentNavigation
           });
           await route.fulfill({
             status: 403,
@@ -90,29 +143,8 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
           });
           return;
         }
-        const location = headers.location;
-        if (location) {
-          const redirectUrl = new URL(location, rawUrl);
-          if (!this.allowedOrigins.has(redirectUrl.origin)) {
-            this.blockedRequests += 1;
-            this.networkEntries.push({
-              method: request.method(),
-              url: redirectUrl.href,
-              status: response.status(),
-              blocked: true
-            });
-            await route.fulfill({
-              status: 403,
-              contentType: 'text/plain',
-              body: 'Blocked by browser policy'
-            });
-            return;
-          }
-        }
-        await route.fulfill({ response });
-        return;
       }
-      await route.continue();
+      await route.fulfill({ response });
     });
     this.page.on('console', (message) => {
       this.consoleEntries.push({ level: message.type(), text: message.text() });
@@ -124,9 +156,10 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
         status: response.status()
       });
     });
-    this.page.on('popup', (popup) => {
-      this.popupUrls.push(popup.url());
-      void popup.close();
+    this.context.on('page', (page) => {
+      if (page === this.page) return;
+      this.popupUrls.push(page.url() || 'about:blank');
+      void page.close();
     });
     this.page.on('download', (download) => {
       this.downloadNames.push(download.suggestedFilename());
@@ -135,16 +168,20 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
   }
 
   async navigate(url: string): Promise<{ url: string }> {
-    const blockedBefore = this.blockedRequests;
+    const blockedDocumentsBefore = this.blockedDocumentNavigations;
     try {
       await this.page.goto(url, { waitUntil: 'domcontentloaded' });
     } catch (error) {
-      if (this.blockedRequests > blockedBefore) {
+      if (this.blockedDocumentNavigations > blockedDocumentsBefore) {
         throw new Error('Navigation blocked by policy', { cause: error });
       }
       throw error;
     }
-    if (this.blockedRequests > blockedBefore) throw new Error('Navigation blocked by policy');
+    // Allow page scripts (e.g. auto-submit forms) to hit the POST gate before returning.
+    await this.page.waitForTimeout(50);
+    if (this.blockedDocumentNavigations > blockedDocumentsBefore) {
+      throw new Error('Navigation blocked by policy');
+    }
     return { url: this.page.url() };
   }
 
@@ -163,16 +200,28 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
     });
     const action = await locator.evaluate((element) => {
       let form: HTMLFormElement | null = null;
+      let submitterMethod: string | undefined;
       if (element instanceof HTMLInputElement) {
-        if (element.type === 'submit' || element.type === 'image') form = element.form;
+        if (element.type === 'submit' || element.type === 'image') {
+          form = element.form;
+          submitterMethod = element.formMethod || undefined;
+        }
       }
       if (element instanceof HTMLButtonElement) {
-        if (element.type === 'submit') form = element.form;
+        if (element.type === 'submit' || element.getAttribute('type') === null) {
+          // Default button type inside a form is submit.
+          if (element.type === 'submit' || element.form) {
+            form = element.form;
+            submitterMethod = element.formMethod || undefined;
+          }
+        }
       }
+      if (!form && element instanceof HTMLElement) {
+        form = element.closest('form');
+      }
+      const method = (submitterMethod || form?.method || 'get').toUpperCase();
       return {
-        submission: form
-          ? { submits: true as const, method: form.method.toUpperCase() }
-          : { submits: false as const },
+        submission: form ? { submits: true as const, method } : { submits: false as const },
         triggersDownload: element instanceof HTMLAnchorElement && element.hasAttribute('download')
       };
     });
@@ -187,9 +236,13 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
     const popupOffset = this.popupUrls.length;
     const downloadOffset = this.downloadNames.length;
     const blockedOffset = this.blockedRequests;
+    if (action.submission.submits && policy.allowSubmission) {
+      this.pendingSubmissionApproval = true;
+    }
     try {
       await locator.click();
     } catch (error) {
+      this.pendingSubmissionApproval = false;
       if (this.downloadNames.length === downloadOffset) {
         if (this.blockedRequests > blockedOffset) {
           throw new Error('Network escape blocked by policy', { cause: error });
@@ -197,8 +250,18 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
         throw error;
       }
     }
-    await this.page.waitForTimeout(25);
+    const settleDeadline = Date.now() + 500;
+    while (
+      Date.now() < settleDeadline &&
+      this.popupUrls.length === popupOffset &&
+      this.downloadNames.length === downloadOffset &&
+      this.blockedRequests === blockedOffset
+    ) {
+      await this.page.waitForTimeout(25);
+    }
+    await this.page.waitForTimeout(50);
     if (this.downloadNames.length === downloadOffset && this.blockedRequests > blockedOffset) {
+      this.pendingSubmissionApproval = false;
       throw new Error('Network escape blocked by policy');
     }
     return {
@@ -228,7 +291,7 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
 
   async captureTrace(path: string): Promise<void> {
     await this.context.tracing.stop({ path });
-    await this.context.tracing.start({ screenshots: true, snapshots: true, sources: false });
+    await this.context.tracing.start({ screenshots: true, snapshots: false, sources: false });
   }
 
   async diagnostics(): Promise<BrowserDiagnostics> {
