@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "onboarding-discovery",
+      "skillIds": ["qa-project-bootstrap", "qa-project-context"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
+      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["project-context-schema", "questions-schema"]
+    },
+    {
+      "id": "journey-discovery",
+      "skillIds": ["journey-mapping"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/project-context.md"],
+      "writableOutputDirectories": ["outputs/journeys"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["journey-schema"]
+    },
+    {
+      "id": "risk-assessment",
+      "skillIds": ["risk-based-testing"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/scope-proposal.md"],
+      "writableOutputDirectories": ["outputs/risks"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["risk-matrix-schema"]
+    },
+    {
+      "id": "strategy-initial-plan",
+      "skillIds": ["qa-start", "test-strategy", "test-planning", "test-data-management"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/scope-proposal.md"],
+      "writableOutputDirectories": ["outputs/strategy", "outputs/plans"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["strategy-schema", "test-plan-schema"]
+    },
+    {
+      "id": "exploration-charter",
+      "skillIds": ["exploratory-testing"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/session-log.md"],
+      "writableOutputDirectories": ["outputs/charters"],
+      "tools": [],
+      "mutations": ["append-observation"],
+      "validators": ["charter-schema"]
+    },
+    {
+      "id": "browser-exploration",
+      "skillIds": ["agentic-browser-testing", "test-data-management"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/session-log.md", "core/templates/bug-report.md"],
+      "writableOutputDirectories": ["outputs/observations", "outputs/evidence"],
+      "tools": ["browser"],
+      "mutations": ["append-observation", "append-evidence"],
+      "validators": ["session-log-schema", "evidence-index-schema"]
+    },
+    {
+      "id": "coverage-design",
+      "skillIds": ["risk-based-testing", "test-planning"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/scenario-spec.md"],
+      "writableOutputDirectories": ["outputs/coverage", "outputs/scenarios"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["coverage-map-schema", "scenario-schema"]
+    },
+    {
+      "id": "test-generation",
+      "skillIds": ["ai-test-generation", "playwright-automation", "test-data-management"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/scenario-spec.md"],
+      "writableOutputDirectories": ["outputs/tests"],
+      "tools": [],
+      "mutations": ["create-test", "modify-test"],
+      "validators": ["typescript", "playwright-list"]
+    },
+    {
+      "id": "visual-test-generation",
+      "skillIds": [
+        "ai-test-generation",
+        "playwright-automation",
+        "test-data-management",
+        "visual-testing"
+      ],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/scenario-spec.md"],
+      "writableOutputDirectories": ["outputs/tests"],
+      "tools": [],
+      "mutations": ["create-test", "modify-test"],
+      "validators": ["typescript", "playwright-list", "visual-policy"]
+    },
+    {
+      "id": "failure-explanation",
+      "skillIds": ["ai-bug-triage"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": ["core/templates/bug-report.md"],
+      "writableOutputDirectories": ["outputs/analysis"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["failure-analysis-schema"]
+    },
+    {
+      "id": "reproduction",
+      "skillIds": ["bug-reproduction", "playwright-automation"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/bug-report.md", "core/templates/scenario-spec.md"],
+      "writableOutputDirectories": ["outputs/reproduction", "outputs/tests"],
+      "tools": [],
+      "mutations": ["create-test", "append-evidence"],
+      "validators": ["reproduction-schema", "typescript"]
+    },
+    {
+      "id": "knowledge-reconciliation",
+      "skillIds": ["qa-project-context"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
+      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["project-context-schema"]
+    },
+    {
+      "id": "reliability-diagnosis",
+      "skillIds": ["test-reliability"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/task.md"],
+      "writableOutputDirectories": ["outputs/diagnosis"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["reliability-diagnosis-schema"]
+    },
+    {
+      "id": "selector-repair",
+      "skillIds": ["selector-drift-recovery", "playwright-automation"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": ["core/templates/task.md"],
+      "writableOutputDirectories": ["outputs/tests", "outputs/repair"],
+      "tools": [],
+      "mutations": ["modify-test"],
+      "validators": ["typescript", "equivalent-repair"]
+    },
+    {
+      "id": "human-reporting",
+      "skillIds": ["qa-report-humanizer"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": ["core/templates/task.md"],
+      "writableOutputDirectories": ["outputs/reports"],
+      "tools": [],
+      "mutations": ["render-derived-report", "format-document"],
+      "validators": ["report-schema"]
+    }
+  ]
+}
