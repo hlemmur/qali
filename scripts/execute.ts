@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
 import {
+  harnessExecutionKind,
   loadHarnessProfiles,
   selectHarnessProfile
 } from '../packages/agent-runtime/src/harness-profiles.js';
@@ -310,7 +311,21 @@ class RoutedStepExecutor implements StepExecutor {
       artifact,
       path: expand(path, command)
     }));
-    if (step.id === 'execute' && step.role === 'executor') {
+    const baseHarnessProfile = this.harnessProfiles.get(step.harnessProfileId);
+    if (!baseHarnessProfile) {
+      return {
+        status: 'blocked',
+        reason: `unknown harness profile: ${step.harnessProfileId}`
+      } as const;
+    }
+    const executionKind = harnessExecutionKind(baseHarnessProfile);
+    if (executionKind === 'host') {
+      if (step.id !== 'execute' || step.role !== 'executor') {
+        return {
+          status: 'blocked',
+          reason: `host harness profile violates execution contract: ${step.harnessProfileId}`
+        } as const;
+      }
       const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
       mkdirSync(evidenceDir, { recursive: true });
       const run = await this.playwright.run({
@@ -343,13 +358,6 @@ class RoutedStepExecutor implements StepExecutor {
       return this.deterministicAgentStep(step, command, outputs);
     }
 
-    const baseHarnessProfile = this.harnessProfiles.get(step.harnessProfileId);
-    if (!baseHarnessProfile) {
-      return {
-        status: 'blocked',
-        reason: `unknown harness profile: ${step.harnessProfileId}`
-      } as const;
-    }
     const harnessProfile = selectHarnessProfile(
       [...this.harnessProfiles.values()],
       baseHarnessProfile.id,
@@ -361,6 +369,12 @@ class RoutedStepExecutor implements StepExecutor {
           command.parameters.knowledgeChangeKind === 'journey'
       }
     );
+    if (harnessExecutionKind(harnessProfile) !== 'agent') {
+      return {
+        status: 'blocked',
+        reason: `host harness profile cannot execute through the agent runtime: ${harnessProfile.id}`
+      } as const;
+    }
     const result = await this.agent.execute({
       workspace,
       role: ROLE_PROFILES[step.role],

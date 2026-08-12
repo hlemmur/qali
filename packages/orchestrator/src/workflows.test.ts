@@ -5,6 +5,20 @@ import { ROLE_PROFILES, loadWorkflowDirectory, routeCommand, validateWorkflow } 
 const workflowDirectory = new URL('../../../workflows/', import.meta.url);
 const harnessProfileCatalog = new URL('../../../harness/profiles.json', import.meta.url);
 
+function validationContext() {
+  const catalog = JSON.parse(readFileSync(harnessProfileCatalog, 'utf8')) as {
+    profiles: Array<{
+      id: string;
+      kind?: 'agent' | 'host';
+      tools: string[];
+      mutations: string[];
+    }>;
+  };
+  return {
+    harnessProfiles: new Map(catalog.profiles.map((profile) => [profile.id, profile]))
+  };
+}
+
 describe('workflow catalog', () => {
   it('loads and validates all eight workflow descriptors', () => {
     const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
@@ -106,7 +120,7 @@ describe('workflow catalog', () => {
           ...valid,
           steps: [{ ...valid.steps[0]!, role: 'missing-role' }]
         },
-        { harnessProfileIds: new Set([valid.steps[0]!.harnessProfileId]) }
+        validationContext()
       )
     ).toThrow(/role/i);
 
@@ -116,7 +130,7 @@ describe('workflow catalog', () => {
           ...valid,
           steps: [{ ...valid.steps[0]!, harnessProfileId: 'missing-profile' }]
         },
-        { harnessProfileIds: new Set() }
+        validationContext()
       )
     ).toThrow(/harness profile/i);
   });
@@ -143,9 +157,7 @@ describe('workflow catalog', () => {
             }
           ]
         },
-        {
-          harnessProfileIds: new Set(run.steps.map(({ harnessProfileId }) => harnessProfileId))
-        }
+        validationContext()
       )
     ).toThrow(/permission/i);
   });
@@ -170,14 +182,12 @@ describe('workflow catalog', () => {
           steps: [{ ...charter, requiredTools: [...charter.requiredTools, 'browser'] }]
         },
         {
-          harnessProfileIds: new Set(catalog.profiles.map(({ id }) => id)),
           harnessProfiles: new Map(catalog.profiles.map((profile) => [profile.id, profile]))
         } as unknown as Parameters<typeof validateWorkflow>[1]
       )
     ).toThrow(/harness profile permission/i);
 
     const context = {
-      harnessProfileIds: new Set(catalog.profiles.map(({ id }) => id)),
       harnessProfiles: new Map(catalog.profiles.map((profile) => [profile.id, profile]))
     } as unknown as Parameters<typeof validateWorkflow>[1];
     expect(() =>
@@ -200,6 +210,40 @@ describe('workflow catalog', () => {
         context
       )
     ).toThrow(/harness profile permission/i);
+  });
+
+  it('requires harness definitions and enforces the host execution contract', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
+    const run = workflows.find(({ id }) => id === 'run-test-suite')!;
+    const execute = run.steps.find(({ id }) => id === 'execute')!;
+
+    expect(() =>
+      validateWorkflow(run, {} as unknown as Parameters<typeof validateWorkflow>[1])
+    ).toThrow(/harness profile definitions/i);
+
+    expect(() =>
+      validateWorkflow(
+        { ...run, steps: [{ ...execute, id: 'agent-execute' }] },
+        validationContext()
+      )
+    ).toThrow(/host execution contract/i);
+
+    expect(() =>
+      validateWorkflow(
+        {
+          ...run,
+          steps: [
+            {
+              ...execute,
+              role: 'failure-analyst',
+              outputs: execute.outputs.filter(({ artifact }) => artifact === 'evidence'),
+              mutations: ['append-evidence']
+            }
+          ]
+        },
+        validationContext()
+      )
+    ).toThrow(/host execution contract/i);
   });
 });
 

@@ -4,6 +4,10 @@ import { MutationClassSchema } from '@qali/contracts';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 import type { HarnessProfile } from './harness-workspace.js';
 
+export function harnessExecutionKind(profile: HarnessProfile): 'agent' | 'host' {
+  return profile.kind === 'host' ? 'host' : 'agent';
+}
+
 const requiredPolicies = [
   'core/policies/operating-model.md',
   'core/policies/evidence-and-provenance.md',

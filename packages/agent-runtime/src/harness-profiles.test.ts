@@ -10,7 +10,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadHarnessProfiles, selectHarnessProfile } from './harness-profiles.js';
+import {
+  harnessExecutionKind,
+  loadHarnessProfiles,
+  selectHarnessProfile
+} from './harness-profiles.js';
 import { assembleHarnessWorkspace } from './harness-workspace.js';
 
 const expectedIds = [
@@ -66,6 +70,10 @@ describe('harness profile catalog', () => {
     const profile = profiles.find(({ id }) => id === 'host-test-execution');
 
     expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
+    expect(harnessExecutionKind(profile!)).toBe('host');
+
+    const agentProfile = profiles.find(({ id }) => id === 'browser-exploration')!;
+    expect(harnessExecutionKind(agentProfile)).toBe('agent');
   });
 
   it('adds journey mapping to reconciliation only for a typed journey change', () => {

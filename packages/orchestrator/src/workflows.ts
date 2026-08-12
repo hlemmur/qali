@@ -182,8 +182,7 @@ const APPROVAL_MUTATIONS = new Set([
 ]);
 
 export interface WorkflowValidationContext {
-  harnessProfileIds: ReadonlySet<string>;
-  harnessProfiles?: ReadonlyMap<
+  harnessProfiles: ReadonlyMap<
     string,
     { id: string; kind?: 'agent' | 'host'; tools: readonly string[]; mutations: readonly string[] }
   >;
@@ -220,6 +219,9 @@ export function validateWorkflow(
   input: unknown,
   context: WorkflowValidationContext
 ): WorkflowDescriptor {
+  if (!context.harnessProfiles) {
+    throw new Error('harness profile definitions are required');
+  }
   const workflow = WorkflowDescriptorSchema.parse(input);
   const roles = context.roles ?? ROLE_PROFILES;
   const seen = new Set<string>();
@@ -239,12 +241,9 @@ export function validateWorkflow(
     if (!profile) {
       throw new Error(`unknown role reference: ${step.role}`);
     }
-    if (!context.harnessProfileIds.has(step.harnessProfileId)) {
+    const harnessProfile = context.harnessProfiles.get(step.harnessProfileId);
+    if (!harnessProfile) {
       throw new Error(`unknown harness profile reference: ${step.harnessProfileId}`);
-    }
-    const harnessProfile = context.harnessProfiles?.get(step.harnessProfileId);
-    if (context.harnessProfiles && !harnessProfile) {
-      throw new Error(`missing harness profile definition: ${step.harnessProfileId}`);
     }
 
     requireSubset(
@@ -261,16 +260,23 @@ export function validateWorkflow(
     );
     requireSubset(step.requiredTools, profile.permissions.tools, 'tools', step.id);
     requireSubset(step.mutations, profile.permissions.mutations, 'mutations', step.id);
-    if (harnessProfile) {
-      const agentTools = step.requiredTools.filter((tool) =>
-        ['browser', 'shell', 'playwright'].includes(tool)
-      );
-      if (harnessProfile.kind !== 'host') {
-        requireHarnessSubset(agentTools, harnessProfile.tools, 'tools', step.id);
-        requireHarnessSubset(harnessProfile.tools, agentTools, 'required tools', step.id);
+    const sensitiveTools = step.requiredTools.filter((tool) =>
+      ['browser', 'shell', 'playwright'].includes(tool)
+    );
+    if (harnessProfile.kind === 'host') {
+      if (
+        step.harnessProfileId !== 'host-test-execution' ||
+        step.id !== 'execute' ||
+        step.role !== 'executor' ||
+        JSON.stringify(sensitiveTools) !== JSON.stringify(['shell', 'playwright'])
+      ) {
+        throw new Error(`step "${step.id}" violates the host execution contract`);
       }
-      requireHarnessSubset(step.mutations, harnessProfile.mutations, 'mutations', step.id);
+    } else {
+      requireHarnessSubset(sensitiveTools, harnessProfile.tools, 'tools', step.id);
+      requireHarnessSubset(harnessProfile.tools, sensitiveTools, 'required tools', step.id);
     }
+    requireHarnessSubset(step.mutations, harnessProfile.mutations, 'mutations', step.id);
 
     for (const reference of [...step.inputs, ...step.outputs]) {
       if (
@@ -324,9 +330,6 @@ export function loadWorkflowDirectory(
       mutations?: unknown;
     }>;
   };
-  const harnessProfileIds = new Set(
-    (catalog.profiles ?? []).flatMap(({ id }) => (typeof id === 'string' ? [id] : []))
-  );
   const directoryName = localPath(directory);
   const harnessProfiles = new Map<
     string,
@@ -366,7 +369,6 @@ export function loadWorkflowDirectory(
     .sort()
     .map((file) =>
       validateWorkflow(parseYaml(readFileSync(`${directoryName}/${file}`, 'utf8')), {
-        harnessProfileIds,
         harnessProfiles
       })
     );
