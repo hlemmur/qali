@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./harness-profiles": "./src/harness-profiles.ts",
     "./harness-workspace": "./src/harness-workspace.ts",
+    "./qualification": "./src/qualification.ts",
     "./skill-assets": "./src/skill-assets.ts"
   },
   "dependencies": {
