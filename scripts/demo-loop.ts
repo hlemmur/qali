@@ -169,6 +169,19 @@ class MockModeStepExecutor implements StepExecutor {
     const outputs = materializedOutputs(step, command);
     const projectRoot = join(this.workspace, command.project.root);
 
+    if (command.intent === 'explore-project' && step.id === 'charter') {
+      const explorationPath = join(projectRoot, 'observations/exploration.md');
+      mkdirSync(dirname(explorationPath), { recursive: true });
+      writeFileSync(
+        explorationPath,
+        await formatText(
+          '# Exploration Charter\n\nFocus: login and dashboard behavior.\n\nStatus: ready.\n',
+          { ...FORMAT_OPTIONS, parser: 'markdown' }
+        )
+      );
+      return { status: 'succeeded', outputs } as const;
+    }
+
     if (command.intent === 'explore-project' && step.id === 'explore') {
       const evidenceDirectory = join(projectRoot, 'observations/evidence/exploration');
       mkdirSync(evidenceDirectory, { recursive: true });

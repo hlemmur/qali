@@ -65,6 +65,36 @@ describe('workflow catalog', () => {
     );
   });
 
+  it('binds every agent and host step to the exact reviewed harness profile', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
+    const bindings = Object.fromEntries(
+      workflows.flatMap((workflow) =>
+        workflow.steps.map((step) => [`${workflow.id}/${step.id}`, step.harnessProfileId])
+      )
+    );
+
+    expect(bindings).toEqual({
+      'project-onboarding/discover-project': 'onboarding-discovery',
+      'project-onboarding/discover-journeys': 'journey-discovery',
+      'project-onboarding/assess-risks': 'risk-assessment',
+      'project-onboarding/plan-strategy': 'strategy-initial-plan',
+      'exploratory-testing/charter': 'exploration-charter',
+      'exploratory-testing/explore': 'browser-exploration',
+      'exploratory-testing/report': 'human-reporting',
+      'generate-test-suite/design-coverage': 'coverage-design',
+      'generate-test-suite/generate-tests': 'test-generation',
+      'knowledge-maintenance/curate': 'knowledge-reconciliation',
+      'quality-pulse/report': 'human-reporting',
+      'run-test-suite/execute': 'host-test-execution',
+      'run-test-suite/analyze-failures': 'failure-explanation',
+      'run-test-suite/report': 'human-reporting',
+      'suite-maintenance/diagnose': 'reliability-diagnosis',
+      'suite-maintenance/repair-selectors': 'selector-repair',
+      'triage-and-reproduce/reproduce': 'reproduction',
+      'triage-and-reproduce/report': 'human-reporting'
+    });
+  });
+
   it('rejects unknown role and harness profile references', () => {
     const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const valid = workflows[0]!;

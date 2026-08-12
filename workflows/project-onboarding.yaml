@@ -1,49 +1,68 @@
 version: 1
 id: project-onboarding
 title: Project onboarding
-description: Establish governed project context, risks, and an initial QA plan.
+description: Establish governed project context, journeys, risks, and an initial QA plan.
 executable: true
 triggers:
   - type: command
     intent: onboard-project
 preconditions: []
 steps:
-  - id: plan-intake
-    role: intake-planner
-    harnessProfileId: strategy-initial-plan
-    needs: []
-    inputs: []
-    outputs:
-      - artifact: questions
-        path: projects/{projectId}/sources/questions.md
-      - artifact: tasks
-        path: projects/{projectId}/derived/tasks/onboarding.md
-    requiredTools: [file-read, file-write]
-    mutations: [append-observation]
-    policyGates: []
-    retries: 0
-    timeoutMs: 120000
-  - id: build-context
+  - id: discover-project
     role: knowledge-curator
     harnessProfileId: onboarding-discovery
-    needs: [plan-intake]
-    inputs:
-      - artifact: questions
-        path: projects/{projectId}/sources/questions.md
+    needs: []
+    inputs: []
     outputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
       - artifact: reference
         path: projects/{projectId}/sources/reference/discovery.md
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
     requiredTools: [file-read, file-write]
-    mutations: [append-observation, format-document]
+    mutations: [format-document]
     policyGates: []
     retries: 1
     timeoutMs: 300000
-  - id: design-foundation
+  - id: discover-journeys
+    role: knowledge-curator
+    harnessProfileId: journey-discovery
+    needs: [discover-project]
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+    outputs:
+      - artifact: reference
+        path: projects/{projectId}/sources/reference/journeys.md
+    requiredTools: [file-read, file-write]
+    mutations: [format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 180000
+  - id: assess-risks
     role: test-architect
     harnessProfileId: risk-assessment
-    needs: [build-context]
+    needs: [discover-journeys]
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/risk-assessment.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
+  - id: plan-strategy
+    role: test-architect
+    harnessProfileId: strategy-initial-plan
+    needs: [assess-risks]
     inputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
@@ -53,9 +72,9 @@ steps:
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/smoke-proposal.md
       - artifact: reports
-        path: projects/{projectId}/derived/reports/risk-assessment.md
+        path: projects/{projectId}/derived/reports/initial-test-plan.md
     requiredTools: [file-read, file-write, report-renderer]
-    mutations: [render-derived-report, format-document]
+    mutations: [format-document]
     policyGates: []
     retries: 0
     timeoutMs: 300000

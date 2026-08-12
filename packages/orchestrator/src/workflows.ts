@@ -114,7 +114,8 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'decisions',
         'scenarios',
         'tests',
-        'evidence'
+        'evidence',
+        'reports'
       ],
       writableArtifacts: ['tests', 'evidence', 'reports'],
       tools: ['file-read', 'file-write', 'shell', 'playwright', 'report-renderer'],

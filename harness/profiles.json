@@ -228,7 +228,7 @@
       "templatePaths": ["core/templates/task.md"],
       "writableOutputDirectories": ["outputs/diagnosis"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["render-derived-report"],
       "validators": ["reliability-diagnosis-schema"]
     },
     {

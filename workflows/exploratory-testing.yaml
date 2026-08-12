@@ -8,10 +8,29 @@ triggers:
     intent: explore-project
 preconditions: [project-exists, project-context-present]
 steps:
+  - id: charter
+    role: explorer
+    harnessProfileId: exploration-charter
+    needs: []
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: exploration
+        path: projects/{projectId}/observations/exploration.md
+    requiredTools: [file-read, file-write]
+    mutations: [append-observation]
+    policyGates: []
+    retries: 0
+    timeoutMs: 120000
   - id: explore
     role: explorer
     harnessProfileId: browser-exploration
-    needs: []
+    needs: [charter]
     inputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
