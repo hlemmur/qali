@@ -132,10 +132,56 @@ describe('ephemeral harness workspace', () => {
     expect(() =>
       assembleHarnessWorkspace({
         ...base,
+        workspace: join(parent, 'reserved-input'),
+        inputFiles: [
+          {
+            source: 'projects/_demo/sources/project-context.md',
+            destination: '.agents/skills/qa-start/SKILL.md'
+          }
+        ]
+      })
+    ).toThrow('input destination must be under inputs/');
+    expect(existsSync(join(parent, 'reserved-input'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
         workspace: join(parent, 'unknown'),
         profile: { ...base.profile, skillIds: ['missing-skill'] }
       })
     ).toThrow('Unknown or unreviewed runtime skill');
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'unsafe-output'),
+        profile: { ...base.profile, writableOutputDirectories: ['.cursor'] }
+      })
+    ).toThrow('unsafe writable output directory');
+    expect(existsSync(join(parent, 'unsafe-output'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'relative-browser-env'),
+        profile: { ...base.profile, tools: ['browser'] },
+        browser: {
+          serviceScript: 'scripts/browser-facade-mcp.ts',
+          environmentFile: 'browser.env'
+        }
+      })
+    ).toThrow('browser environment file must be an absolute host path');
+    expect(existsSync(join(parent, 'relative-browser-env'))).toBe(false);
+    const insideWorkspace = join(parent, 'inside-browser-env');
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: insideWorkspace,
+        profile: { ...base.profile, tools: ['browser'] },
+        browser: {
+          serviceScript: 'scripts/browser-facade-mcp.ts',
+          environmentFile: join(insideWorkspace, 'browser.env')
+        }
+      })
+    ).toThrow('browser environment file must be outside the harness workspace');
+    expect(existsSync(insideWorkspace)).toBe(false);
     expect(() =>
       assembleHarnessWorkspace({
         ...base,
