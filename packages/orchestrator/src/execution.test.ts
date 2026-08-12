@@ -180,6 +180,40 @@ describe('workflow execution', () => {
     });
   });
 
+  it('waits briefly for timed-out execution to settle before retrying', async () => {
+    vi.useFakeTimers();
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [{ ...workflow.steps[0]!, retries: 1, timeoutMs: 1_000 }]
+    };
+    let calls = 0;
+    ports.executor.execute = vi.fn(async (_step, _command, context) => {
+      calls += 1;
+      if (calls === 1) {
+        return await new Promise<never>((_resolve, reject) => {
+          context.signal.addEventListener('abort', () => {
+            setTimeout(() => reject(new Error('late process rejection')), 50);
+          });
+        });
+      }
+      return {
+        status: 'succeeded',
+        outputs: [{ artifact: 'evidence', path: 'projects/demo/observations/evidence/run' }]
+      } as const;
+    });
+
+    const pending = executeWorkflow(command, ports);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(50);
+    const result = await pending;
+
+    expect(calls).toBe(2);
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts[0]?.error).toBe('step execute timed out after 1000ms');
+  });
+
   it('retries failed steps and persists every declared attempt', async () => {
     const ports = dependencies();
     ports.loader.workflow = {

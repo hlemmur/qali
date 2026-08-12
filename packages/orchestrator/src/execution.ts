@@ -84,20 +84,29 @@ async function executeWithTimeout(
   command: NormalizedCommand
 ): Promise<StepExecutionResult> {
   const controller = new AbortController();
+  const timedOut = Symbol('timed-out');
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<StepExecutionResult>((resolve) => {
+  let cancellationTimer: ReturnType<typeof setTimeout> | undefined;
+  const execution = executor.execute(step, command, { signal: controller.signal });
+  const timeout = new Promise<typeof timedOut>((resolve) => {
     timer = setTimeout(() => {
       controller.abort();
-      resolve({ status: 'failed', error: `step ${step.id} timed out after ${step.timeoutMs}ms` });
+      resolve(timedOut);
     }, step.timeoutMs);
   });
 
   try {
     try {
-      return await Promise.race([
-        executor.execute(step, command, { signal: controller.signal }),
-        timeout
+      const outcome = await Promise.race([execution, timeout]);
+      if (outcome !== timedOut) return outcome;
+
+      await Promise.race([
+        execution.catch(() => undefined),
+        new Promise<void>((resolve) => {
+          cancellationTimer = setTimeout(resolve, 1_000);
+        })
       ]);
+      return { status: 'failed', error: `step ${step.id} timed out after ${step.timeoutMs}ms` };
     } catch (error) {
       return {
         status: 'failed',
@@ -106,6 +115,7 @@ async function executeWithTimeout(
     }
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    if (cancellationTimer !== undefined) clearTimeout(cancellationTimer);
   }
 }
 
