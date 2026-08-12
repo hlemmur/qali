@@ -171,6 +171,10 @@ describe('bounded exploratory testing', () => {
     mkdirSync(join(projectRoot, 'observations'), { recursive: true });
     writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
     writeFileSync(join(projectRoot, 'observations/known-issues.md'), '# Known Issues\n');
+    writeFileSync(
+      join(projectRoot, 'observations/exploration.md'),
+      '# Exploration Charter\n\nFocus: prior\n\n## Session Log\n\n| OBS-EXP-009 | Prior observation must remain. | observed | `old.json` | 2026-08-12 | prior |\n'
+    );
     const workflow = loadWorkflowDirectory(
       join(process.cwd(), 'workflows'),
       join(process.cwd(), 'harness/profiles.json')
@@ -205,5 +209,7 @@ describe('bounded exploratory testing', () => {
     expect(report).toContain('OBS-EXP-001');
     expect(report).toContain('session-home/screenshot.png');
     expect(report).toContain('Q-EXP-001');
+    expect(report).toContain('OBS-EXP-009');
+    expect(report).toContain('Prior observation must remain.');
   });
 });

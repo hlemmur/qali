@@ -72,9 +72,15 @@ export async function executeExplorationStep(
   if (step.id === 'charter') {
     const explorationPath = join(projectRoot, 'observations/exploration.md');
     mkdirSync(dirname(explorationPath), { recursive: true });
+    const existing = existsSync(explorationPath)
+      ? readFileSync(explorationPath, 'utf8')
+      : '';
+    const sessionOffset = existing.indexOf('## Session Log');
+    const priorSessions = sessionOffset >= 0 ? existing.slice(sessionOffset).trim() : '';
+    const charter = `# Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.`;
     writeFileSync(
       explorationPath,
-      `# Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.\n`
+      `${charter}${priorSessions ? `\n\n${priorSessions}` : ''}\n`
     );
     return { status: 'succeeded' as const, outputs };
   }
