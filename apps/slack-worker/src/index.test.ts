@@ -505,6 +505,65 @@ describe('Slack control worker', () => {
     expect(notices.some((notice) => notice.text.includes('Working on it'))).toBe(true);
   });
 
+  it('retries transient queue failures without marking the request complete', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => command(work) },
+      github: {
+        dispatch: async () => {
+          throw new Error('GitHub API returned 503');
+        }
+      },
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    const message = { body: queue[0]!, attempts: 1, ack: vi.fn(), retry: vi.fn() };
+
+    await worker.queue({ messages: [message] }, baseEnv(queue));
+
+    expect(message.retry).toHaveBeenCalledOnce();
+    expect(message.ack).not.toHaveBeenCalled();
+    expect(store.correlations.get('Ev1')).toMatchObject({ status: 'queued' });
+  });
+
+  it('dead-letters an exhausted transient queue delivery', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => command(work) },
+      github: {
+        dispatch: async () => {
+          throw new Error('network timeout');
+        }
+      },
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    const message = { body: queue[0]!, attempts: 3, ack: vi.fn(), retry: vi.fn() };
+
+    await worker.queue({ messages: [message] }, baseEnv(queue));
+
+    expect(message.ack).toHaveBeenCalledOnce();
+    expect(message.retry).not.toHaveBeenCalled();
+    expect(store.correlations.get('Ev1')).toMatchObject({
+      status: 'dead-lettered',
+      lastError: 'network timeout'
+    });
+  });
+
   it('accepts signed interactive actions as deduplicated queue work', async () => {
     const queue: InboundWork[] = [];
     const worker = createWorker({
