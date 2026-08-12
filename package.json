@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsc --noEmit",
-    "check": "npm run format:check && npm run lint && npm run build && npm run registry:validate && npm test",
+    "check": "npm run format:check && npm run lint && npm run build && npm run registry:validate && npm run qualification:validate && npm test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -26,6 +26,7 @@
     "project:validate": "tsx scripts/validate-project.ts",
     "registry:validate": "node --import tsx scripts/validate-project-registry.ts",
     "harness:validate": "node --import tsx scripts/validate-runtime-harness.ts",
+    "qualification:validate": "node --import tsx scripts/validate-model-qualifications.ts",
     "control-plane:provision": "tsx scripts/provision-control-plane.ts",
     "control-plane:render-slack-manifest": "QALI_RENDER_SLACK_MANIFEST=1 tsx scripts/provision-control-plane.ts",
     "control-plane:sync-secrets": "tsx scripts/sync-worker-secrets.ts",

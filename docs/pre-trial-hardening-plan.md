@@ -191,6 +191,13 @@ Policy:
 - Otherwise the workflow blocks without placeholder output.
 - Any CLI, model, harness, skill, rule, browser facade, or permission change requires requalification.
 
+Implementation assets:
+
+- `qualification/registry.json` is the version-controlled registry. Keep it empty until a dedicated qualification run has passed and supplied an HTTPS run URL.
+- `qualification/evaluation-suite.json` is included in the runtime identity hash.
+- `npm run qualification:validate` validates registry structure and rejects duplicate runtime identities.
+- Set `QALI_QUALIFICATION_MODE=true` only for dedicated qualification runs. Normal staging and production runs fail closed unless the exact CLI/model/runtime hashes have an active, passed, unexpired record.
+
 ### 6. Workflow engine reliability
 
 Implement:

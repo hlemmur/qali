@@ -26,6 +26,14 @@ export type RuntimeQualificationIdentity = Pick<
 
 export type QualificationExecutionMode = 'mock' | 'qualification' | 'unattended';
 
+export function qualificationExecutionMode(
+  environmentLabel: 'mock' | 'staging' | 'production',
+  qualificationMode: boolean
+): QualificationExecutionMode {
+  if (environmentLabel === 'mock') return 'mock';
+  return qualificationMode ? 'qualification' : 'unattended';
+}
+
 export type QualificationDecision =
   | {
       allowed: true;

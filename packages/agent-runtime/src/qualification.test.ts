@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelQualificationRecord } from '@qali/contracts';
 import {
+  qualificationExecutionMode,
   loadQualificationRegistry,
   parseQualificationRegistry,
   selectQualifiedCombination
@@ -33,6 +34,12 @@ function record(overrides: Partial<ModelQualificationRecord> = {}): ModelQualifi
 }
 
 describe('model qualification policy', () => {
+  it('derives mock, qualification, and unattended policy modes from trusted execution inputs', () => {
+    expect(qualificationExecutionMode('mock', false)).toBe('mock');
+    expect(qualificationExecutionMode('staging', true)).toBe('qualification');
+    expect(qualificationExecutionMode('production', false)).toBe('unattended');
+  });
+
   it('loads the version-controlled qualification registry', () => {
     expect(loadQualificationRegistry('qualification/registry.json')).toEqual({
       version: 1,
