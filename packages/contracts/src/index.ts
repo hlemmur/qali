@@ -263,6 +263,49 @@ export const AgentHarnessManifestSchema = z
   .strict();
 export type AgentHarnessManifest = z.infer<typeof AgentHarnessManifestSchema>;
 
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+const HTTPS_URL = /^https:\/\//;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const ModelQualificationRecordSchema = z
+  .object({
+    version: z.literal(1),
+    cursorCliVersion: z.string().trim().min(1),
+    modelIdentifier: z.string().trim().min(1),
+    harnessVersion: z.string().trim().min(1),
+    harnessHash: Sha256Schema,
+    skillHash: Sha256Schema,
+    ruleHash: Sha256Schema,
+    templateHash: Sha256Schema,
+    browserFacadeHash: Sha256Schema,
+    permissionHash: Sha256Schema,
+    evaluationSuiteHash: Sha256Schema,
+    qualificationRunUrl: z.url().regex(HTTPS_URL),
+    result: z.enum(['passed', 'failed']),
+    qualifiedAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    state: z.enum(['active', 'revoked'])
+  })
+  .strict()
+  .superRefine((record, context) => {
+    if (Date.parse(record.expiresAt) - Date.parse(record.qualifiedAt) !== THIRTY_DAYS_MS) {
+      context.addIssue({
+        code: 'custom',
+        path: ['expiresAt'],
+        message: 'qualification expiry must be exactly 30 days after qualification'
+      });
+    }
+  });
+export type ModelQualificationRecord = z.infer<typeof ModelQualificationRecordSchema>;
+
+export const ModelQualificationRegistrySchema = z
+  .object({
+    version: z.literal(1),
+    records: z.array(ModelQualificationRecordSchema)
+  })
+  .strict();
+export type ModelQualificationRegistry = z.infer<typeof ModelQualificationRegistrySchema>;
+
 export const ProjectMetadataSchema = z
   .object({
     id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
