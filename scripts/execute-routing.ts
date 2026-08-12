@@ -1,10 +1,7 @@
 import type { NormalizedCommand } from '../packages/contracts/src/index.js';
 
 export type AgentExecutionRoute =
-  | 'deterministic-onboarding'
-  | 'deterministic-exploration'
-  | 'deterministic-fallback'
-  | 'cursor';
+  'deterministic-onboarding' | 'deterministic-exploration' | 'deterministic-fallback' | 'cursor';
 
 export function selectAgentExecutionRoute(
   command: NormalizedCommand,

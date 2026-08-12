@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type {
-  NormalizedCommand,
-  WorkflowStep
-} from '../../contracts/src/index.js';
+import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 
 export interface ExplorationBrowser {
   navigate(path: string): Promise<{ url: string }>;

@@ -126,7 +126,10 @@ describe('bounded exploratory testing', () => {
       { now: () => (tick++ === 0 ? 0 : 2) }
     );
 
-    expect(result).toMatchObject({ status: 'blocked', reason: 'exploration time budget exhausted' });
+    expect(result).toMatchObject({
+      status: 'blocked',
+      reason: 'exploration time budget exhausted'
+    });
     expect(browser.calls).toEqual([]);
   });
 
@@ -147,7 +150,10 @@ describe('bounded exploratory testing', () => {
       { now: () => ticks.shift() ?? 2 }
     );
 
-    expect(result).toMatchObject({ status: 'blocked', reason: 'exploration time budget exhausted' });
+    expect(result).toMatchObject({
+      status: 'blocked',
+      reason: 'exploration time budget exhausted'
+    });
     expect(browser.calls).toEqual(['navigate:/']);
   });
 
