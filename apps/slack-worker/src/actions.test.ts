@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ProjectExecutionProfile, ProjectRegistry } from '@qali/contracts';
 import { handleSlackAction } from './actions.js';
 import type { ControlStore, Correlation, GitHubPort, InboundWork, SlackPort } from './types.js';
 
@@ -14,6 +15,65 @@ const work = (overrides: Partial<InboundWork> = {}): InboundWork => ({
   receivedAt: '2023-11-14T22:15:00.000Z',
   slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' },
   ...overrides
+});
+
+const testRegistry: ProjectRegistry = {
+  version: 1,
+  projects: [
+    {
+      id: '_demo',
+      root: 'projects/_demo',
+      githubEnvironment: 'qali-demo',
+      allowedSlack: {
+        teamIds: ['T1'],
+        channelIds: ['C1'],
+        userIds: ['U1'],
+        roles: ['developer', 'qa-lead-admin']
+      },
+      publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+      enabledWorkflows: [
+        'run-test-suite',
+        'triage-failure',
+        'explore-project',
+        'generate-test-suite',
+        'quality-pulse'
+      ],
+      schedules: [],
+      activeExecutionProfile: 'demo-mock'
+    }
+  ]
+};
+
+const testProfile: ProjectExecutionProfile = {
+  version: 1,
+  id: 'demo-mock',
+  projectId: '_demo',
+  environmentLabel: 'mock',
+  targetVariables: {
+    baseUrl: 'QALI_TARGET_BASE_URL',
+    allowedOrigins: 'QALI_ALLOWED_ORIGINS_JSON',
+    credentials: 'QALI_TEST_CREDENTIALS_JSON',
+    testData: 'QALI_TEST_DATA_JSON'
+  },
+  browser: { name: 'chromium', allowDownloads: false, allowPopups: false },
+  rate: { maxActionsPerMinute: 60 },
+  mutation: { allowed: ['append-observation'] },
+  cleanup: { strategy: 'fixture-reset' },
+  redaction: { patterns: [] },
+  retention: { evidenceDays: 14 },
+  publication: { reviewOnly: true },
+  displayBadge: 'MOCK MODE'
+};
+
+const actionDeps = (input: {
+  work: InboundWork;
+  store: ControlStore;
+  github: GitHubPort;
+  slack: SlackPort;
+}) => ({
+  ...input,
+  projectRegistry: testRegistry,
+  executionProfiles: [testProfile]
 });
 
 describe('Slack action handling', () => {
@@ -33,7 +93,9 @@ describe('Slack action handling', () => {
       updateResult: vi.fn()
     } as unknown as SlackPort;
 
-    await handleSlackAction({ work: work({ actionId: 'open_run_url' }), store, github, slack });
+    await handleSlackAction(
+      actionDeps({ work: work({ actionId: 'open_run_url' }), store, github, slack })
+    );
 
     expect(github.dispatch).not.toHaveBeenCalled();
     expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-ignored');
@@ -66,25 +128,27 @@ describe('Slack action handling', () => {
       postThreadNotice: vi.fn()
     } as unknown as SlackPort;
 
-    await handleSlackAction({
-      work: work({
-        actionId: 'expand_run_details',
-        actionValue: JSON.stringify({
-          requestId: 'Ev1',
-          runId: '42',
-          summary: {
+    await handleSlackAction(
+      actionDeps({
+        work: work({
+          actionId: 'expand_run_details',
+          actionValue: JSON.stringify({
+            requestId: 'Ev1',
             runId: '42',
-            status: 'passed',
-            intent: 'run-test-suite',
-            projectId: '_demo',
-            counts: { total: 2, passed: 2, failed: 0, skipped: 0 }
-          }
-        })
-      }),
-      store,
-      github,
-      slack
-    });
+            summary: {
+              runId: '42',
+              status: 'passed',
+              intent: 'run-test-suite',
+              projectId: '_demo',
+              counts: { total: 2, passed: 2, failed: 0, skipped: 0 }
+            }
+          })
+        }),
+        store,
+        github,
+        slack
+      })
+    );
 
     expect(slack.updateResult).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'Ev1' }),
@@ -134,24 +198,83 @@ describe('Slack action handling', () => {
       })
     } as unknown as SlackPort;
 
-    await handleSlackAction({
-      work: work({ actionId: 'rerun_workflow' }),
-      store,
-      github,
-      slack
-    });
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'rerun_workflow' }),
+        store,
+        github,
+        slack
+      })
+    );
 
     expect(store.accept).toHaveBeenCalled();
     expect(store.claim).toHaveBeenCalled();
     expect(github.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'run-test-suite',
-        project: { id: '_demo', root: 'projects/_demo' }
+        project: expect.objectContaining({
+          id: '_demo',
+          root: 'projects/_demo',
+          environment: 'qali-demo',
+          executionProfileId: 'demo-mock',
+          displayBadge: 'MOCK MODE'
+        }),
+        parameters: expect.objectContaining({ suite: 'smoke' })
       }),
       expect.stringMatching(/^rerun-/)
     );
     expect(store.markDispatched).toHaveBeenCalled();
     expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-handled');
     expect(notices).toEqual(['Rerunning…', 'Started: https://github.test/runs/99']);
+  });
+
+  it('hydrates a trusted execution profile when rerunning without stored commandJson', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '100', htmlUrl: 'https://github.test/runs/100' }))
+    };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'run-test-suite',
+      status: 'failure',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1'
+    };
+    const store = {
+      findByRequestId: vi.fn(async () => correlation),
+      findByRunId: vi.fn(),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'rerun_workflow' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'run-test-suite',
+        project: expect.objectContaining({
+          executionProfileId: 'demo-mock',
+          environment: 'qali-demo'
+        })
+      }),
+      expect.stringMatching(/^rerun-/)
+    );
   });
 });

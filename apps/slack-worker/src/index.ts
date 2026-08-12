@@ -460,7 +460,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
               work: message.body,
               store,
               github,
-              slack
+              slack,
+              projectRegistry: overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
+              executionProfiles: overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
             });
             message.ack();
             continue;

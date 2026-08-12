@@ -79,6 +79,7 @@ export interface PlaywrightRunRequest {
   targetBaseUrl: string;
   reportPath: string;
   grep?: string;
+  webServer?: { command: string; url: string };
 }
 
 export interface PlaywrightRunResult {
@@ -124,7 +125,13 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
         env: {
           ...process.env,
           QALI_TARGET_BASE_URL: request.targetBaseUrl,
-          PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath
+          PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath,
+          ...(request.webServer
+            ? {
+                QALI_WEB_SERVER_COMMAND: request.webServer.command,
+                QALI_WEB_SERVER_URL: request.webServer.url
+              }
+            : {})
         },
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe']

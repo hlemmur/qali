@@ -23,6 +23,7 @@ export interface ResolvedExecutionTarget {
   allowedOrigins: string[];
   credentials: Record<string, unknown>;
   testData: Record<string, unknown>;
+  webServer?: { command: string; url: string };
 }
 
 function requireVariable(variables: EnvironmentVariables, name: string): string {
@@ -74,7 +75,8 @@ export function resolveExecutionTarget(
     baseUrl,
     allowedOrigins: [...new Set(allowedOrigins)],
     credentials: jsonRecord(variables, names.credentials),
-    testData: jsonRecord(variables, names.testData)
+    testData: jsonRecord(variables, names.testData),
+    ...(profile.webServer ? { webServer: profile.webServer } : {})
   };
 }
 

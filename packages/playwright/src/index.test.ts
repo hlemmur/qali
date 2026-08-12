@@ -78,6 +78,33 @@ describe('Playwright adapter', () => {
     expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
   });
 
+  it('injects mock web-server env for Playwright when provided', async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    const spawn = vi.fn<PlaywrightSpawn>(() => child);
+    const runner = new SpawnPlaywrightRunner(spawn);
+    const pending = runner.run({
+      workspace: '/repo',
+      projectId: '_demo',
+      targetBaseUrl: 'http://127.0.0.1:4173',
+      reportPath: 'test-results/report.json',
+      webServer: {
+        command: 'node projects/_demo/app/server.mjs',
+        url: 'http://127.0.0.1:4173/health'
+      }
+    });
+    queueMicrotask(() => child.emit('close', 0));
+
+    await expect(pending).resolves.toMatchObject({ status: 'passed' });
+    const options = spawn.mock.calls[0]![2]!;
+    expect(options.env.QALI_WEB_SERVER_COMMAND).toBe('node projects/_demo/app/server.mjs');
+    expect(options.env.QALI_WEB_SERVER_URL).toBe('http://127.0.0.1:4173/health');
+  });
+
   it('provides deterministic fakes and a traceable generation contract', async () => {
     expect(() =>
       PlaywrightTestGenerationRequestSchema.parse({

@@ -199,7 +199,14 @@ export const ProjectExecutionProfileSchema = z
     redaction: z.object({ patterns: z.array(z.string()) }).strict(),
     retention: z.object({ evidenceDays: z.number().int().positive() }).strict(),
     publication: z.object({ reviewOnly: z.boolean() }).strict(),
-    displayBadge: z.string().min(1).optional()
+    displayBadge: z.string().min(1).optional(),
+    webServer: z
+      .object({
+        command: z.string().trim().min(1),
+        url: z.string().trim().min(1)
+      })
+      .strict()
+      .optional()
   })
   .strict()
   .superRefine((profile, context) => {

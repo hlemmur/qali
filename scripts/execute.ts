@@ -197,7 +197,10 @@ class RoutedStepExecutor implements StepExecutor {
     ).skills.map((skill) => [skill.id, JSON.stringify(skill.instructions)])
   );
 
-  constructor(private readonly targetBaseUrl: string) {}
+  constructor(
+    private readonly targetBaseUrl: string,
+    private readonly webServer?: { command: string; url: string }
+  ) {}
 
   private shouldUseCursorCli(): boolean {
     return (
@@ -311,7 +314,8 @@ class RoutedStepExecutor implements StepExecutor {
         workspace,
         projectId: command.project.id,
         targetBaseUrl: this.targetBaseUrl,
-        reportPath: join(evidenceDir, 'results.json')
+        reportPath: join(evidenceDir, 'results.json'),
+        ...(this.webServer ? { webServer: this.webServer } : {})
       });
       if (existsSync(join(evidenceDir, 'results.json'))) {
         this.playwrightSummary = parsePlaywrightJsonReport(
@@ -412,7 +416,7 @@ const result = await executeWorkflow(command, {
   loader: { load: () => descriptor },
   preconditions: new FilePreconditions(),
   policy: new WorkflowPolicy(),
-  executor: new RoutedStepExecutor(executionTarget.baseUrl),
+  executor: new RoutedStepExecutor(executionTarget.baseUrl, executionTarget.webServer),
   events: new FileEventStore(eventPath),
   outputValidator: new FileSystemOutputValidator(workspace)
 });

@@ -39,5 +39,9 @@
   "publication": {
     "reviewOnly": true
   },
-  "displayBadge": "MOCK MODE"
+  "displayBadge": "MOCK MODE",
+  "webServer": {
+    "command": "node projects/_demo/app/server.mjs",
+    "url": "http://127.0.0.1:4173/health"
+  }
 }

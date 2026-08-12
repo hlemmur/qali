@@ -164,4 +164,26 @@ describe('execution target resolution', () => {
       })
     ).toThrow();
   });
+
+  it('carries optional mock web-server settings from the execution profile', () => {
+    const target = resolveExecutionTarget(
+      {
+        ...profile('mock'),
+        webServer: {
+          command: 'node projects/_demo/app/server.mjs',
+          url: 'http://127.0.0.1:4173/health'
+        }
+      },
+      {
+        QALI_TARGET_BASE_URL: 'http://127.0.0.1:4173',
+        QALI_ALLOWED_ORIGINS_JSON: '["http://127.0.0.1:4173"]',
+        QALI_TEST_CREDENTIALS_JSON: '{}',
+        QALI_TEST_DATA_JSON: '{}'
+      }
+    );
+    expect(target.webServer).toEqual({
+      command: 'node projects/_demo/app/server.mjs',
+      url: 'http://127.0.0.1:4173/health'
+    });
+  });
 });
