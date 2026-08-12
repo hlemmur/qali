@@ -59,7 +59,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'scenarios',
         'evidence'
       ],
-      writableArtifacts: ['reference', 'strategy', 'plan', 'scenarios', 'reports', 'questions'],
+      writableArtifacts: ['strategy', 'plan', 'scenarios', 'reports', 'questions'],
       tools: ['file-read', 'file-write', 'report-renderer'],
       mutations: ['append-observation', 'render-derived-report', 'format-document']
     }

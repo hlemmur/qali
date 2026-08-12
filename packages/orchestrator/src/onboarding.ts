@@ -227,7 +227,6 @@ export async function executeOnboardingMockStep(
       join(projectRoot, 'derived/reports/risk-assessment.md'),
       generatedMarkdown(risks)
     );
-    writeFileSync(join(projectRoot, 'sources/reference/risks.md'), `${risks}\n`);
     return { status: 'succeeded', outputs };
   }
 

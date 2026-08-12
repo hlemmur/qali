@@ -20,6 +20,12 @@ function validationContext() {
 }
 
 describe('workflow catalog', () => {
+  it('keeps source-of-truth reference writes outside the test architect role', () => {
+    expect(ROLE_PROFILES['test-architect'].permissions.writableArtifacts).not.toContain(
+      'reference'
+    );
+  });
+
   it('loads and validates all eight workflow descriptors', () => {
     const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
 

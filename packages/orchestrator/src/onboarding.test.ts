@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
@@ -124,7 +124,6 @@ describe('deterministic project onboarding', () => {
     const risks = readFileSync(join(projectRoot, 'derived/reports/risk-assessment.md'), 'utf8');
     const scenario = readFileSync(join(projectRoot, 'derived/scenarios/smoke-proposal.md'), 'utf8');
     const plan = readFileSync(join(projectRoot, 'derived/reports/initial-test-plan.md'), 'utf8');
-    const canonicalRisks = readFileSync(join(projectRoot, 'sources/reference/risks.md'), 'utf8');
     const strategy = readFileSync(join(projectRoot, 'derived/strategy.md'), 'utf8');
     const canonicalPlan = readFileSync(join(projectRoot, 'derived/plan.md'), 'utf8');
     expect(journeys).toContain('Source: `requirements.md#REQ-001`');
@@ -136,7 +135,7 @@ describe('deterministic project onboarding', () => {
     expect(plan).toContain('Prioritize `RSK-001`');
     expect(plan).toContain('## Initial Plan');
     expect(plan).not.toContain('TBD');
-    expect(canonicalRisks).toContain('RSK-001');
+    expect(existsSync(join(projectRoot, 'sources/reference/risks.md'))).toBe(false);
     expect(strategy).toContain('Prioritize `RSK-001`');
     expect(canonicalPlan).toContain('Validate `JRN-001`');
   });

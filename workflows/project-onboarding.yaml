@@ -52,8 +52,6 @@ steps:
       - artifact: reference
         path: projects/{projectId}/sources/reference
     outputs:
-      - artifact: reference
-        path: projects/{projectId}/sources/reference/risks.md
       - artifact: reports
         path: projects/{projectId}/derived/reports/risk-assessment.md
     requiredTools: [file-read, file-write, report-renderer]
