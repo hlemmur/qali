@@ -77,7 +77,9 @@ describe('agent runtime', () => {
         GITHUB_TOKEN: 'never',
         SLACK_BOT_TOKEN: 'never',
         QALI_TEST_CREDENTIALS_JSON: '{"password":"never"}',
-        QALI_TEST_DATA_JSON: '{"customer":"never"}'
+        QALI_TEST_DATA_JSON: '{"customer":"never"}',
+        DATABASE_URL: 'postgres://never',
+        AWS_SECRET_ACCESS_KEY: 'never'
       }
     });
 
@@ -90,7 +92,6 @@ describe('agent runtime', () => {
     expect(command).toBe('agent');
     expect(argv).toEqual([
       '-p',
-      '--force',
       '--output-format',
       'json',
       '--workspace',
@@ -107,6 +108,8 @@ describe('agent runtime', () => {
     expect(options.env).not.toHaveProperty('SLACK_BOT_TOKEN');
     expect(options.env).not.toHaveProperty('QALI_TEST_CREDENTIALS_JSON');
     expect(options.env).not.toHaveProperty('QALI_TEST_DATA_JSON');
+    expect(options.env).not.toHaveProperty('DATABASE_URL');
+    expect(options.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
   });
 
   it('disables sandbox automatically in CI unless overridden', async () => {

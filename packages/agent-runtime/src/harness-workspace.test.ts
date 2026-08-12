@@ -1,12 +1,29 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assembleHarnessWorkspace } from './harness-workspace.js';
 
 const temporaryDirectories: string[] = [];
+function unlock(directory: string): void {
+  if (!existsSync(directory)) return;
+  chmodSync(directory, 0o700);
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) unlock(join(directory, entry.name));
+    else chmodSync(join(directory, entry.name), 0o600);
+  }
+}
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
+    unlock(directory);
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -76,5 +93,85 @@ describe('ephemeral harness workspace', () => {
     );
     expect(readFileSync(join(workspace, '.cursor/cli.json'), 'utf8')).toContain('Shell(*)');
     expect(existsSync(join(workspace, 'projects/_demo'))).toBe(false);
+    expect(() => writeFileSync(join(workspace, 'inputs/project-context.md'), 'tamper')).toThrow();
+    expect(() => writeFileSync(join(workspace, 'AGENTS.md'), 'tamper')).toThrow();
+    expect(() => writeFileSync(join(workspace, 'inputs/new.md'), 'tamper')).toThrow();
+    expect(() =>
+      writeFileSync(join(workspace, 'outputs/observations/result.md'), 'allowed')
+    ).not.toThrow();
+  });
+
+  it('rejects traversal, symlinks, unknown skills, and browser profiles without service config', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-harness-deny-'));
+    temporaryDirectories.push(parent);
+    const base = {
+      sourceRoot: process.cwd(),
+      profile: {
+        id: 'deny-test',
+        skillIds: ['qa-start'],
+        policyPaths: ['core/policies/operating-model.md'],
+        templatePaths: ['core/templates/task.md'],
+        writableOutputDirectories: ['outputs/result'],
+        tools: [] as Array<'browser'>,
+        mutations: [],
+        validators: []
+      },
+      inputFiles: []
+    };
+
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'traversal'),
+        inputFiles: [
+          { source: 'projects/_demo/sources/project-context.md', destination: '../escape.md' }
+        ]
+      })
+    ).toThrow('safe relative path');
+    expect(existsSync(join(parent, 'escape.md'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'unknown'),
+        profile: { ...base.profile, skillIds: ['missing-skill'] }
+      })
+    ).toThrow('Unknown or unreviewed runtime skill');
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'browser'),
+        profile: { ...base.profile, tools: ['browser'] }
+      })
+    ).toThrow('Browser tool requires MCP configuration');
+  });
+
+  it('changes the manifest fingerprint when a permission-affecting profile field changes', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-harness-fingerprint-'));
+    temporaryDirectories.push(parent);
+    const profile = {
+      id: 'reporting',
+      skillIds: ['qa-report-humanizer'],
+      policyPaths: ['core/policies/operating-model.md'],
+      templatePaths: ['core/templates/task.md'],
+      writableOutputDirectories: ['outputs/report'],
+      tools: [] as Array<'browser'>,
+      mutations: ['render-derived-report'],
+      validators: ['report-schema']
+    };
+    const first = assembleHarnessWorkspace({
+      sourceRoot: process.cwd(),
+      workspace: join(parent, 'first'),
+      profile,
+      inputFiles: []
+    });
+    const second = assembleHarnessWorkspace({
+      sourceRoot: process.cwd(),
+      workspace: join(parent, 'second'),
+      profile: { ...profile, mutations: [...profile.mutations, 'format-document'] },
+      inputFiles: []
+    });
+
+    expect(first.manifest.fingerprint).not.toBe(second.manifest.fingerprint);
+    expect(existsSync(join(first.workspace, '.cursor/mcp.json'))).toBe(false);
   });
 });

@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync
+} from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 
@@ -84,18 +93,36 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function seal(directory: string): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      seal(path);
+    } else {
+      chmodSync(path, 0o400);
+    }
+  }
+  chmodSync(directory, 0o500);
+}
+
 export function assembleHarnessWorkspace(request: AssemblyRequest): {
   workspace: string;
   manifest: AgentHarnessManifest;
 } {
   if (existsSync(request.workspace)) throw new Error('Harness workspace must not already exist');
-  mkdirSync(request.workspace, { recursive: true, mode: 0o700 });
   const assets = new Map(
     loadRuntimeSkillAssets(join(request.sourceRoot, 'skills/runtime')).map((asset) => [
       asset.id,
       asset
     ])
   );
+  for (const id of request.profile.skillIds) {
+    if (!assets.has(id)) throw new Error(`Unknown or unreviewed runtime skill ${id}`);
+  }
+  if (request.profile.tools.includes('browser') && !request.browser) {
+    throw new Error('Browser tool requires MCP configuration');
+  }
+  mkdirSync(request.workspace, { recursive: true, mode: 0o700 });
   const skills = request.profile.skillIds.map((id) => {
     const asset = assets.get(id);
     if (!asset) throw new Error(`Unknown or unreviewed runtime skill ${id}`);
@@ -216,5 +243,9 @@ export function assembleHarnessWorkspace(request: AssemblyRequest): {
     `${JSON.stringify(manifest, null, 2)}\n`,
     { mode: 0o600 }
   );
+  seal(request.workspace);
+  for (const directory of request.profile.writableOutputDirectories) {
+    chmodSync(inside(request.workspace, directory, 'output directory'), 0o700);
+  }
   return { workspace: request.workspace, manifest };
 }
