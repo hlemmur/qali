@@ -23,6 +23,7 @@ function fixture(): string {
     'scripts/browser-facade-mcp.ts': 'export {};\n',
     'workflows/example.yaml': 'version: 1\n',
     'packages/agent-runtime/src/index.ts': 'export const sandbox = true;\n',
+    'packages/agent-runtime/src/qualification.ts': 'export const matcher = true;\n',
     'packages/orchestrator/src/workflows.ts': 'export const permissions = [];\n',
     'scripts/execute.ts': 'export const failClosed = true;\n',
     'qualification/evaluation-suite.json': '{"version":1,"cases":[]}'
@@ -67,6 +68,11 @@ describe('runtime qualification identity', () => {
     ],
     ['permissionHash', 'workflows/example.yaml', 'version: 1\npermissions: changed\n'],
     ['permissionHash', 'packages/agent-runtime/src/index.ts', 'export const sandbox = false;\n'],
+    [
+      'permissionHash',
+      'packages/agent-runtime/src/qualification.ts',
+      'export const matcher = false;\n'
+    ],
     ['permissionHash', 'scripts/execute.ts', 'export const failClosed = false;\n'],
     ['evaluationSuiteHash', 'qualification/evaluation-suite.json', '{"version":1,"cases":[1]}']
   ] as const)('changes %s when its reviewed inputs change', (field, path, content) => {

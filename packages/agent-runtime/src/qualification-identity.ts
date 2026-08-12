@@ -54,6 +54,7 @@ export function computeRuntimeQualificationIdentity(request: {
     permissionHash: hashInputs(request.repositoryRoot, [
       'harness/profiles.json',
       'packages/agent-runtime/src/index.ts',
+      'packages/agent-runtime/src/qualification.ts',
       'packages/orchestrator/src/workflows.ts',
       'scripts/execute.ts',
       'workflows'
