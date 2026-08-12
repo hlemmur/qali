@@ -24,6 +24,7 @@ import type { ProjectExecutionProfile, ProjectRegistry } from '@qali/contracts';
 
 interface QueueMessage<T> {
   body: T;
+  attempts?: number;
   ack(): void;
   retry(): void;
 }
@@ -48,6 +49,11 @@ const csv = (value?: string): Set<string> =>
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean)
+  );
+
+const transientQueueFailure = (detail: string): boolean =>
+  /\b(?:408|425|429|500|502|503|504)\b|network|timed?\s*out|temporar|rate.?limit|econn/i.test(
+    detail
   );
 
 function allowed(env: Env, teamId: string, channelId: string, userId: string): boolean {
@@ -454,8 +460,11 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           message.ack();
           continue;
         }
+        let dispatchAttempted = false;
+        let dispatchSucceeded = false;
         try {
           if (message.body.kind === 'action') {
+            dispatchAttempted = true;
             await handleSlackAction({
               work: message.body,
               store,
@@ -498,7 +507,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
+          dispatchAttempted = true;
           const dispatched = await github.dispatch(command, message.body.requestId);
+          dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
           await slack.postThreadNotice({
             channelId: message.body.slack.channelId,
@@ -510,15 +521,36 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           message.ack();
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
+          const transient = transientQueueFailure(detail);
           console.error('qali.queue.failed', {
             requestId: message.body.requestId,
             detail
           });
+          if (transient && !dispatchAttempted && (message.attempts ?? 1) < 3) {
+            await store.requeue(message.body.requestId);
+            message.retry();
+            continue;
+          }
+          if (dispatchSucceeded) {
+            const correlation = await store.findByRequestId(message.body.requestId);
+            if (correlation?.status !== 'dispatched' && !correlation?.runId) {
+              await store.markCompleted(
+                message.body.requestId,
+                'dispatch-uncertain',
+                undefined,
+                detail.slice(0, 1000)
+              );
+            }
+            message.ack();
+            continue;
+          }
           try {
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
-              text: `Qali could not start this request: ${detail.slice(0, 400)}`
+              text: transient
+                ? `Qali stopped retrying this request: ${detail.slice(0, 400)}`
+                : `Qali could not start this request: ${detail.slice(0, 400)}`
             });
           } catch (notifyError) {
             console.error(
@@ -528,7 +560,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           }
           await store.markCompleted(
             message.body.requestId,
-            'failed',
+            transient ? 'dead-lettered' : 'failed',
             undefined,
             detail.slice(0, 1000)
           );

@@ -80,6 +80,7 @@ export interface PlaywrightRunRequest {
   reportPath: string;
   grep?: string;
   webServer?: { command: string; url: string };
+  signal?: AbortSignal;
 }
 
 export interface PlaywrightRunResult {
@@ -95,6 +96,7 @@ export interface PlaywrightRunner {
 interface SpawnedProcess extends EventEmitter {
   stdout: EventEmitter;
   stderr: EventEmitter;
+  kill(signal?: NodeJS.Signals): boolean | void;
 }
 
 export type PlaywrightSpawn = (
@@ -137,17 +139,30 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
         stdio: ['ignore', 'pipe', 'pipe']
       });
       let stderr = '';
+      let settled = false;
+      const finish = (result: PlaywrightRunResult): void => {
+        if (settled) return;
+        settled = true;
+        request.signal?.removeEventListener('abort', cancel);
+        resolve(result);
+      };
+      const cancel = (): void => {
+        child.kill('SIGTERM');
+        finish({ status: 'failed', exitCode: 1, stderr: 'cancelled' });
+      };
       child.stderr.on('data', (chunk) => (stderr += String(chunk)));
       child.on('error', (error) =>
-        resolve({ status: 'failed', exitCode: 1, stderr: error.message })
+        finish({ status: 'failed', exitCode: 1, stderr: error.message })
       );
       child.on('close', (code) =>
-        resolve({
+        finish({
           status: code === 0 ? 'passed' : 'failed',
           exitCode: code ?? 1,
           ...(stderr.trim() ? { stderr: stderr.trim() } : {})
         })
       );
+      request.signal?.addEventListener('abort', cancel, { once: true });
+      if (request.signal?.aborted) cancel();
     });
   }
 }

@@ -92,7 +92,6 @@ export class MockStructuredClassifier implements DemoRequestClassifier {
 class JsonlEventStore implements WorkflowEventStore {
   constructor(private readonly path: string) {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, '');
   }
 
   async append(event: WorkflowEvent): Promise<void> {
@@ -381,6 +380,9 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
     join(repositoryRoot, 'workflows'),
     join(repositoryRoot, 'harness/profiles.json')
   );
+  const harnessCatalogHash = createHash('sha256')
+    .update(readFileSync(join(repositoryRoot, 'harness/profiles.json')))
+    .digest('hex');
   const executor = new MockModeStepExecutor(
     workspace,
     options.playwright ?? new SpawnPlaywrightRunner(),
@@ -416,6 +418,7 @@ export async function runDemoLoop(options: DemoLoopOptions = {}): Promise<DemoLo
       executor,
       events: new JsonlEventStore(eventPath),
       outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => harnessCatalogHash,
       now,
       id: () =>
         idSequence++ === 0

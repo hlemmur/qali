@@ -6,6 +6,7 @@ import {
   WorkflowResultSchema,
   type ArtifactReference,
   type NormalizedCommand,
+  type WorkflowAttempt,
   type WorkflowDescriptor,
   type WorkflowEvent,
   type WorkflowResult,
@@ -37,8 +38,16 @@ export type StepExecutionResult =
   | { status: 'blocked'; reason: string }
   | { status: 'failed'; error: string };
 
+export interface StepExecutionContext {
+  signal: AbortSignal;
+}
+
 export interface StepExecutor {
-  execute(step: WorkflowStep, command: NormalizedCommand): Promise<StepExecutionResult>;
+  execute(
+    step: WorkflowStep,
+    command: NormalizedCommand,
+    context: StepExecutionContext
+  ): Promise<StepExecutionResult>;
 }
 
 export interface WorkflowEventStore {
@@ -60,12 +69,55 @@ export interface WorkflowExecutionPorts {
   executor: StepExecutor;
   events: WorkflowEventStore;
   outputValidator: OutputValidator;
+  harnessHash(step: WorkflowStep): string;
+  resume?: WorkflowResult | undefined;
   now?: () => Date;
   id?: () => string;
 }
 
 const expandOutputPath = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
+
+async function executeWithTimeout(
+  executor: StepExecutor,
+  step: WorkflowStep,
+  command: NormalizedCommand
+): Promise<StepExecutionResult> {
+  const controller = new AbortController();
+  const timedOut = Symbol('timed-out');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancellationTimer: ReturnType<typeof setTimeout> | undefined;
+  const execution = executor.execute(step, command, { signal: controller.signal });
+  const timeout = new Promise<typeof timedOut>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve(timedOut);
+    }, step.timeoutMs);
+  });
+
+  try {
+    try {
+      const outcome = await Promise.race([execution, timeout]);
+      if (outcome !== timedOut) return outcome;
+
+      await Promise.race([
+        execution.catch(() => undefined),
+        new Promise<void>((resolve) => {
+          cancellationTimer = setTimeout(resolve, 1_000);
+        })
+      ]);
+      return { status: 'failed', error: `step ${step.id} timed out after ${step.timeoutMs}ms` };
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (cancellationTimer !== undefined) clearTimeout(cancellationTimer);
+  }
+}
 
 export class FileSystemOutputValidator implements OutputValidator {
   constructor(private readonly workspace: string) {}
@@ -111,21 +163,66 @@ export async function executeWorkflow(
   const workflow = WorkflowDescriptorSchema.parse(await ports.loader.load(command));
   const now = ports.now ?? (() => new Date());
   const id = ports.id ?? (() => crypto.randomUUID());
-  const runId = id();
-  const startedAt = now().toISOString();
-  const events: WorkflowEvent[] = [];
-  const outputs: ArtifactReference[] = [];
+  const resume = ports.resume ? WorkflowResultSchema.parse(ports.resume) : undefined;
+  if (resume && resume.workflowId !== workflow.id) {
+    throw new Error(`cannot resume ${resume.workflowId} as ${workflow.id}`);
+  }
+  const runId = resume?.runId ?? id();
+  const startedAt = resume?.startedAt ?? now().toISOString();
+  const events: WorkflowEvent[] = [...(resume?.events ?? [])];
+  const stepsById = new Map(workflow.steps.map((step) => [step.id, step]));
+  const invalidResumeStepIds = new Set(
+    (resume?.attempts ?? [])
+      .filter(({ stepId, status, harnessHash, harnessProfileId }) => {
+        const step = stepsById.get(stepId);
+        return (
+          status === 'succeeded' &&
+          step !== undefined &&
+          (harnessProfileId !== step.harnessProfileId || harnessHash !== ports.harnessHash(step))
+        );
+      })
+      .map(({ stepId }) => stepId)
+  );
+  const invalidOutputKeys = new Set(
+    workflow.steps
+      .filter(({ id: stepId }) => invalidResumeStepIds.has(stepId))
+      .flatMap(({ outputs: stepOutputs }) =>
+        stepOutputs.map(({ artifact, path }) => `${artifact}:${expandOutputPath(path, command)}`)
+      )
+  );
+  const outputs: ArtifactReference[] = (resume?.outputs ?? []).filter(
+    ({ artifact, path }) => !invalidOutputKeys.has(`${artifact}:${path}`)
+  );
+  const attempts: WorkflowAttempt[] = (resume?.attempts ?? []).filter(
+    ({ stepId }) => !invalidResumeStepIds.has(stepId)
+  );
+  let workflowFailed = attempts.some(
+    (attempt) =>
+      attempt.status === 'failed' &&
+      stepsById.get(attempt.stepId)?.role !== 'reporter' &&
+      attempt.attempt >= (stepsById.get(attempt.stepId)?.retries ?? 0) + 1
+  );
+  let failedStepId = attempts.find(
+    (attempt) =>
+      attempt.status === 'failed' &&
+      stepsById.get(attempt.stepId)?.role !== 'reporter' &&
+      attempt.attempt >= (stepsById.get(attempt.stepId)?.retries ?? 0) + 1
+  )?.stepId;
+  let reportingStatus: WorkflowResult['reportingStatus'] = resume?.reportingStatus ?? 'not-run';
 
   const emit = async (
     type: WorkflowEvent['type'],
     detail: Record<string, unknown> = {},
-    stepId?: string
+    stepId?: string,
+    attempt?: WorkflowAttempt
   ): Promise<void> => {
     const event: WorkflowEvent = {
       id: id(),
       workflowId: workflow.id,
       runId,
       ...(stepId ? { stepId } : {}),
+      ...(attempt ? { attempt } : {}),
+      ...(command.slack ? { correlation: command.slack } : {}),
       type,
       occurredAt: now().toISOString(),
       detail
@@ -138,9 +235,11 @@ export async function executeWorkflow(
       workflowId: workflow.id,
       runId,
       status,
+      reportingStatus,
       startedAt,
       finishedAt: now().toISOString(),
       outputs,
+      attempts,
       events
     });
 
@@ -148,7 +247,7 @@ export async function executeWorkflow(
     await emit('workflow-blocked', { reason: 'workflow is not executable' });
     return result('blocked');
   }
-  await emit('workflow-started');
+  await emit(resume ? 'workflow-resumed' : 'workflow-started');
 
   for (const precondition of workflow.preconditions) {
     const decision = await ports.preconditions.check(precondition, command);
@@ -158,33 +257,97 @@ export async function executeWorkflow(
     }
   }
 
+  const completedStepIds = new Set(
+    attempts.filter(({ status }) => status === 'succeeded').map(({ stepId }) => stepId)
+  );
   for (const step of workflow.steps) {
+    if (completedStepIds.has(step.id)) continue;
+    const runIf = step.runIf ?? 'success';
+    if ((runIf === 'success' && workflowFailed) || (runIf === 'failure' && !workflowFailed)) {
+      continue;
+    }
     const policy = await ports.policy.authorize(step, command);
     if (!policy.allowed) {
       await emit('workflow-blocked', { reason: policy.reason }, step.id);
       return result('blocked');
     }
-    await emit('step-started', {}, step.id);
-    const execution = await ports.executor.execute(step, command);
-    if (execution.status === 'blocked') {
-      await emit('workflow-blocked', { reason: execution.reason }, step.id);
-      return result('blocked');
+    const previousAttempts = attempts.filter(({ stepId }) => stepId === step.id).length;
+    for (
+      let attemptNumber = previousAttempts + 1;
+      attemptNumber <= step.retries + 1;
+      attemptNumber += 1
+    ) {
+      const runningAttempt: WorkflowAttempt = {
+        id: id(),
+        workflowId: workflow.id,
+        runId,
+        stepId: step.id,
+        attempt: attemptNumber,
+        harnessProfileId: step.harnessProfileId,
+        harnessHash: ports.harnessHash(step),
+        status: 'running',
+        startedAt: now().toISOString()
+      };
+      await emit('step-started', {}, step.id, runningAttempt);
+      const execution = await executeWithTimeout(ports.executor, step, command);
+      if (execution.status === 'blocked') {
+        const blockedAttempt: WorkflowAttempt = {
+          ...runningAttempt,
+          status: 'blocked',
+          finishedAt: now().toISOString(),
+          error: execution.reason
+        };
+        attempts.push(blockedAttempt);
+        await emit('workflow-blocked', { reason: execution.reason }, step.id, blockedAttempt);
+        return result('blocked');
+      }
+
+      let error: string | undefined;
+      let attemptOutputs: ArtifactReference[] = [];
+      if (execution.status === 'failed') {
+        error = execution.error;
+      } else {
+        attemptOutputs = execution.outputs;
+        const validation = await ports.outputValidator.validate(step, execution.outputs, command);
+        if (!validation.valid) error = validation.reason;
+      }
+
+      if (error) {
+        const failedAttempt: WorkflowAttempt = {
+          ...runningAttempt,
+          status: 'failed',
+          finishedAt: now().toISOString(),
+          error
+        };
+        attempts.push(failedAttempt);
+        await emit('step-failed', { error }, step.id, failedAttempt);
+        if (attemptNumber <= step.retries) continue;
+        if (step.role === 'reporter') {
+          reportingStatus = 'failed';
+        } else {
+          workflowFailed = true;
+          failedStepId ??= step.id;
+        }
+        break;
+      }
+
+      const succeededAttempt: WorkflowAttempt = {
+        ...runningAttempt,
+        status: 'succeeded',
+        finishedAt: now().toISOString()
+      };
+      attempts.push(succeededAttempt);
+      outputs.push(...attemptOutputs);
+      await emit('step-succeeded', { outputs: attemptOutputs }, step.id, succeededAttempt);
+      if (step.role === 'reporter') reportingStatus = 'succeeded';
+      break;
     }
-    if (execution.status === 'failed') {
-      await emit('step-failed', { error: execution.error }, step.id);
-      await emit('workflow-failed', { failedStepId: step.id });
-      return result('failed');
-    }
-    const validation = await ports.outputValidator.validate(step, execution.outputs, command);
-    if (!validation.valid) {
-      await emit('step-failed', { error: validation.reason }, step.id);
-      await emit('workflow-failed', { failedStepId: step.id });
-      return result('failed');
-    }
-    outputs.push(...execution.outputs);
-    await emit('step-succeeded', { outputs: execution.outputs }, step.id);
   }
 
+  if (workflowFailed) {
+    await emit('workflow-failed', { failedStepId });
+    return result('failed');
+  }
   await emit('workflow-succeeded');
   return result('succeeded');
 }
@@ -217,7 +380,13 @@ export class FakePolicyEnforcer implements PolicyEnforcer {
 export class FakeStepExecutor implements StepExecutor {
   readonly steps: string[] = [];
   constructor(public results: StepExecutionResult[] = []) {}
-  async execute(step: WorkflowStep): Promise<StepExecutionResult> {
+  async execute(
+    step: WorkflowStep,
+    command: NormalizedCommand,
+    context: StepExecutionContext
+  ): Promise<StepExecutionResult> {
+    void command;
+    void context;
     this.steps.push(step.id);
     return this.results.shift() ?? { status: 'succeeded', outputs: [] };
   }

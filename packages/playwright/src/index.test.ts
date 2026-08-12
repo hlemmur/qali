@@ -56,9 +56,11 @@ describe('Playwright adapter', () => {
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
       stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
     };
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => true);
     const spawn = vi.fn<PlaywrightSpawn>(() => child);
     const runner = new SpawnPlaywrightRunner(spawn);
     const pending = runner.run({
@@ -82,9 +84,11 @@ describe('Playwright adapter', () => {
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
       stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
     };
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => true);
     const spawn = vi.fn<PlaywrightSpawn>(() => child);
     const runner = new SpawnPlaywrightRunner(spawn);
     const pending = runner.run({
@@ -103,6 +107,31 @@ describe('Playwright adapter', () => {
     const options = spawn.mock.calls[0]![2]!;
     expect(options.env.QALI_WEB_SERVER_COMMAND).toBe('node projects/_demo/app/server.mjs');
     expect(options.env.QALI_WEB_SERVER_URL).toBe('http://127.0.0.1:4173/health');
+  });
+
+  it('terminates the Playwright process when execution is cancelled', async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => true);
+    const controller = new AbortController();
+    const runner = new SpawnPlaywrightRunner(vi.fn<PlaywrightSpawn>(() => child));
+
+    const pending = runner.run({
+      workspace: '/repo',
+      projectId: '_demo',
+      targetBaseUrl: 'https://staging.example.test',
+      reportPath: 'test-results/report.json',
+      signal: controller.signal
+    });
+    controller.abort();
+
+    await expect(pending).resolves.toMatchObject({ status: 'failed', stderr: 'cancelled' });
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
   it('provides deterministic fakes and a traceable generation contract', async () => {
