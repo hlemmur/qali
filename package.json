@@ -25,6 +25,7 @@
     "publish": "tsx scripts/publish.ts",
     "project:validate": "tsx scripts/validate-project.ts",
     "registry:validate": "node --import tsx scripts/validate-project-registry.ts",
+    "harness:validate": "node --import tsx scripts/validate-runtime-harness.ts",
     "control-plane:provision": "tsx scripts/provision-control-plane.ts",
     "control-plane:render-slack-manifest": "QALI_RENDER_SLACK_MANIFEST=1 tsx scripts/provision-control-plane.ts",
     "control-plane:sync-secrets": "tsx scripts/sync-worker-secrets.ts",

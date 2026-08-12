@@ -58,6 +58,8 @@ Two jobs with isolated permissions:
 | `@qali/reporting`      | Slack Block Kit summaries and Markdown reports               |
 | `@qali/publication`    | Safe auto-commit policy and GitHub adapter                   |
 
+Agent judgment runs in a per-step [runtime harness](runtime-harness.md) assembled from reviewed skills and explicitly selected inputs. The staged workspace is read-only except for declared outputs; Cursor has no shell tool and receives only the restricted browser MCP when a profile requires interactive exploration.
+
 ## Knowledge model
 
 Three artifact classes with strict ownership:
