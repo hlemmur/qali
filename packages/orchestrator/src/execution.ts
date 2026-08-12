@@ -175,8 +175,7 @@ export async function executeWorkflow(
       stepsById.get(attempt.stepId)?.role !== 'reporter' &&
       attempt.attempt >= (stepsById.get(attempt.stepId)?.retries ?? 0) + 1
   )?.stepId;
-  let reportingStatus: WorkflowResult['reportingStatus'] =
-    resume?.reportingStatus ?? 'not-run';
+  let reportingStatus: WorkflowResult['reportingStatus'] = resume?.reportingStatus ?? 'not-run';
 
   const emit = async (
     type: WorkflowEvent['type'],
@@ -231,10 +230,7 @@ export async function executeWorkflow(
   for (const step of workflow.steps) {
     if (completedStepIds.has(step.id)) continue;
     const runIf = step.runIf ?? 'success';
-    if (
-      (runIf === 'success' && workflowFailed) ||
-      (runIf === 'failure' && !workflowFailed)
-    ) {
+    if ((runIf === 'success' && workflowFailed) || (runIf === 'failure' && !workflowFailed)) {
       continue;
     }
     const policy = await ports.policy.authorize(step, command);
@@ -269,12 +265,7 @@ export async function executeWorkflow(
           error: execution.reason
         };
         attempts.push(blockedAttempt);
-        await emit(
-          'workflow-blocked',
-          { reason: execution.reason },
-          step.id,
-          blockedAttempt
-        );
+        await emit('workflow-blocked', { reason: execution.reason }, step.id, blockedAttempt);
         return result('blocked');
       }
 
@@ -358,9 +349,11 @@ export class FakeStepExecutor implements StepExecutor {
   constructor(public results: StepExecutionResult[] = []) {}
   async execute(
     step: WorkflowStep,
-    _command: NormalizedCommand,
-    _context: StepExecutionContext
+    command: NormalizedCommand,
+    context: StepExecutionContext
   ): Promise<StepExecutionResult> {
+    void command;
+    void context;
     this.steps.push(step.id);
     return this.results.shift() ?? { status: 'succeeded', outputs: [] };
   }

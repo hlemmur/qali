@@ -83,10 +83,7 @@ describe('complete demo loop', () => {
     mkdirSync(join(workspace, 'projects'), { recursive: true });
     cpSync(resolve('projects/_demo'), projectRoot, { recursive: true });
     rmSync(join(projectRoot, 'derived/workflow-state'), { recursive: true, force: true });
-    const existingEventPath = join(
-      projectRoot,
-      'derived/workflow-state/exploratory-testing.jsonl'
-    );
+    const existingEventPath = join(projectRoot, 'derived/workflow-state/exploratory-testing.jsonl');
     mkdirSync(dirname(existingEventPath), { recursive: true });
     cpSync(
       resolve('projects/_demo/derived/workflow-state/.generated.md'),
