@@ -129,75 +129,106 @@ export async function executeExplorationStep(
     : '# Open Questions';
   const observationId = nextGovernedId(existingExploration, 'OBS-EXP');
   const questionId = nextGovernedId(existingQuestions, 'Q-EXP');
+  const sessionId = `session-${observationId.toLowerCase()}`;
+  const sessionReference = `observations/evidence/exploration/${sessionId}.json`;
+  let navigation: { url: string } | undefined;
+  let snapshot: { untrustedPageData: string } | undefined;
+  let evidence: { evidenceId: string; artifacts: string[] } | undefined;
+  let diagnostics:
+    | Awaited<ReturnType<ExplorationBrowser['readDiagnostics']>>
+    | undefined;
+  const observedAt = command.receivedAt.slice(0, 10);
+  const finish = (truncationReason?: string) => {
+    const evidenceRefs = (evidence?.artifacts ?? []).map(
+      (artifact) => `observations/evidence/exploration/${artifact}`
+    );
+    writeFileSync(
+      join(evidenceDirectory, `${sessionId}.json`),
+      `${JSON.stringify(
+        {
+          version: 1,
+          focus,
+          status: truncationReason ? 'truncated' : 'complete',
+          ...(truncationReason ? { truncationReason } : {}),
+          budget: { maxSteps, timeBudgetMs, completedSteps },
+          ...(navigation
+            ? {
+                page: {
+                  url: navigation.url,
+                  ...(snapshot
+                    ? { accessibilitySnapshot: snapshot.untrustedPageData }
+                    : {})
+                }
+              }
+            : {}),
+          evidence: evidenceRefs,
+          ...(diagnostics ? { diagnostics } : {})
+        },
+        null,
+        2
+      )}\n`
+    );
+    const evidenceReference = evidenceRefs[0] ?? sessionReference;
+    const accessibleNodes = snapshot
+      ? snapshot.untrustedPageData.split('\n').filter(Boolean).length
+      : 0;
+    mkdirSync(dirname(explorationPath), { recursive: true });
+    writeFileSync(
+      explorationPath,
+      [
+        existingExploration,
+        '',
+        '## Session Log',
+        '',
+        `Focus: ${focus}. Accessible nodes observed: ${accessibleNodes}.${truncationReason ? ` Session truncated: ${truncationReason}.` : ''}`,
+        '',
+        '| ID | Observation | Status | Evidence | Observed at | Session |',
+        '| --- | --- | --- | --- | --- | --- |',
+        `| ${observationId} | Browser facade captured ${snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${navigation ? ` at \`${navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
+        ''
+      ].join('\n')
+    );
+    mkdirSync(dirname(questionsPath), { recursive: true });
+    writeFileSync(
+      questionsPath,
+      [
+        existingQuestions,
+        '',
+        '## Exploration Questions',
+        '',
+        '| ID | Question | Status | Blocking | Evidence |',
+        '| --- | --- | --- | --- | --- |',
+        `| ${questionId} | What expected behavior should be validated for the ${focus} focus? | open | no | \`${sessionReference}\` |`,
+        ''
+      ].join('\n')
+    );
+    return {
+      status: 'succeeded' as const,
+      outputs,
+      ...(truncationReason ? { truncated: true as const, truncationReason } : {})
+    };
+  };
+
   let budgetFailure = blockedByBudget();
   if (budgetFailure) return budgetFailure;
-  const navigation = await browser.navigate('/');
+  navigation = await browser.navigate('/');
   completedSteps += 1;
   budgetFailure = blockedByBudget();
-  if (budgetFailure) return budgetFailure;
-  const snapshot = await browser.accessibilitySnapshot();
+  if (budgetFailure) return finish(budgetFailure.reason);
+  snapshot = await browser.accessibilitySnapshot();
   completedSteps += 1;
   budgetFailure = blockedByBudget();
-  if (budgetFailure) return budgetFailure;
-  const evidence = await browser.captureEvidence('session-home', {
+  if (budgetFailure) return finish(budgetFailure.reason);
+  evidence = await browser.captureEvidence(sessionId, {
     screenshot: true,
     trace: false
   });
   completedSteps += 1;
   budgetFailure = blockedByBudget();
-  if (budgetFailure) return budgetFailure;
-  const diagnostics = await browser.readDiagnostics();
+  if (budgetFailure) return finish(budgetFailure.reason);
+  diagnostics = await browser.readDiagnostics();
   completedSteps += 1;
-  const observedAt = command.receivedAt.slice(0, 10);
-  const evidenceRefs = evidence.artifacts.map(
-    (artifact) => `observations/evidence/exploration/${artifact}`
-  );
-  writeFileSync(
-    join(evidenceDirectory, 'session.json'),
-    `${JSON.stringify(
-      {
-        version: 1,
-        focus,
-        budget: { maxSteps, timeBudgetMs, completedSteps },
-        page: { url: navigation.url, accessibilitySnapshot: snapshot.untrustedPageData },
-        evidence: evidenceRefs,
-        diagnostics
-      },
-      null,
-      2
-    )}\n`
-  );
-  mkdirSync(dirname(explorationPath), { recursive: true });
-  writeFileSync(
-    explorationPath,
-    [
-      existingExploration,
-      '',
-      '## Session Log',
-      '',
-      `Focus: ${focus}. Accessible nodes observed: ${snapshot.untrustedPageData.split('\n').filter(Boolean).length}.`,
-      '',
-      '| ID | Observation | Status | Evidence | Observed at | Session |',
-      '| --- | --- | --- | --- | --- | --- |',
-      `| ${observationId} | Browser facade captured the accessible home-page state at \`${navigation.url}\`. | observed | \`${evidenceRefs[0] ?? 'observations/evidence/exploration/session.json'}\` | ${observedAt} | bounded-exploration |`,
-      ''
-    ].join('\n')
-  );
-  mkdirSync(dirname(questionsPath), { recursive: true });
-  writeFileSync(
-    questionsPath,
-    [
-      existingQuestions,
-      '',
-      '## Exploration Questions',
-      '',
-      '| ID | Question | Status | Blocking | Evidence |',
-      '| --- | --- | --- | --- | --- |',
-      `| ${questionId} | What expected behavior should be validated for the ${focus} focus? | open | no | \`observations/evidence/exploration/session.json\` |`,
-      ''
-    ].join('\n')
-  );
-  return { status: 'succeeded' as const, outputs };
+  return finish();
 }
 
 export function renderExplorationReport(exploration: string, questions: string): string {

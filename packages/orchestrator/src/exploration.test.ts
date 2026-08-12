@@ -95,20 +95,23 @@ describe('bounded exploratory testing', () => {
     expect(browser.calls).toEqual([
       'navigate:/',
       'snapshot',
-      'evidence:session-home',
+      'evidence:session-obs-exp-001',
       'diagnostics'
     ]);
     const exploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
     expect(exploration).toContain('# Exploration Charter');
-    expect(exploration).toContain('session-home/screenshot.png');
+    expect(exploration).toContain('session-obs-exp-001/screenshot.png');
     const questions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
     expect(questions).toContain('Q-EXISTING');
     expect(questions).toContain('Q-EXP-001');
-    expect(existsSync(join(projectRoot, 'observations/evidence/exploration/session.json'))).toBe(
-      true
-    );
+    expect(
+      existsSync(join(projectRoot, 'observations/evidence/exploration/session-obs-exp-001.json'))
+    ).toBe(true);
     const session = JSON.parse(
-      readFileSync(join(projectRoot, 'observations/evidence/exploration/session.json'), 'utf8')
+      readFileSync(
+        join(projectRoot, 'observations/evidence/exploration/session-obs-exp-001.json'),
+        'utf8'
+      )
     );
     expect(session).toMatchObject({
       focus: 'login',
@@ -128,6 +131,14 @@ describe('bounded exploratory testing', () => {
     expect(rerunExploration.match(/OBS-EXP-002/g)).toHaveLength(1);
     expect(rerunQuestions.match(/Q-EXP-001/g)).toHaveLength(1);
     expect(rerunQuestions.match(/Q-EXP-002/g)).toHaveLength(1);
+    expect(rerunExploration).toContain('session-obs-exp-001/screenshot.png');
+    expect(rerunExploration).toContain('session-obs-exp-002/screenshot.png');
+    expect(
+      existsSync(join(projectRoot, 'observations/evidence/exploration/session-obs-exp-001.json'))
+    ).toBe(true);
+    expect(
+      existsSync(join(projectRoot, 'observations/evidence/exploration/session-obs-exp-002.json'))
+    ).toBe(true);
   });
 
   it('blocks exploration when the configured budget is exhausted before an action', async () => {
@@ -171,11 +182,13 @@ describe('bounded exploratory testing', () => {
       { now: () => ticks.shift() ?? 2 }
     );
 
-    expect(result).toMatchObject({
-      status: 'blocked',
-      reason: 'exploration time budget exhausted'
-    });
+    expect(result).toMatchObject({ status: 'succeeded', truncated: true });
     expect(browser.calls).toEqual(['navigate:/']);
+    expect(
+      existsSync(
+        join(workspace, command.project.root, 'observations/evidence/exploration/session-obs-exp-001.json')
+      )
+    ).toBe(true);
   });
 
   it('stops before the next browser action when the step budget is exhausted', async () => {
@@ -194,11 +207,14 @@ describe('bounded exploratory testing', () => {
       { now: () => 0 }
     );
 
-    expect(result).toMatchObject({
-      status: 'blocked',
-      reason: 'exploration step budget exhausted'
-    });
+    expect(result).toMatchObject({ status: 'succeeded', truncated: true });
     expect(browser.calls).toEqual(['navigate:/']);
+    expect(
+      readFileSync(
+        join(workspace, command.project.root, 'observations/exploration.md'),
+        'utf8'
+      )
+    ).toContain('session-obs-exp-001.json');
   });
 
   it('runs the complete workflow and renders an evidence-backed report', async () => {
@@ -244,7 +260,7 @@ describe('bounded exploratory testing', () => {
     expect(result.attempts).toHaveLength(3);
     const report = readFileSync(join(projectRoot, 'derived/reports/exploration.md'), 'utf8');
     expect(report).toContain('OBS-EXP-010');
-    expect(report).toContain('session-home/screenshot.png');
+    expect(report).toContain('session-obs-exp-010/screenshot.png');
     expect(report).toContain('Q-EXP-001');
     expect(report).toContain('OBS-EXP-009');
     expect(report).toContain('Prior observation must remain.');
