@@ -4,6 +4,13 @@ import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
 import { executeExplorationStep, type ExplorationBrowser } from './exploration.js';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './index.js';
 import { loadWorkflowDirectory } from './workflows.js';
 
 const command: NormalizedCommand = {
@@ -40,6 +47,7 @@ describe('bounded exploratory testing', () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-'));
     const projectRoot = join(workspace, command.project.root);
     mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
     writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
     const workflow = loadWorkflowDirectory(
       join(process.cwd(), 'workflows'),
@@ -90,5 +98,42 @@ describe('bounded exploratory testing', () => {
 
     expect(result).toMatchObject({ status: 'blocked', reason: 'exploration time budget exhausted' });
     expect(browser.calls).toEqual([]);
+  });
+
+  it('runs the complete workflow and renders an evidence-backed report', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-e2e-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
+    writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
+    writeFileSync(join(projectRoot, 'observations/known-issues.md'), '# Known Issues\n');
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+    const browser = new FakeBrowser();
+    const events = new FakeEventStore();
+
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (step, executionCommand) =>
+          executeExplorationStep(workspace, step, executionCommand, browser, {
+            now: () => 1_000
+          })
+      },
+      events,
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'b'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts).toHaveLength(3);
+    const report = readFileSync(join(projectRoot, 'derived/reports/exploration.md'), 'utf8');
+    expect(report).toContain('OBS-EXP-001');
+    expect(report).toContain('session-home/screenshot.png');
+    expect(report).toContain('Q-EXP-001');
   });
 });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type {
   NormalizedCommand,
@@ -48,6 +48,25 @@ export async function executeExplorationStep(
     artifact,
     path: expand(path, command)
   }));
+  const projectRoot = join(workspace, command.project.root);
+  const focus = typeof command.parameters.focus === 'string' ? command.parameters.focus : 'project';
+  if (step.id === 'charter') {
+    const explorationPath = join(projectRoot, 'observations/exploration.md');
+    mkdirSync(dirname(explorationPath), { recursive: true });
+    writeFileSync(
+      explorationPath,
+      `# Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.\n`
+    );
+    return { status: 'succeeded' as const, outputs };
+  }
+  if (step.id === 'report') {
+    const exploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
+    const questions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
+    const reportPath = join(projectRoot, 'derived/reports/exploration.md');
+    mkdirSync(dirname(reportPath), { recursive: true });
+    writeFileSync(reportPath, renderExplorationReport(exploration, questions));
+    return { status: 'succeeded' as const, outputs };
+  }
   if (step.id !== 'explore') {
     return { status: 'blocked' as const, reason: `unsupported exploration step: ${step.id}` };
   }
@@ -63,7 +82,6 @@ export async function executeExplorationStep(
   const budgetFailure = ensureBudget(0);
   if (budgetFailure) return { status: 'blocked' as const, reason: budgetFailure };
 
-  const projectRoot = join(workspace, command.project.root);
   const evidenceDirectory = join(projectRoot, 'observations/evidence/exploration');
   mkdirSync(evidenceDirectory, { recursive: true });
   const navigation = await browser.navigate('/');
@@ -73,7 +91,6 @@ export async function executeExplorationStep(
     trace: false
   });
   const diagnostics = await browser.readDiagnostics();
-  const focus = typeof command.parameters.focus === 'string' ? command.parameters.focus : 'project';
   const observedAt = command.receivedAt.slice(0, 10);
   const evidenceRefs = evidence.artifacts.map(
     (artifact) => `observations/evidence/exploration/${artifact}`
