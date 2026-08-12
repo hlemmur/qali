@@ -86,6 +86,9 @@ export async function executeExplorationStep(
   const evidenceDirectory = join(projectRoot, 'observations/evidence/exploration');
   mkdirSync(evidenceDirectory, { recursive: true });
   const navigation = await browser.navigate('/');
+  if (clock.now() - startedAt >= timeBudgetMs) {
+    return { status: 'blocked' as const, reason: 'exploration time budget exhausted' };
+  }
   const snapshot = await browser.accessibilitySnapshot();
   const evidence = await browser.captureEvidence('session-home', {
     screenshot: true,

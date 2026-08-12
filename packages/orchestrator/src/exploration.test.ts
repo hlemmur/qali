@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
+import { RestrictedBrowserFacade, type BrowserDriver } from '../../browser-facade/src/index.js';
 import { describe, expect, it } from 'vitest';
 import { executeExplorationStep, type ExplorationBrowser } from './exploration.js';
 import {
@@ -39,6 +40,28 @@ class FakeBrowser implements ExplorationBrowser {
   async captureEvidence(id: string) {
     this.calls.push(`evidence:${id}`);
     return { evidenceId: id, artifacts: [`${id}/screenshot.png`] };
+  }
+}
+
+class FakeBrowserDriver implements BrowserDriver {
+  async navigate() {
+    return { url: 'http://example.test/' };
+  }
+  async snapshot() {
+    return '- heading "Sign in"\n- textbox "Email"';
+  }
+  async clickByRole() {
+    return { url: 'http://example.test/' };
+  }
+  async fillByLabel() {}
+  async captureScreenshot(path: string) {
+    writeFileSync(path, 'mock screenshot');
+  }
+  async captureTrace(path: string) {
+    writeFileSync(path, 'mock trace');
+  }
+  async diagnostics() {
+    return { console: [], network: [] };
   }
 }
 
@@ -100,6 +123,27 @@ describe('bounded exploratory testing', () => {
     expect(browser.calls).toEqual([]);
   });
 
+  it('stops before the next browser action when the time budget expires mid-session', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-'));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+    const browser = new FakeBrowser();
+    const ticks = [0, 0, 2];
+
+    const result = await executeExplorationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'explore')!,
+      { ...command, parameters: { maxSteps: 2, timeBudgetMs: 1 } },
+      browser,
+      { now: () => ticks.shift() ?? 2 }
+    );
+
+    expect(result).toMatchObject({ status: 'blocked', reason: 'exploration time budget exhausted' });
+    expect(browser.calls).toEqual(['navigate:/']);
+  });
+
   it('runs the complete workflow and renders an evidence-backed report', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-e2e-'));
     const projectRoot = join(workspace, command.project.root);
@@ -111,7 +155,13 @@ describe('bounded exploratory testing', () => {
       join(process.cwd(), 'workflows'),
       join(process.cwd(), 'harness/profiles.json')
     ).find(({ id }) => id === 'exploratory-testing')!;
-    const browser = new FakeBrowser();
+    const browser = new RestrictedBrowserFacade(new FakeBrowserDriver(), {
+      baseUrl: 'http://example.test',
+      allowedOrigins: ['http://example.test'],
+      credentials: {},
+      testData: {},
+      evidenceDirectory: join(projectRoot, 'observations/evidence/exploration')
+    });
     const events = new FakeEventStore();
 
     const result = await executeWorkflow(command, {
