@@ -187,6 +187,21 @@
       "validators": ["project-context-schema"]
     },
     {
+      "id": "knowledge-reconciliation-journey",
+      "skillIds": ["qa-project-context", "journey-mapping"],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
+      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["project-context-schema", "journey-schema"]
+    },
+    {
       "id": "reliability-diagnosis",
       "skillIds": ["test-reliability"],
       "policyPaths": [

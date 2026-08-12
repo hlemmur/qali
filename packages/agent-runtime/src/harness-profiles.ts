@@ -87,3 +87,39 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     };
   });
 }
+
+export function selectHarnessProfile(
+  profiles: readonly HarnessProfile[],
+  baseProfileId: string,
+  selection: { visualTesting: boolean; journeyChange?: boolean }
+): HarnessProfile {
+  const selectedId = (() => {
+    if (baseProfileId === 'test-generation' && selection.visualTesting) {
+      return 'visual-test-generation';
+    }
+    if (baseProfileId === 'knowledge-reconciliation' && selection.journeyChange) {
+      return 'knowledge-reconciliation-journey';
+    }
+    return baseProfileId;
+  })();
+  const profile = profiles.find(({ id }) => id === selectedId);
+  if (!profile) throw new Error(`Unknown harness profile ${selectedId}`);
+  if (selectedId !== baseProfileId) {
+    const base = profiles.find(({ id }) => id === baseProfileId);
+    if (!base) throw new Error(`Unknown harness profile ${baseProfileId}`);
+    const authorityFields = [
+      'policyPaths',
+      'writableOutputDirectories',
+      'tools',
+      'mutations'
+    ] as const;
+    if (
+      authorityFields.some(
+        (field) => JSON.stringify(profile[field]) !== JSON.stringify(base[field])
+      )
+    ) {
+      throw new Error('conditional harness profile widens authority');
+    }
+  }
+  return profile;
+}

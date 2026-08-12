@@ -15,7 +15,7 @@ Full runtime instructions live under `skills/runtime/<skill>/SKILL.md`, not the 
 
 ## Profiles
 
-`harness/profiles.json` defines the selected skills, policies, templates, writable output directories, tools, mutations, and deterministic validators for 15 step-specific harnesses. Every profile includes the operating-model, evidence/provenance, and authority/autonomy policies. Only browser exploration receives the restricted `qali-browser` MCP tool; no profile receives shell access.
+`harness/profiles.json` defines the selected skills, policies, templates, writable output directories, tools, mutations, and deterministic validators for 16 step-specific harnesses. Every profile includes the operating-model, evidence/provenance, and authority/autonomy policies. Only browser exploration receives the restricted `qali-browser` MCP tool; no profile receives shell access. Conditional visual generation and journey reconciliation profiles may add reviewed craft instructions and validators, but must remain authority-equivalent to their base profile.
 
 Slice 4 binds workflow steps to these profile IDs. Conditional visual and journey variants remain separate profiles so selection stays typed and auditable.
 

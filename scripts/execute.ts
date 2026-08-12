@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
-import { loadHarnessProfiles } from '../packages/agent-runtime/src/harness-profiles.js';
+import {
+  loadHarnessProfiles,
+  selectHarnessProfile
+} from '../packages/agent-runtime/src/harness-profiles.js';
 import { loadRuntimeSkillAssets } from '../packages/agent-runtime/src/skill-assets.js';
 import {
   NormalizedCommandSchema,
@@ -347,13 +350,24 @@ class RoutedStepExecutor implements StepExecutor {
       return this.deterministicAgentStep(step, command, outputs);
     }
 
-    const harnessProfile = this.harnessProfiles.get(step.harnessProfileId);
-    if (!harnessProfile) {
+    const baseHarnessProfile = this.harnessProfiles.get(step.harnessProfileId);
+    if (!baseHarnessProfile) {
       return {
         status: 'blocked',
         reason: `unknown harness profile: ${step.harnessProfileId}`
       } as const;
     }
+    const harnessProfile = selectHarnessProfile(
+      [...this.harnessProfiles.values()],
+      baseHarnessProfile.id,
+      {
+        visualTesting:
+          command.intent === 'generate-test-suite' && command.parameters.visualTesting === true,
+        journeyChange:
+          command.intent === 'maintain-knowledge' &&
+          command.parameters.knowledgeChangeKind === 'journey'
+      }
+    );
     const result = await this.agent.execute({
       workspace,
       role: ROLE_PROFILES[step.role],
