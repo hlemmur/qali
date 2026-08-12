@@ -198,6 +198,44 @@ describe('workflow execution', () => {
     ).toEqual(['running', 'failed', 'running', 'succeeded']);
   });
 
+  it('continues failure analysis and reporting while preserving the failed outcome', async () => {
+    const ports = dependencies();
+    ports.loader.workflow = {
+      ...workflow,
+      steps: [
+        { ...workflow.steps[0]!, retries: 0 },
+        {
+          ...workflow.steps[1]!,
+          id: 'analyze-failures',
+          role: 'failure-analyst',
+          runIf: 'failure',
+          outputs: [
+            { artifact: 'reports', path: 'projects/{projectId}/derived/reports/analysis.md' }
+          ]
+        },
+        { ...workflow.steps[1]!, needs: ['analyze-failures'], runIf: 'always' }
+      ]
+    };
+    ports.executor.results = [
+      { status: 'failed', error: 'playwright assertions failed' },
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'reports', path: 'projects/demo/derived/reports/analysis.md' }]
+      },
+      {
+        status: 'succeeded',
+        outputs: [{ artifact: 'reports', path: 'projects/demo/derived/reports/run.md' }]
+      }
+    ];
+
+    const result = await executeWorkflow(command, ports);
+
+    expect(ports.executor.steps).toEqual(['execute', 'analyze-failures', 'report']);
+    expect(result.status).toBe('failed');
+    expect(result.reportingStatus).toBe('succeeded');
+    expect(result.events.at(-1)?.type).toBe('workflow-failed');
+  });
+
   it('rejects declared outputs that were not materialized on disk', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-output-'));
     const validator = new FileSystemOutputValidator(workspace);

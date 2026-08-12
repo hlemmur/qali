@@ -30,6 +30,7 @@ steps:
   - id: analyze-failures
     role: failure-analyst
     harnessProfileId: failure-explanation
+    runIf: failure
     needs: [execute]
     inputs:
       - artifact: tests
@@ -49,6 +50,7 @@ steps:
   - id: report
     role: reporter
     harnessProfileId: human-reporting
+    runIf: always
     needs: [analyze-failures]
     inputs:
       - artifact: evidence

@@ -413,7 +413,8 @@ export const WorkflowStepSchema = z
     mutations: z.array(MutationClassSchema),
     policyGates: z.array(PolicyGateSchema),
     retries: z.number().int().min(0).max(5),
-    timeoutMs: z.number().int().min(1000).max(3_600_000)
+    timeoutMs: z.number().int().min(1000).max(3_600_000),
+    runIf: z.enum(['success', 'failure', 'always']).optional()
   })
   .strict();
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
@@ -500,6 +501,7 @@ export const WorkflowResultSchema = z
     workflowId: z.string().min(1),
     runId: z.string().min(1),
     status: z.enum(['blocked', 'succeeded', 'failed']),
+    reportingStatus: z.enum(['not-run', 'succeeded', 'failed']).default('not-run'),
     startedAt: z.iso.datetime(),
     finishedAt: z.iso.datetime(),
     outputs: z.array(ArtifactReferenceSchema),

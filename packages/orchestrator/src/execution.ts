@@ -149,6 +149,9 @@ export async function executeWorkflow(
   const events: WorkflowEvent[] = [];
   const outputs: ArtifactReference[] = [];
   const attempts: WorkflowAttempt[] = [];
+  let workflowFailed = false;
+  let failedStepId: string | undefined;
+  let reportingStatus: WorkflowResult['reportingStatus'] = 'not-run';
 
   const emit = async (
     type: WorkflowEvent['type'],
@@ -174,6 +177,7 @@ export async function executeWorkflow(
       workflowId: workflow.id,
       runId,
       status,
+      reportingStatus,
       startedAt,
       finishedAt: now().toISOString(),
       outputs,
@@ -196,6 +200,13 @@ export async function executeWorkflow(
   }
 
   for (const step of workflow.steps) {
+    const runIf = step.runIf ?? 'success';
+    if (
+      (runIf === 'success' && workflowFailed) ||
+      (runIf === 'failure' && !workflowFailed)
+    ) {
+      continue;
+    }
     const policy = await ports.policy.authorize(step, command);
     if (!policy.allowed) {
       await emit('workflow-blocked', { reason: policy.reason }, step.id);
@@ -251,8 +262,10 @@ export async function executeWorkflow(
         attempts.push(failedAttempt);
         await emit('step-failed', { error }, step.id, failedAttempt);
         if (attemptNumber <= step.retries) continue;
-        await emit('workflow-failed', { failedStepId: step.id });
-        return result('failed');
+        workflowFailed = true;
+        failedStepId ??= step.id;
+        if (step.role === 'reporter') reportingStatus = 'failed';
+        break;
       }
 
       const succeededAttempt: WorkflowAttempt = {
@@ -263,10 +276,15 @@ export async function executeWorkflow(
       attempts.push(succeededAttempt);
       outputs.push(...attemptOutputs);
       await emit('step-succeeded', { outputs: attemptOutputs }, step.id, succeededAttempt);
+      if (step.role === 'reporter') reportingStatus = 'succeeded';
       break;
     }
   }
 
+  if (workflowFailed) {
+    await emit('workflow-failed', { failedStepId });
+    return result('failed');
+  }
   await emit('workflow-succeeded');
   return result('succeeded');
 }
