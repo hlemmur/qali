@@ -160,6 +160,30 @@ describe('ephemeral harness workspace', () => {
     expect(() =>
       assembleHarnessWorkspace({
         ...base,
+        workspace: join(parent, 'invalid-mutation'),
+        profile: { ...base.profile, mutations: ['invent-authority'] }
+      })
+    ).toThrow('Invalid harness mutation');
+    expect(existsSync(join(parent, 'invalid-mutation'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'invalid-validator'),
+        profile: { ...base.profile, validators: ['Run Arbitrary Validator'] }
+      })
+    ).toThrow('Invalid harness validator');
+    expect(existsSync(join(parent, 'invalid-validator'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
+        workspace: join(parent, 'invalid-tool'),
+        profile: { ...base.profile, tools: ['shell' as 'browser'] }
+      })
+    ).toThrow('Invalid harness tool');
+    expect(existsSync(join(parent, 'invalid-tool'))).toBe(false);
+    expect(() =>
+      assembleHarnessWorkspace({
+        ...base,
         workspace: join(parent, 'relative-browser-env'),
         profile: { ...base.profile, tools: ['browser'] },
         browser: {

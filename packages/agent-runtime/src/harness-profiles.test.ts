@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, chmodSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -98,5 +106,31 @@ describe('harness profile catalog', () => {
     expect(() =>
       loadHarnessProfiles('harness/invalid-profiles.fixture.json', 'skills/runtime')
     ).toThrow();
+  });
+
+  it('rejects unknown mutation classes in the profile catalog', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-invalid-mutation-'));
+    temporaryDirectories.push(parent);
+    const catalog = JSON.parse(readFileSync('harness/profiles.json', 'utf8')) as {
+      profiles: Array<{ mutations: string[] }>;
+    };
+    catalog.profiles[0]!.mutations = ['invent-authority'];
+    const path = join(parent, 'profiles.json');
+    writeFileSync(path, JSON.stringify(catalog));
+
+    expect(() => loadHarnessProfiles(path, 'skills/runtime')).toThrow('Invalid mutation class');
+  });
+
+  it('rejects malformed validator ids in the profile catalog', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-invalid-validator-'));
+    temporaryDirectories.push(parent);
+    const catalog = JSON.parse(readFileSync('harness/profiles.json', 'utf8')) as {
+      profiles: Array<{ validators: string[] }>;
+    };
+    catalog.profiles[0]!.validators = ['Run Arbitrary Validator'];
+    const path = join(parent, 'profiles.json');
+    writeFileSync(path, JSON.stringify(catalog));
+
+    expect(() => loadHarnessProfiles(path, 'skills/runtime')).toThrow('Invalid validator id');
   });
 });

@@ -10,7 +10,11 @@ import {
   writeFileSync
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
-import { AgentHarnessManifestSchema, type AgentHarnessManifest } from '@qali/contracts';
+import {
+  AgentHarnessManifestSchema,
+  MutationClassSchema,
+  type AgentHarnessManifest
+} from '@qali/contracts';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 
 export interface HarnessProfile {
@@ -118,6 +122,20 @@ export function assembleHarnessWorkspace(request: AssemblyRequest): {
   );
   const writableOutputDirectories =
     request.profile.writableOutputDirectories.map(safeOutputDirectory);
+  if (
+    request.profile.mutations.some((mutation) => !MutationClassSchema.safeParse(mutation).success)
+  ) {
+    throw new Error('Invalid harness mutation');
+  }
+  if (request.profile.validators.some((validator) => !/^[a-z][a-z0-9-]*$/.test(validator))) {
+    throw new Error('Invalid harness validator');
+  }
+  if (
+    request.profile.tools.some((tool) => tool !== 'browser') ||
+    new Set(request.profile.tools).size !== request.profile.tools.length
+  ) {
+    throw new Error('Invalid harness tool');
+  }
   let browserEnvironmentFile: string | undefined;
   if (request.profile.tools.includes('browser')) {
     if (!request.browser) throw new Error('Browser tool requires MCP configuration');

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { MutationClassSchema } from '@qali/contracts';
 import { loadRuntimeSkillAssets } from './skill-assets.js';
 import type { HarnessProfile } from './harness-workspace.js';
 
@@ -66,6 +67,14 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
     if (tools.some((tool) => tool !== 'browser') || new Set(tools).size !== tools.length) {
       throw new Error(`Harness profile ${item.id} has excessive tools`);
     }
+    const mutations = strings(item.mutations, 'mutations');
+    if (mutations.some((mutation) => !MutationClassSchema.safeParse(mutation).success)) {
+      throw new Error(`Invalid mutation class in harness profile ${item.id}`);
+    }
+    const validators = strings(item.validators, 'validators');
+    if (validators.some((validator) => !/^[a-z][a-z0-9-]*$/.test(validator))) {
+      throw new Error(`Invalid validator id in harness profile ${item.id}`);
+    }
     return {
       id: item.id,
       skillIds,
@@ -73,8 +82,8 @@ export function loadHarnessProfiles(path: string, skillRoot: string): HarnessPro
       templatePaths: safePaths(item.templatePaths, 'templatePaths'),
       writableOutputDirectories,
       tools: tools as Array<'browser'>,
-      mutations: strings(item.mutations, 'mutations'),
-      validators: strings(item.validators, 'validators')
+      mutations,
+      validators
     };
   });
 }
