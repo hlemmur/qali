@@ -1,4 +1,12 @@
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -74,6 +82,17 @@ describe('complete demo loop', () => {
     const projectRoot = join(workspace, 'projects/_demo');
     mkdirSync(join(workspace, 'projects'), { recursive: true });
     cpSync(resolve('projects/_demo'), projectRoot, { recursive: true });
+    rmSync(join(projectRoot, 'derived/workflow-state'), { recursive: true, force: true });
+    const existingEventPath = join(
+      projectRoot,
+      'derived/workflow-state/exploratory-testing.jsonl'
+    );
+    mkdirSync(dirname(existingEventPath), { recursive: true });
+    cpSync(
+      resolve('projects/_demo/derived/workflow-state/.generated.md'),
+      join(projectRoot, 'derived/workflow-state/.generated.md')
+    );
+    writeFileSync(existingEventPath, '{"id":"preexisting"}\n');
     const playwright = new MaterializingPlaywrightRunner();
 
     const result = await runDemoLoop({
@@ -128,10 +147,26 @@ describe('complete demo loop', () => {
       }
     }
     expect(result.paths.events).toHaveLength(3);
+    expect(readFileSync(existingEventPath, 'utf8')).toMatch(/^\{"id":"preexisting"\}\n/);
     expect(
       result.paths.events.every((path) =>
         readFileSync(path, 'utf8').includes('"workflow-succeeded"')
       )
+    ).toBe(true);
+    const persistedEvents = result.paths.events.flatMap((path) =>
+      readFileSync(path, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+        .filter(({ runId }) => String(runId).endsWith('-demo-run'))
+    );
+    expect(persistedEvents.every(({ correlation }) => correlation !== undefined)).toBe(true);
+    expect(
+      persistedEvents
+        .filter(({ attempt }) => attempt !== undefined)
+        .every(({ attempt }) =>
+          /^[a-f0-9]{64}$/.test(String((attempt as Record<string, unknown>).harnessHash))
+        )
     ).toBe(true);
     expect(readFileSync(result.paths.explorationLog, 'utf8')).toContain(
       'observations/evidence/exploration/login-dashboard.json'

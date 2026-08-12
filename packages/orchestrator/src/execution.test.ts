@@ -25,6 +25,12 @@ const command: NormalizedCommand = {
   requestedBy: 'U1',
   externalRole: 'developer',
   receivedAt: '2026-08-10T20:00:00.000Z',
+  slack: {
+    teamId: 'T1',
+    channelId: 'C1',
+    threadTs: '1700000000.001',
+    requestTs: '1700000000.001'
+  },
   parameters: {}
 };
 
@@ -82,6 +88,7 @@ const dependencies = () => ({
   ]),
   events: new FakeEventStore(),
   outputValidator: new FakeOutputValidator(),
+  harnessHash: () => 'a'.repeat(64),
   resume: undefined as WorkflowResult | undefined,
   now: () => new Date('2026-08-10T20:00:00.000Z'),
   id: (() => {
@@ -111,6 +118,8 @@ describe('workflow execution', () => {
       'workflow-succeeded'
     ]);
     expect(result.outputs).toHaveLength(2);
+    expect(result.events[0]?.correlation).toEqual(command.slack);
+    expect(result.attempts[0]?.harnessHash).toBe('a'.repeat(64));
   });
 
   it('stops before execution when a precondition or policy blocks work', async () => {

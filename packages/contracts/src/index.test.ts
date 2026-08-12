@@ -22,6 +22,7 @@ describe('workflow contracts', () => {
       stepId: 'execute',
       attempt: 1,
       harnessProfileId: 'host-test-execution',
+      harnessHash: 'a'.repeat(64),
       status: 'failed',
       startedAt: '2026-08-10T20:00:00.000Z',
       finishedAt: '2026-08-10T20:01:00.000Z',

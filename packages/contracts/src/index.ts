@@ -452,6 +452,7 @@ export const WorkflowAttemptSchema = z
     stepId: z.string().min(1),
     attempt: z.number().int().positive(),
     harnessProfileId: z.string().min(1),
+    harnessHash: Sha256Schema,
     status: z.enum(['running', 'blocked', 'succeeded', 'failed']),
     startedAt: z.iso.datetime(),
     finishedAt: z.iso.datetime().optional(),
@@ -467,6 +468,7 @@ export const WorkflowEventSchema = z
     runId: z.string().min(1),
     stepId: z.string().min(1).optional(),
     attempt: WorkflowAttemptSchema.optional(),
+    correlation: SlackCorrelationContextSchema.optional(),
     type: z.enum([
       'workflow-started',
       'workflow-resumed',

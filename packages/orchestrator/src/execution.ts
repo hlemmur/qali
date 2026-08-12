@@ -69,6 +69,7 @@ export interface WorkflowExecutionPorts {
   executor: StepExecutor;
   events: WorkflowEventStore;
   outputValidator: OutputValidator;
+  harnessHash(step: WorkflowStep): string;
   resume?: WorkflowResult | undefined;
   now?: () => Date;
   id?: () => string;
@@ -176,6 +177,7 @@ export async function executeWorkflow(
       runId,
       ...(stepId ? { stepId } : {}),
       ...(attempt ? { attempt } : {}),
+      ...(command.slack ? { correlation: command.slack } : {}),
       type,
       occurredAt: now().toISOString(),
       detail
@@ -235,6 +237,7 @@ export async function executeWorkflow(
         stepId: step.id,
         attempt: attemptNumber,
         harnessProfileId: step.harnessProfileId,
+        harnessHash: ports.harnessHash(step),
         status: 'running',
         startedAt: now().toISOString()
       };

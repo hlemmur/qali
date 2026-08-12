@@ -500,6 +500,9 @@ const workflows = loadWorkflowDirectory(
   join(workspace, 'workflows'),
   join(workspace, 'harness/profiles.json')
 );
+const harnessCatalogHash = createHash('sha256')
+  .update(readFileSync(join(workspace, 'harness/profiles.json')))
+  .digest('hex');
 const descriptor = routeCommand(command, workflows);
 const eventPath = join(
   workspace,
@@ -517,7 +520,8 @@ const result = await executeWorkflow(command, {
     executionTarget.webServer
   ),
   events: new FileEventStore(eventPath),
-  outputValidator: new FileSystemOutputValidator(workspace)
+  outputValidator: new FileSystemOutputValidator(workspace),
+  harnessHash: () => harnessCatalogHash
 });
 console.log(JSON.stringify(result, null, 2));
 if (result.status === 'succeeded') {
