@@ -29,6 +29,7 @@ import { renderGeneratedJson } from '../packages/knowledge/src/index.js';
 import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
+  executeOnboardingMockStep,
   executeWorkflow,
   loadWorkflowDirectory,
   routeCommand,
@@ -236,6 +237,9 @@ class RoutedStepExecutor implements StepExecutor {
     outputs: Array<{ artifact: WorkflowStep['outputs'][number]['artifact']; path: string }>
   ) {
     const projectRoot = join(workspace, command.project.root);
+    if (command.intent === 'onboard-project') {
+      return executeOnboardingMockStep(workspace, step, command);
+    }
     if (step.id === 'analyze-failures') {
       const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
       if (!existsSync(reportPath) && !this.playwrightSummary) {

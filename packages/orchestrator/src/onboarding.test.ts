@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { executeOnboardingMockStep, loadWorkflowDirectory } from './index.js';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeOnboardingMockStep,
+  executeWorkflow,
+  loadWorkflowDirectory
+} from './index.js';
 
 const command: NormalizedCommand = {
   intent: 'onboard-project',
@@ -141,5 +149,83 @@ describe('deterministic project onboarding', () => {
     expect(plan).toContain('Prioritize `RSK-001`');
     expect(plan).toContain('## Initial Plan');
     expect(plan).not.toContain('TBD');
+  });
+
+  it('runs onboarding end to end through the production orchestrator in Mock Mode', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboarding-e2e-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/onboarding-evidence.json'),
+      JSON.stringify({
+        version: 1,
+        projectName: 'Sample Portal',
+        observedAt: '2026-08-13',
+        facts: [
+          {
+            id: 'FACT-001',
+            category: 'product',
+            statement: 'Customers review support requests.',
+            source: 'README.md'
+          }
+        ],
+        journeys: [
+          {
+            id: 'JRN-001',
+            actor: 'customer',
+            goal: 'review an open request',
+            steps: ['sign in', 'open support requests'],
+            outcome: 'the request status is visible',
+            requirementIds: ['REQ-001'],
+            source: 'requirements.md#REQ-001'
+          }
+        ],
+        risks: [
+          {
+            id: 'RSK-001',
+            statement: 'A stale status can mislead a customer.',
+            impact: 5,
+            probability: 3,
+            source: 'REQ-001'
+          }
+        ]
+      })
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'project-onboarding')!;
+    const events = new FakeEventStore();
+
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (step, executionCommand) =>
+          executeOnboardingMockStep(workspace, step, executionCommand)
+      },
+      events,
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'a'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts).toHaveLength(4);
+    expect(events.events.map(({ type }) => type)).toEqual([
+      'workflow-started',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
+      'workflow-succeeded'
+    ]);
+    expect(readFileSync(join(projectRoot, 'sources/project-context.md'), 'utf8')).not.toContain(
+      'Deterministic fallback'
+    );
   });
 });

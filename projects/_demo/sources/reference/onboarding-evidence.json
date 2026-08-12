@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "projectName": "Qali Demo",
+  "observedAt": "2026-08-13",
+  "facts": [
+    {
+      "id": "FACT-001",
+      "category": "product",
+      "statement": "Qali Demo is a local mock banking portal for login and dashboard QA workflows.",
+      "source": "app/public/index.html"
+    },
+    {
+      "id": "FACT-002",
+      "category": "tech-stack",
+      "statement": "The demo uses a Node HTTP server and static browser assets.",
+      "source": "app/server.mjs"
+    },
+    {
+      "id": "FACT-003",
+      "category": "test-stack",
+      "statement": "The demo browser suite uses Playwright.",
+      "source": "tests/demo.spec.ts"
+    },
+    {
+      "id": "FACT-004",
+      "category": "ci-cd",
+      "statement": "Repository checks run formatting, linting, TypeScript, registry validation, qualification validation, and Vitest.",
+      "source": "package.json#scripts.check"
+    },
+    {
+      "id": "FACT-005",
+      "category": "environment",
+      "statement": "Mock Mode serves the demo at the configured loopback target.",
+      "source": "execution-profile.json"
+    },
+    {
+      "id": "FACT-006",
+      "category": "quality-goal",
+      "statement": "Login, dashboard data, logout, and visible mock labeling are critical behaviors.",
+      "source": "sources/reference/requirements.md"
+    },
+    {
+      "id": "FACT-007",
+      "category": "team",
+      "statement": "The repository maintainer owns product and QA decisions for this synthetic target.",
+      "source": "sources/decisions.md"
+    },
+    {
+      "id": "FACT-008",
+      "category": "convention",
+      "statement": "Tests use stable accessible roles, labels, and deterministic seeded data.",
+      "source": "tests/demo.spec.ts"
+    }
+  ],
+  "journeys": [
+    {
+      "id": "JRN-001",
+      "actor": "seeded mock customer",
+      "goal": "review account activity",
+      "steps": [
+        "open the app",
+        "enter seeded credentials",
+        "submit",
+        "review the dashboard",
+        "sign out"
+      ],
+      "outcome": "dashboard data is visible and signing out restores the sign-in form",
+      "requirementIds": ["REQ-001", "REQ-003", "REQ-004", "REQ-005"],
+      "source": "sources/reference/requirements.md"
+    },
+    {
+      "id": "JRN-002",
+      "actor": "anonymous visitor",
+      "goal": "reject invalid credentials",
+      "steps": ["enter invalid credentials", "submit"],
+      "outcome": "an accessible error is shown and the dashboard remains hidden",
+      "requirementIds": ["REQ-002", "REQ-005"],
+      "source": "sources/reference/requirements.md"
+    }
+  ],
+  "risks": [
+    {
+      "id": "RSK-001",
+      "statement": "A login regression blocks every authenticated journey.",
+      "impact": 5,
+      "probability": 3,
+      "source": "REQ-001"
+    },
+    {
+      "id": "RSK-002",
+      "statement": "Incorrect balances undermine dashboard trust.",
+      "impact": 5,
+      "probability": 2,
+      "source": "REQ-003"
+    }
+  ]
+}
