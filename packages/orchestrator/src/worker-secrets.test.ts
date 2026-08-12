@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { WORKER_SECRET_KEYS, parseDotEnv, selectSecretsToSync } from './worker-secrets.js';
+import {
+  DEFAULT_CURSOR_MODEL,
+  WORKER_SECRET_KEYS,
+  parseDotEnv,
+  parseEnvSyncGroups,
+  selectActionsConfigToSync,
+  selectSecretsToSync
+} from './worker-secrets.js';
 
 describe('worker secret sync helpers', () => {
   it('parses dotenv values and ignores comments/blank lines', () => {
@@ -58,5 +65,71 @@ GITHUB_APP_ID=123
     expect(() =>
       selectSecretsToSync({ SLACK_BOT_TOKEN: 'xoxb-test' }, { only: ['slack'] })
     ).toThrow(/SLACK_SIGNING_SECRET/);
+  });
+});
+
+describe('GitHub Actions env sync helpers', () => {
+  it('maps .env Cursor + callback values onto Actions secrets and variables', () => {
+    const decision = selectActionsConfigToSync({
+      CURSOR_API_KEY: 'key-123',
+      CURSOR_MODEL: 'composer-2.5',
+      GITHUB_WEBHOOK_SECRET: 'hook-secret',
+      WORKER_BASE_URL: 'https://qali-slack-control.example.workers.dev',
+      QALI_PUBLISH_GITHUB_TOKEN: 'ghp_publish',
+      GITHUB_OWNER: 'hlemmur',
+      GITHUB_REPO: 'qali'
+    });
+
+    expect(decision.repo).toBe('hlemmur/qali');
+    expect(decision.secrets).toEqual([
+      { name: 'CURSOR_API_KEY', value: 'key-123' },
+      { name: 'QALI_CALLBACK_SECRET', value: 'hook-secret' },
+      { name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }
+    ]);
+    expect(decision.variables).toEqual([
+      { name: 'CURSOR_MODEL', value: 'composer-2.5' },
+      {
+        name: 'QALI_WORKER_BASE_URL',
+        value: 'https://qali-slack-control.example.workers.dev'
+      }
+    ]);
+    expect(decision.skipped).toEqual([]);
+  });
+
+  it('defaults CURSOR_MODEL to composer-2.5 when the API key is set and model is blank', () => {
+    expect(DEFAULT_CURSOR_MODEL).toBe('composer-2.5');
+    const decision = selectActionsConfigToSync(
+      {
+        CURSOR_API_KEY: 'key-123',
+        CURSOR_MODEL: '',
+        GITHUB_OWNER: 'hlemmur',
+        GITHUB_REPO: 'qali'
+      },
+      { only: ['cursor'] }
+    );
+
+    expect(decision.secrets).toEqual([{ name: 'CURSOR_API_KEY', value: 'key-123' }]);
+    expect(decision.variables).toEqual([{ name: 'CURSOR_MODEL', value: 'composer-2.5' }]);
+  });
+
+  it('skips Actions sync when owner/repo are missing', () => {
+    expect(() =>
+      selectActionsConfigToSync({
+        CURSOR_API_KEY: 'key-123',
+        CURSOR_MODEL: 'composer-2.5'
+      })
+    ).toThrow(/GITHUB_OWNER/);
+  });
+
+  it('parses sync group selectors for Worker and Actions targets', () => {
+    expect(parseEnvSyncGroups(undefined)).toEqual({
+      worker: ['slack', 'github'],
+      actions: ['actions']
+    });
+    expect(parseEnvSyncGroups('slack,cursor')).toEqual({
+      worker: ['slack'],
+      actions: ['cursor']
+    });
+    expect(() => parseEnvSyncGroups('cloudflare')).toThrow(/Unknown sync group/);
   });
 });

@@ -75,18 +75,26 @@ Non-secret defaults live in `wrangler.jsonc` `vars` (`GITHUB_WORKFLOW_FILE`, all
 Fill [`.env`](../.env.example) locally (copy from `.env.example`), then sync:
 
 ```bash
-# Slack only
+# Everything non-empty in .env → Worker secrets + GitHub Actions secrets/vars
+npm run control-plane:sync-secrets
+
+# Slack Worker secrets only
 npm run control-plane:sync-secrets -- --only slack
 
-# GitHub App dispatch credentials only
+# GitHub App Worker secrets only
 npm run control-plane:sync-secrets -- --only github
 
-# Every non-empty Worker secret in .env
-npm run control-plane:sync-secrets
+# Actions only (Cursor key/model, callback secret, worker URL, publish token)
+npm run control-plane:sync-secrets -- --only actions
+
+# Cursor Actions key + model only
+npm run control-plane:sync-secrets -- --only cursor
 
 # Preview which keys would be uploaded
 npm run control-plane:sync-secrets -- --dry-run
 ```
+
+`gh` must be authenticated for Actions sync (`gh auth login`). Requires `GITHUB_OWNER` / `GITHUB_REPO` in `.env`.
 
 Manual equivalent (stdin per secret):
 

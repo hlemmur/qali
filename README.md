@@ -78,17 +78,23 @@ See [docs/autonomy-and-security.md](docs/autonomy-and-security.md) and [docs/set
 
 ## Live control plane (optional)
 
-Local Mock Mode needs no Cloudflare. To wire Slack + Worker:
+Local Mock Mode needs no Cloudflare. To wire Slack + Worker + Actions:
 
 ```bash
 npx wrangler login
 npm run control-plane:provision
 # fill .env from .env.example, then:
-npm run control-plane:sync-secrets -- --only slack
+npm run control-plane:sync-secrets
 npm run control-plane:deploy
-WORKER_BASE_URL=https://qali-slack-control.<your-subdomain>.workers.dev
 npm run control-plane:render-slack-manifest
 ```
+
+`control-plane:sync-secrets` reads `.env` and syncs:
+
+- **Cloudflare Worker** secrets (Slack + GitHub App)
+- **GitHub Actions** secrets/vars (`CURSOR_API_KEY`, `CURSOR_MODEL` default `composer-2.5`, `QALI_CALLBACK_SECRET`, `QALI_WORKER_BASE_URL`, optional publish token)
+
+Scoped sync examples: `--only slack`, `--only github`, `--only actions`, `--only cursor`.
 
 Then create the Slack app from the env-resolved `apps/slack-worker/slack-app-manifest.local.json` (see [docs/setup-slack.md](docs/setup-slack.md)). The committed `slack-app-manifest.json` stays generic.
 

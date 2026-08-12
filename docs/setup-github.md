@@ -145,15 +145,19 @@ npm run control-plane:sync-secrets -- --only github
 npm run control-plane:deploy   # if the Worker was live before these secrets existed
 ```
 
-Secrets live on the **Worker**, not as GitHub Actions secrets — except:
+Secrets live on the **Worker**, not as GitHub Actions secrets — except the Actions values below, which the same sync command can push when `.env` has them:
 
-| Actions secret / variable         | Purpose                                                                                         |
-| --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `QALI_CALLBACK_SECRET`            | Same value as `GITHUB_WEBHOOK_SECRET` — Actions posts pass/fail counts to `/github/run-summary` |
-| `QALI_WORKER_BASE_URL` (variable) | Worker base URL, e.g. `https://qali-slack-control.<subdomain>.workers.dev`                      |
-| `QALI_PUBLISH_GITHUB_TOKEN`       | Optional publication job (§5)                                                                   |
-| `CURSOR_MODEL` (variable)         | Optional agent model (§6)                                                                       |
-| `CURSOR_API_KEY`                  | Cursor Agent CLI auth for Actions (§6)                                                          |
+| Actions secret / variable         | Source in `.env`                        | Purpose                                                                    |
+| --------------------------------- | --------------------------------------- | -------------------------------------------------------------------------- |
+| `QALI_CALLBACK_SECRET`            | `GITHUB_WEBHOOK_SECRET`                 | Actions posts pass/fail counts to `/github/run-summary`                    |
+| `QALI_WORKER_BASE_URL` (variable) | `WORKER_BASE_URL`                       | Worker base URL, e.g. `https://qali-slack-control.<subdomain>.workers.dev` |
+| `QALI_PUBLISH_GITHUB_TOKEN`       | `QALI_PUBLISH_GITHUB_TOKEN`             | Optional publication job (§5)                                              |
+| `CURSOR_MODEL` (variable)         | `CURSOR_MODEL` (default `composer-2.5`) | Optional agent model (§6)                                                  |
+| `CURSOR_API_KEY`                  | `CURSOR_API_KEY`                        | Cursor Agent CLI auth for Actions (§6)                                     |
+
+```bash
+npm run control-plane:sync-secrets -- --only actions
+```
 
 ---
 
@@ -210,21 +214,25 @@ When both are configured, Qali uses the real Cursor Agent CLI for explore / gene
 
 | Name             | Where                | Purpose                                                                           |
 | ---------------- | -------------------- | --------------------------------------------------------------------------------- |
-| `CURSOR_MODEL`   | Actions **variable** | Model id, e.g. `sonnet-4` or `gpt-5`                                              |
+| `CURSOR_MODEL`   | Actions **variable** | Model id (default **`composer-2.5`**)                                             |
 | `CURSOR_API_KEY` | Actions **secret**   | User API key from [Cursor Dashboard → API Keys](https://cursor.com/dashboard/api) |
+
+Put both in `.env` (see `.env.example`), then sync:
+
+```bash
+# Cursor key + model only
+npm run control-plane:sync-secrets -- --only cursor
+
+# Or sync Worker + Actions together
+npm run control-plane:sync-secrets
+```
+
+If `CURSOR_API_KEY` is set and `CURSOR_MODEL` is blank, sync defaults the Actions variable to `composer-2.5`.
 
 `execute.yml` installs the CLI on the runner when `CURSOR_MODEL` is set:
 
 ```bash
 curl https://cursor.com/install -fsS | bash
-```
-
-Set them once:
-
-```bash
-gh variable set CURSOR_MODEL --repo <owner>/qali --body 'sonnet-4'
-gh secret set CURSOR_API_KEY --repo <owner>/qali
-# paste the key when prompted
 ```
 
 Without either value (or if `agent` is missing), execution keeps using the **deterministic fallback** so smoke runs still succeed.

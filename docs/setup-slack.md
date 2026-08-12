@@ -40,7 +40,8 @@ npm run control-plane:render-slack-manifest
 # Sync only Slack secrets from .env (skips empty GitHub keys)
 npm run control-plane:sync-secrets -- --only slack
 
-# Or sync every non-empty Worker secret defined in .env
+# Or sync every non-empty Worker + Actions value defined in .env
+# (includes CURSOR_API_KEY / CURSOR_MODEL → GitHub Actions)
 npm run control-plane:sync-secrets
 ```
 

@@ -1,3 +1,5 @@
+export const DEFAULT_CURSOR_MODEL = 'composer-2.5';
+
 export const WORKER_SECRET_KEYS = {
   slack: ['SLACK_SIGNING_SECRET', 'SLACK_BOT_TOKEN', 'SLACK_BOT_USER_ID'] as const,
   github: [
@@ -11,10 +13,19 @@ export const WORKER_SECRET_KEYS = {
 } as const;
 
 export type WorkerSecretGroup = keyof typeof WORKER_SECRET_KEYS;
+export type ActionsSyncGroup = 'actions' | 'cursor';
+export type EnvSyncGroup = WorkerSecretGroup | ActionsSyncGroup;
 
 export interface SecretValue {
   name: string;
   value: string;
+}
+
+export interface ActionsConfigToSync {
+  repo: string;
+  secrets: SecretValue[];
+  variables: SecretValue[];
+  skipped: string[];
 }
 
 export function parseDotEnv(contents: string): Record<string, string> {
@@ -80,4 +91,91 @@ export function selectSecretsToSync(
   }
 
   return { secrets, skipped };
+}
+
+function requireActionsRepo(env: Record<string, string>): string {
+  const owner = env.GITHUB_OWNER?.trim() ?? '';
+  const repo = env.GITHUB_REPO?.trim() ?? '';
+  if (!owner || !repo) {
+    throw new Error(
+      'Missing GITHUB_OWNER / GITHUB_REPO in .env (required to sync GitHub Actions secrets/vars).'
+    );
+  }
+  return `${owner}/${repo}`;
+}
+
+function pushMapped(
+  list: SecretValue[],
+  skipped: string[],
+  env: Record<string, string>,
+  envKey: string,
+  actionsName: string,
+  options: { defaultValue?: string; requireSource?: boolean } = {}
+): void {
+  const raw = env[envKey]?.trim() ?? '';
+  const value = raw || options.defaultValue || '';
+  if (!value) {
+    skipped.push(actionsName === envKey ? envKey : `${envKey}→${actionsName}`);
+    return;
+  }
+  if (options.requireSource && !raw) {
+    skipped.push(actionsName === envKey ? envKey : `${envKey}→${actionsName}`);
+    return;
+  }
+  list.push({ name: actionsName, value });
+}
+
+export function selectActionsConfigToSync(
+  env: Record<string, string>,
+  options: { only?: ActionsSyncGroup[] } = {}
+): ActionsConfigToSync {
+  const groups = options.only ?? (['actions'] as ActionsSyncGroup[]);
+  const includeCursor = groups.includes('actions') || groups.includes('cursor');
+  const includeAllActions = groups.includes('actions');
+  const repo = requireActionsRepo(env);
+  const secrets: SecretValue[] = [];
+  const variables: SecretValue[] = [];
+  const skipped: string[] = [];
+
+  if (includeCursor) {
+    pushMapped(secrets, skipped, env, 'CURSOR_API_KEY', 'CURSOR_API_KEY');
+    const model = env.CURSOR_MODEL?.trim() ?? '';
+    const apiKey = env.CURSOR_API_KEY?.trim() ?? '';
+    if (model) {
+      variables.push({ name: 'CURSOR_MODEL', value: model });
+    } else if (apiKey) {
+      variables.push({ name: 'CURSOR_MODEL', value: DEFAULT_CURSOR_MODEL });
+    } else {
+      skipped.push('CURSOR_MODEL');
+    }
+  }
+
+  if (includeAllActions) {
+    pushMapped(secrets, skipped, env, 'GITHUB_WEBHOOK_SECRET', 'QALI_CALLBACK_SECRET');
+    pushMapped(secrets, skipped, env, 'QALI_PUBLISH_GITHUB_TOKEN', 'QALI_PUBLISH_GITHUB_TOKEN');
+    pushMapped(variables, skipped, env, 'WORKER_BASE_URL', 'QALI_WORKER_BASE_URL');
+  }
+
+  return { repo, secrets, variables, skipped };
+}
+
+export function parseEnvSyncGroups(raw?: string): {
+  worker: WorkerSecretGroup[];
+  actions: ActionsSyncGroup[];
+} {
+  if (!raw) {
+    return { worker: ['slack', 'github'], actions: ['actions'] };
+  }
+  const requested = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const worker: WorkerSecretGroup[] = [];
+  const actions: ActionsSyncGroup[] = [];
+  for (const group of requested) {
+    if (group === 'slack' || group === 'github') worker.push(group);
+    else if (group === 'actions' || group === 'cursor') actions.push(group);
+    else throw new Error(`Unknown sync group: ${group} (use slack, github, actions, cursor)`);
+  }
+  return { worker, actions };
 }

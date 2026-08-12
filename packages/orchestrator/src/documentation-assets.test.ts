@@ -61,6 +61,11 @@ describe('product documentation assets', () => {
     expect(read('docs/setup-slack.md')).toContain('qali-icon.png');
     expect(read('docs/setup-slack.md')).not.toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
     expect(read('.env.example')).toContain('WORKER_BASE_URL');
+    expect(read('.env.example')).toContain('CURSOR_MODEL=composer-2.5');
+    expect(read('.env.example')).toContain('CURSOR_API_KEY');
+    expect(read('README.md')).toContain('--only cursor');
+    expect(read('docs/setup-github.md')).toContain('control-plane:sync-secrets -- --only cursor');
+    expect(read('docs/setup-cloudflare.md')).toContain('--only actions');
     expect(read('.env.example')).not.toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
     expect(() => read('apps/slack-worker/assets/qali-icon.png')).not.toThrow();
   });
