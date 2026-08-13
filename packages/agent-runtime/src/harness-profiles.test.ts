@@ -40,7 +40,8 @@ const expectedIds = [
   'host-suite-maintenance-guard',
   'human-reporting',
   'host-quality-aggregation',
-  'host-quality-render'
+  'host-quality-render',
+  'host-quality-query'
 ];
 
 const temporaryDirectories: string[] = [];

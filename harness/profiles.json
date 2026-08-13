@@ -352,6 +352,21 @@
       "tools": [],
       "mutations": ["render-derived-report"],
       "validators": ["quality-pulse-report-schema"]
+    },
+    {
+      "id": "host-quality-query",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/reports"],
+      "tools": [],
+      "mutations": ["render-derived-report"],
+      "validators": ["quality-snapshot-schema"]
     }
   ]
 }

@@ -14,6 +14,7 @@ export * from './triage.js';
 export * from './knowledge-maintenance.js';
 export * from './suite-maintenance.js';
 export * from './quality-pulse.js';
+export * from './quality-snapshot.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 
