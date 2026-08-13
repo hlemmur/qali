@@ -82,6 +82,43 @@ describe('deterministic test generation', () => {
     expect(coverage).not.toContain('SCN-002');
   });
 
+  it('inherits document-level automation approval for its scenarios', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| REQ-001 | A seeded user can sign in. | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/sign-in.md'),
+      [
+        '# Approved scenarios',
+        '',
+        '- Status: approved for automation',
+        '',
+        '## SCN-001: Seeded user signs in',
+        '',
+        '- Traceability: REQ-001'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'design-coverage')!,
+      command
+    );
+
+    expect(readFileSync(join(projectRoot, 'derived/scenarios/coverage-map.md'), 'utf8')).toContain(
+      '| SCN-001 | REQ-001 | confirmed |'
+    );
+  });
+
   it('generates traceable Playwright code from an approved declarative scenario', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
     const projectRoot = join(workspace, command.project.root);
@@ -131,10 +168,10 @@ describe('deterministic test generation', () => {
     );
     expect(generated).toContain('// Approved scenario: SCN-001');
     expect(generated).toContain('// Requirements: REQ-001');
+    expect(generated).not.toContain('testInfo');
     expect(generated).toContain("page.getByLabel('Email').fill('alex@example.test')");
-    expect(generated).toContain(
-      "expect(page.getByRole('heading', { name: 'Good morning, Alex Morgan' })).toBeVisible()"
-    );
+    expect(generated).toContain("page.getByRole('heading', { name: 'Good morning, Alex Morgan' })");
+    expect(generated).toContain(').toBeVisible()');
   });
 
   it('uses visual assertions for baselines and labels evidence-only screenshots separately', async () => {

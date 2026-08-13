@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import { format } from 'prettier';
 
 const expand = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
@@ -66,11 +67,16 @@ function playwrightScenario(body: string): PlaywrightScenario | undefined {
 
 function approvedScenarios(markdown: string): ApprovedScenario[] {
   const headings = [...markdown.matchAll(/^##\s+([A-Z][A-Z0-9-]+):[^\n]*$/gm)];
+  const documentApproved = /^-\s*Status:\s*approved for automation\s*$/im.test(
+    markdown.slice(0, headings[0]?.index ?? markdown.length)
+  );
   return headings.flatMap((heading, index) => {
     const start = heading.index ?? 0;
     const end = headings[index + 1]?.index ?? markdown.length;
     const body = markdown.slice(start, end);
-    if (!/^-\s*Status:\s*approved for automation\s*$/im.test(body)) return [];
+    const scenarioStatus = /^-\s*Status:\s*(.+)$/im.exec(body)?.[1]?.trim().toLowerCase();
+    if (scenarioStatus ? scenarioStatus !== 'approved for automation' : !documentApproved)
+      return [];
     const traceability = /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ?? '';
     const requirementIds = [...traceability.matchAll(/\bREQ-\d+\b/g)].map(([id]) => id);
     const playwright = playwrightScenario(body);
@@ -112,12 +118,18 @@ export async function executeTestGenerationStep(
     const scenarioIds: string[] = [];
     for (const scenario of scenarios) {
       if (!scenario.playwright) continue;
+      const usesTestInfo = scenario.playwright.assertions.some(
+        ({ kind }) => kind === 'evidenceScreenshot'
+      );
+      const usesExpect = scenario.playwright.assertions.some(
+        ({ kind }) => kind !== 'evidenceScreenshot'
+      );
       const lines = [
-        "import { expect, test } from '@playwright/test';",
+        `import { ${usesExpect ? 'expect, ' : ''}test } from '@playwright/test';`,
         '',
         `// Approved scenario: ${scenario.id}`,
         `// Requirements: ${scenario.requirementIds.join(', ')}`,
-        `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }, testInfo) => {`,
+        `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
         `  await page.goto(${quoted(scenario.playwright.path)});`
       ];
       for (const action of scenario.playwright.actions) {
@@ -151,7 +163,15 @@ export async function executeTestGenerationStep(
       }
       lines.push('});', '');
       const relativePath = `${command.project.root}/tests/generated/${scenario.id.toLowerCase()}.generated.spec.ts`;
-      writeFileSync(join(workspace, relativePath), lines.join('\n'));
+      writeFileSync(
+        join(workspace, relativePath),
+        await format(lines.join('\n'), {
+          parser: 'typescript',
+          singleQuote: true,
+          trailingComma: 'none',
+          printWidth: 100
+        })
+      );
       generatedPaths.push(relativePath);
       scenarioIds.push(scenario.id);
     }

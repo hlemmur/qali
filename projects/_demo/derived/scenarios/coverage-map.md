@@ -1,7 +1,13 @@
-<!-- qali:generated owner=qali sha256=0a52459f5fb387e1db8f2432f4bc5b0be51748e38db54723911b8626a5a0e071 -->
+<!-- qali:generated owner=qali sha256=aacb2e0ba971e9eedd188d155ae37b1861a3f5bd7961044f409dc2fa29a506d6 -->
 
-# Dashboard coverage map
+# Approved scenario coverage
 
-| Scenario                      | Source                                     | Test           |
-| ----------------------------- | ------------------------------------------ | -------------- |
-| Seeded user reaches dashboard | `derived/scenarios/approved/demo-smoke.md` | `DEMO-GEN-001` |
+| Scenario | Requirement | Requirement status |
+| --- | --- | --- |
+| DEMO-SMK-001 | REQ-001 | confirmed |
+| DEMO-SMK-001 | REQ-003 | confirmed |
+| DEMO-SMK-001 | REQ-005 | confirmed |
+| DEMO-SMK-002 | REQ-002 | confirmed |
+| DEMO-SMK-002 | REQ-005 | confirmed |
+| DEMO-VIS-001 | REQ-003 | confirmed |
+| DEMO-VIS-001 | REQ-005 | confirmed |
