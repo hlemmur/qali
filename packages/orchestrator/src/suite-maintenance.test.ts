@@ -14,6 +14,18 @@ const command: NormalizedCommand = {
   parameters: {}
 };
 
+const repairCommand: NormalizedCommand = {
+  ...command,
+  parameters: {
+    selectorRepair: {
+      testPath: 'tests/checkout.spec.ts',
+      locatorMethod: 'locator',
+      from: '#submit',
+      to: '[data-testid="submit-order"]'
+    }
+  }
+};
+
 const step = (id: string, outputs: WorkflowStep['outputs']): WorkflowStep =>
   ({ id, outputs }) as WorkflowStep;
 
@@ -98,5 +110,83 @@ describe('suite maintenance', () => {
         'utf8'
       )
     ).toContain('Repeated selector drift');
+  });
+
+  it('applies an equivalent selector repair with an unchanged oracle fingerprint', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-suite-repair-'));
+    const testPath = join(workspace, command.project.root, 'tests/checkout.spec.ts');
+    mkdirSync(join(workspace, command.project.root, 'tests'), { recursive: true });
+    writeFileSync(
+      testPath,
+      [
+        "import { expect, test } from '@playwright/test';",
+        '',
+        "test('checkout submits an order', async ({ page }) => {",
+        "  await page.locator('#submit').click();",
+        "  await expect(page.getByText('Receipt')).toBeVisible();",
+        '});',
+        ''
+      ].join('\n')
+    );
+    writeRun(workspace, 'run-1');
+    writeRun(workspace, 'run-2');
+
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('snapshot', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/baseline.json'
+        }
+      ]),
+      repairCommand
+    );
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('diagnose', [
+        {
+          artifact: 'reports',
+          path: 'projects/{projectId}/derived/reports/reliability-diagnosis.json'
+        }
+      ]),
+      repairCommand
+    );
+    const repair = await executeSuiteMaintenanceStep(
+      workspace,
+      step('repair-selectors', [{ artifact: 'tests', path: 'projects/{projectId}/tests' }]),
+      repairCommand
+    );
+    const validation = await executeSuiteMaintenanceStep(
+      workspace,
+      step('validate-repair', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/validation.json'
+        }
+      ]),
+      repairCommand
+    );
+
+    expect(repair.status).toBe('succeeded');
+    expect(validation.status).toBe('succeeded');
+    expect(readFileSync(testPath, 'utf8')).toContain(
+      'page.locator(\'[data-testid="submit-order"]\')'
+    );
+    const evidence = JSON.parse(
+      readFileSync(
+        join(
+          workspace,
+          command.project.root,
+          'observations/evidence/suite-maintenance/validation.json'
+        ),
+        'utf8'
+      )
+    );
+    expect(evidence).toMatchObject({
+      status: 'accepted',
+      changedFiles: ['projects/shop/tests/checkout.spec.ts'],
+      oracleFingerprintUnchanged: true,
+      selectorNeutralFingerprintUnchanged: true
+    });
   });
 });
