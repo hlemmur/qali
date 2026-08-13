@@ -12,6 +12,15 @@ export type AgentExecutionRoute =
   | 'deterministic-fallback'
   | 'cursor';
 
+export function requiresQualifiedAgentRuntime(
+  intent: NormalizedCommand['intent'],
+  environmentLabel: 'mock' | 'staging' | 'production'
+): boolean {
+  if (environmentLabel === 'mock') return false;
+  if (intent === 'quality-pulse' || intent === 'query-project') return false;
+  return true;
+}
+
 export function selectAgentExecutionRoute(
   command: NormalizedCommand,
   cursorCliAvailable: boolean,

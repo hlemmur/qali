@@ -1,6 +1,6 @@
 import type { NormalizedCommand } from '../packages/contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { selectAgentExecutionRoute } from './execute-routing.js';
+import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 
 const command = (intent: NormalizedCommand['intent']): NormalizedCommand => ({
   intent,
@@ -68,5 +68,21 @@ describe('agent execution routing', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), false, false)).toBe(
       'deterministic-fallback'
     );
+  });
+});
+
+describe('unattended agent qualification gate', () => {
+  it('lets host-deterministic intents run on a production profile without Cursor', () => {
+    expect(requiresQualifiedAgentRuntime('quality-pulse', 'production')).toBe(false);
+    expect(requiresQualifiedAgentRuntime('query-project', 'production')).toBe(false);
+  });
+
+  it('still requires a qualified agent for explore and generate on production', () => {
+    expect(requiresQualifiedAgentRuntime('explore-project', 'production')).toBe(true);
+    expect(requiresQualifiedAgentRuntime('generate-test-suite', 'production')).toBe(true);
+  });
+
+  it('does not require a qualified agent in Mock Mode', () => {
+    expect(requiresQualifiedAgentRuntime('explore-project', 'mock')).toBe(false);
   });
 });
