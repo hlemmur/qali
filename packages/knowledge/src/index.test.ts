@@ -353,6 +353,38 @@ describe('canonical project template', () => {
   });
 });
 
+describe('sauce-demo live project', () => {
+  it('is a non-mock pack for the public Sauce Demo store', () => {
+    const sauceRoot = new URL('../../../projects/sauce-demo/', import.meta.url);
+    const profile = JSON.parse(
+      readFileSync(new URL('execution-profile.json', sauceRoot), 'utf8')
+    ) as {
+      environmentLabel: string;
+      displayBadge?: string;
+      webServer?: unknown;
+      browser: { allowedSubmissions?: Array<{ role: string; name: string }> };
+    };
+    const pack = [
+      'sources/project-context.md',
+      'sources/reference/journeys.md',
+      'sources/reference/test-data.md',
+      'sources/decisions.md'
+    ]
+      .map((path) => readFileSync(new URL(path, sauceRoot), 'utf8'))
+      .join('\n');
+
+    expect(validateProjectDirectory(sauceRoot)).toEqual({ valid: true, issues: [] });
+    expect(profile.environmentLabel).toBe('production');
+    expect(profile.displayBadge).toBeUndefined();
+    expect(profile.webServer).toBeUndefined();
+    expect(profile.browser.allowedSubmissions).toEqual([{ role: 'button', name: 'Login' }]);
+    expect(pack).toContain('https://www.saucedemo.com');
+    expect(pack).toContain('standard_user');
+    expect(pack.toLowerCase()).not.toContain('secret_sauce');
+    expect(existsSync(new URL('tests/sauce-demo.spec.ts', sauceRoot))).toBe(false);
+  });
+});
+
 describe('mock-mode demo project', () => {
   it('is a valid self-contained target with observable login and dashboard behavior', () => {
     const demoRoot = new URL('../../../projects/_demo/', import.meta.url);
