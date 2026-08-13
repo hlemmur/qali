@@ -28,7 +28,8 @@ import {
   selectActionsConfigToSync,
   selectPublicationEnvironmentConfigToSync,
   selectProjectEnvironmentConfigToSync,
-  selectSecretsToSync
+  selectSecretsToSync,
+  syncGitHubEnvironmentConfig
 } from '../packages/orchestrator/src/worker-secrets.js';
 import { ProjectRegistrySchema } from '../packages/contracts/src/index.js';
 
@@ -157,12 +158,23 @@ if (groups.actions.length > 0) {
   }
 
   if (groups.actions.includes('actions')) {
-    for (const target of environmentTargets) {
-      for (const secret of target.secrets) {
+    const githubEnvironmentTarget = {
+      ensureEnvironment(repo: string, environment: string): void {
+        const endpoint = `repos/${repo}/environments/${encodeURIComponent(environment)}`;
         if (dryRun) {
-          console.log(
-            `[dry-run] gh secret set ${secret.name} --env ${target.environment} --repo ${actions.repo}`
-          );
+          console.log(`[dry-run] gh api --method PUT ${endpoint}`);
+        } else {
+          execFileSync('gh', ['api', '--method', 'PUT', endpoint], {
+            cwd: repoRoot,
+            stdio: 'inherit',
+            encoding: 'utf8'
+          });
+          console.log(`Ensured Actions environment ${environment}`);
+        }
+      },
+      setSecret(repo: string, environment: string, secret: { name: string; value: string }): void {
+        if (dryRun) {
+          console.log(`[dry-run] gh secret set ${secret.name} --env ${environment} --repo ${repo}`);
         } else {
           execFileSync(
             'gh',
@@ -171,22 +183,25 @@ if (groups.actions.length > 0) {
               'set',
               secret.name,
               '--env',
-              target.environment,
+              environment,
               '--repo',
-              actions.repo,
+              repo,
               '--body',
               secret.value
             ],
             { cwd: repoRoot, stdio: 'inherit', encoding: 'utf8' }
           );
-          console.log(`Set ${target.environment} secret ${secret.name}`);
+          console.log(`Set ${environment} secret ${secret.name}`);
         }
-        actionsCount += 1;
-      }
-      for (const variable of target.variables) {
+      },
+      setVariable(
+        repo: string,
+        environment: string,
+        variable: { name: string; value: string }
+      ): void {
         if (dryRun) {
           console.log(
-            `[dry-run] gh variable set ${variable.name} --env ${target.environment} --repo ${actions.repo}`
+            `[dry-run] gh variable set ${variable.name} --env ${environment} --repo ${repo}`
           );
         } else {
           execFileSync(
@@ -196,18 +211,21 @@ if (groups.actions.length > 0) {
               'set',
               variable.name,
               '--env',
-              target.environment,
+              environment,
               '--repo',
-              actions.repo,
+              repo,
               '--body',
               variable.value
             ],
             { cwd: repoRoot, stdio: 'inherit', encoding: 'utf8' }
           );
-          console.log(`Set ${target.environment} variable ${variable.name}`);
+          console.log(`Set ${environment} variable ${variable.name}`);
         }
-        actionsCount += 1;
       }
+    };
+
+    for (const target of environmentTargets) {
+      actionsCount += syncGitHubEnvironmentConfig(actions.repo, target, githubEnvironmentTarget);
     }
   }
 }
