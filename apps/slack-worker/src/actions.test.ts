@@ -319,7 +319,10 @@ describe('Slack action handling', () => {
     expect(github.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'generate-test-suite',
-        parameters: expect.objectContaining({ retractGeneratedTests: true })
+        parameters: expect.objectContaining({
+          retractGeneratedTests: true,
+          sourceRequestId: 'Ev1'
+        })
       }),
       expect.stringMatching(/^retract-/)
     );

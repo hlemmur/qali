@@ -72,7 +72,7 @@ The result card leads with the information developers usually need:
 - **Open report** for a hosted HTML recap (signed link; no unzipping Markdown)
 - GitHub as a fallback for the Actions run
 
-Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **Open spec** and **Retract** let you keep or remove the new tests without a pre-approval step.
+Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **Open spec** and **Retract** let you keep or remove the tests from that run without a pre-approval step. Retract only deletes generated specs stamped for that generation request.
 
 ### 4. Continue from the same thread
 

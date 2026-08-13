@@ -203,6 +203,7 @@ describe('product documentation assets', () => {
     expect(read('workflows/generate-test-suite.yaml')).not.toContain('approved-scenario-present');
     expect(read('docs/user-guide.md')).toMatch(/Open spec/i);
     expect(read('docs/user-guide.md')).toMatch(/Retract/i);
+    expect(read('docs/user-guide.md')).toMatch(/generation request/i);
     expect(read('docs/developer-guide.md')).toMatch(/generation source/i);
   });
 

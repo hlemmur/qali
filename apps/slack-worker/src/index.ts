@@ -679,12 +679,19 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             continue;
           }
           const classification = await classifier.classify(message.body);
-          const command = resolveTrustedCommand(
+          const resolved = resolveTrustedCommand(
             classification,
             message.body,
             overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
             overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
           );
+          const command = {
+            ...resolved,
+            parameters: {
+              ...resolved.parameters,
+              generationRequestId: message.body.requestId
+            }
+          };
           const executionProfiles = overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
           const executionProfile = executionProfiles.find(
             (profile) => profile.id === command.project.executionProfileId

@@ -15,6 +15,16 @@ import { z } from 'zod';
 const expand = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
 
+function generationRequestId(command: NormalizedCommand): string | undefined {
+  const value = command.parameters.generationRequestId ?? command.parameters.sourceRequestId;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function specMatchesGenerationRequest(content: string, requestId: string): boolean {
+  const match = content.match(/^\/\/ Generation request: (.+)$/m);
+  return match?.[1]?.trim() === requestId;
+}
+
 const generatedMarkdown = (body: string): string => {
   const normalized = `\n\n${body.trim()}\n`;
   const hash = createHash('sha256').update(normalized).digest('hex');
@@ -194,10 +204,13 @@ export async function executeTestGenerationStep(
   const scenarios = loadGenerationScenarios(projectRoot);
   if (step.id === 'generate-tests' && command.parameters.retractGeneratedTests === true) {
     const generatedDirectory = join(projectRoot, 'tests/generated');
-    if (existsSync(generatedDirectory)) {
+    const requestId = generationRequestId(command);
+    if (requestId && existsSync(generatedDirectory)) {
       for (const name of readdirSync(generatedDirectory)) {
-        if (name.endsWith('.generated.spec.ts')) {
-          unlinkSync(join(generatedDirectory, name));
+        if (!name.endsWith('.generated.spec.ts')) continue;
+        const path = join(generatedDirectory, name);
+        if (specMatchesGenerationRequest(readFileSync(path, 'utf8'), requestId)) {
+          unlinkSync(path);
         }
       }
     }
@@ -231,6 +244,9 @@ export async function executeTestGenerationStep(
         '',
         `// ${scenario.source === 'journey' ? 'Generated from' : 'Approved scenario'}: ${scenario.id}`,
         `// Requirements: ${scenario.requirementIds.join(', ')}`,
+        ...(generationRequestId(command)
+          ? [`// Generation request: ${generationRequestId(command)}`]
+          : []),
         `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
         `  await page.goto(${quoted(scenario.playwright.path)});`
       ];
