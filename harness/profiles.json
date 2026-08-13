@@ -227,9 +227,9 @@
         "core/policies/project-knowledge.md"
       ],
       "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
-      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "writableOutputDirectories": ["outputs/evidence"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["append-evidence"],
       "validators": ["project-context-schema"]
     },
     {
@@ -242,10 +242,26 @@
         "core/policies/project-knowledge.md"
       ],
       "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
-      "writableOutputDirectories": ["outputs/sources", "outputs/questions"],
+      "writableOutputDirectories": ["outputs/evidence"],
       "tools": [],
-      "mutations": ["format-document"],
+      "mutations": ["append-evidence"],
       "validators": ["project-context-schema", "journey-schema"]
+    },
+    {
+      "id": "host-knowledge-reconciliation",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/project-knowledge.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/evidence"],
+      "tools": [],
+      "mutations": ["append-evidence", "format-document"],
+      "validators": ["knowledge-reconciliation-schema"]
     },
     {
       "id": "reliability-diagnosis",

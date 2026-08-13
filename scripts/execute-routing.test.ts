@@ -36,6 +36,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('uses deterministic knowledge proposals before host reconciliation in Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('maintain-knowledge'), true, true)).toBe(
+      'deterministic-knowledge-maintenance'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });

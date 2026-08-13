@@ -10,7 +10,7 @@ triggers:
     event: knowledge-changed
 preconditions: [project-exists, project-context-present]
 steps:
-  - id: curate
+  - id: propose
     role: knowledge-curator
     harnessProfileId: knowledge-reconciliation
     needs: []
@@ -26,14 +26,37 @@ steps:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence
     outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json
+    requiredTools: [file-read, file-write]
+    mutations: [append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
+  - id: reconcile
+    role: knowledge-curator
+    harnessProfileId: host-knowledge-reconciliation
+    needs: [propose]
+    inputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
       - artifact: reference
         path: projects/{projectId}/sources/reference
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
-    requiredTools: [file-read, file-write]
-    mutations: [format-document]
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json
+    outputs:
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/knowledge-maintenance/reconciliation.json
+    requiredTools: []
+    mutations: [append-evidence, format-document]
     policyGates: []
     retries: 0
-    timeoutMs: 300000
+    timeoutMs: 30000
