@@ -199,6 +199,13 @@ describe('product documentation assets', () => {
     expect(read('docs/setup-slack.md')).toContain('Open report');
   });
 
+  it('documents reverse-approval generation without a pre-approved scenario gate', () => {
+    expect(read('workflows/generate-test-suite.yaml')).not.toContain('approved-scenario-present');
+    expect(read('docs/user-guide.md')).toMatch(/Open spec/i);
+    expect(read('docs/user-guide.md')).toMatch(/Retract/i);
+    expect(read('docs/developer-guide.md')).toMatch(/generation source/i);
+  });
+
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executeScript = read('scripts/execute.ts');

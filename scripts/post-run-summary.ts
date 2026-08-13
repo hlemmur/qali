@@ -4,7 +4,7 @@
  * Uses a dedicated Actions callback secret that is separate from GitHub webhooks.
  */
 import { createHmac, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { renderHtmlReport, type RunSummary } from '@qali/reporting';
@@ -259,11 +259,24 @@ export async function postRunSummary(): Promise<void> {
     }
   }
 
+  const generatedDirectory = join(project.root, 'tests/generated');
+  const generatedCount = existsSync(generatedDirectory)
+    ? readdirSync(generatedDirectory).filter((name) => name.endsWith('.generated.spec.ts')).length
+    : 0;
+  const specUrl =
+    generatedCount > 0 && process.env.GITHUB_REPOSITORY
+      ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/tree/${process.env.GITHUB_SHA ?? 'main'}/${project.root}/tests/generated`
+      : undefined;
+  const generatedTests =
+    generatedCount > 0 ? { count: generatedCount, area: project.id } : undefined;
+
   const body = JSON.stringify({
     requestId,
     runId,
     htmlUrl: process.env.GITHUB_RUN_URL,
     ...(reportUrl ? { reportUrl } : {}),
+    ...(specUrl ? { specUrl } : {}),
+    ...(generatedTests ? { generatedTests } : {}),
     intent: process.env.SUMMARY_INTENT,
     projectId: project.id,
     ...(typeof report.suiteLabel === 'string'

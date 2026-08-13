@@ -277,4 +277,51 @@ describe('Slack action handling', () => {
       expect.stringMatching(/^rerun-/)
     );
   });
+
+  it('retracts generated tests by dispatching generate-test-suite with a retract flag', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '101', htmlUrl: 'https://github.test/runs/101' }))
+    };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'generate-test-suite',
+      status: 'passed',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1'
+    };
+    const store = {
+      findByRequestId: vi.fn(async () => correlation),
+      findByRunId: vi.fn(),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'retract_generated_tests' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'generate-test-suite',
+        parameters: expect.objectContaining({ retractGeneratedTests: true })
+      }),
+      expect.stringMatching(/^retract-/)
+    );
+  });
 });

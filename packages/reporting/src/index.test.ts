@@ -82,6 +82,37 @@ describe('compact run reporting', () => {
     );
   });
 
+  it('offers Open spec and Retract after reverse-approval generation', () => {
+    const payload = renderSlackRunSummary(
+      {
+        ...result,
+        intent: 'generate-test-suite',
+        generatedTests: { count: 8, area: 'checkout' }
+      },
+      {
+        specUrl: 'https://github.test/hlemmur/qali/tree/main/projects/sample/tests/generated',
+        retractValue: JSON.stringify({ requestId: 'Ev1', runId: 'demo-run' })
+      }
+    );
+    expect(payload.text).toMatch(/8 tests added/i);
+    const actions = payload.blocks.find((block) => block.type === 'actions') as {
+      elements: Array<Record<string, unknown>>;
+    };
+    expect(actions.elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: 'open_spec',
+          url: 'https://github.test/hlemmur/qali/tree/main/projects/sample/tests/generated',
+          text: expect.objectContaining({ text: 'Open spec' })
+        }),
+        expect.objectContaining({
+          action_id: 'retract_generated_tests',
+          text: expect.objectContaining({ text: 'Retract' })
+        })
+      ])
+    );
+  });
+
   it('hides expand/rerun/triage while a run is still in progress', () => {
     const payload = renderSlackRunSummary(
       { runId: 'running-1', status: 'in_progress' },

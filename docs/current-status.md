@@ -29,7 +29,8 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 | `query-project` + D1 quality snapshot                    | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified                                        |
 | Sauce Demo live Slack target; Mock Mode off product path | Implemented + unit-tested | Live registry is `sauce-demo` only; `_demo` remains a Vitest fixture; not live-verified until a post-merge Slack run   |
 | Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge |
-| Hosted HTML reports + Slack **Open report**              | Implemented + unit-tested | Signed R2 URLs; MD/JSON stay machine truth; not live-verified until a post-merge Slack run with a working report link  |
+| Hosted HTML reports + Slack **Open report**              | Implemented + unit-tested | Signed R2 URLs; MD/JSON stay machine truth; live-verify blocked until R2 is enabled on the Cloudflare account          |
+| Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                  |
 
 ## Readiness vocabulary
 

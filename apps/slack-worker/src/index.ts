@@ -569,11 +569,20 @@ async function githubRunSummary(
     undefined
   );
   const qualitySnapshot = parseQualitySnapshot(payload.qualitySnapshot);
+  const generatedTestsRaw = record(payload.generatedTests);
+  const generatedTests =
+    typeof generatedTestsRaw.count === 'number' && generatedTestsRaw.count > 0
+      ? {
+          count: generatedTestsRaw.count,
+          ...(typeof generatedTestsRaw.area === 'string' ? { area: generatedTestsRaw.area } : {})
+        }
+      : undefined;
   const summary: SlackRunSummary = {
     runId: runId ?? correlation.runId ?? correlation.requestId,
     status: typeof payload.status === 'string' ? payload.status : correlation.status,
     ...(typeof payload.htmlUrl === 'string' ? { htmlUrl: payload.htmlUrl } : {}),
     ...(typeof payload.reportUrl === 'string' ? { reportUrl: payload.reportUrl } : {}),
+    ...(typeof payload.specUrl === 'string' ? { specUrl: payload.specUrl } : {}),
     ...(typeof payload.intent === 'string'
       ? { intent: payload.intent }
       : meta.intent
@@ -599,7 +608,8 @@ async function githubRunSummary(
         }
       : {}),
     ...(parsedStages ? { stages: parsedStages } : {}),
-    ...(qualitySnapshot ? { qualitySnapshot } : {})
+    ...(qualitySnapshot ? { qualitySnapshot } : {}),
+    ...(generatedTests ? { generatedTests } : {})
   };
   return applySlackSummary({ store, slack, correlation, summary });
 }
