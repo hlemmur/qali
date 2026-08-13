@@ -98,7 +98,14 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
     id: 'failure-analyst',
     displayName: 'Failure Analyst',
     permissions: {
-      readableArtifacts: ['project-context', 'reference', 'tests', 'evidence', 'known-issues'],
+      readableArtifacts: [
+        'project-context',
+        'reference',
+        'tests',
+        'evidence',
+        'known-issues',
+        'reports'
+      ],
       writableArtifacts: ['tests', 'evidence', 'known-issues', 'reports', 'questions'],
       tools: ['file-read', 'file-write', 'shell', 'playwright', 'report-renderer'],
       mutations: ['create-test', 'append-observation', 'append-evidence', 'render-derived-report']
@@ -266,11 +273,23 @@ export function validateWorkflow(
       ['browser', 'shell', 'playwright'].includes(tool)
     );
     if (harnessProfile.kind === 'host') {
+      const contract = {
+        'host-test-execution': {
+          stepId: 'execute',
+          role: 'executor',
+          sensitiveTools: ['shell', 'playwright']
+        },
+        'host-failure-fingerprinting': {
+          stepId: 'fingerprint',
+          role: 'failure-analyst',
+          sensitiveTools: []
+        }
+      }[step.harnessProfileId];
       if (
-        step.harnessProfileId !== 'host-test-execution' ||
-        step.id !== 'execute' ||
-        step.role !== 'executor' ||
-        JSON.stringify(sensitiveTools) !== JSON.stringify(['shell', 'playwright'])
+        !contract ||
+        step.id !== contract.stepId ||
+        step.role !== contract.role ||
+        JSON.stringify(sensitiveTools) !== JSON.stringify(contract.sensitiveTools)
       ) {
         throw new Error(`step "${step.id}" violates the host execution contract`);
       }

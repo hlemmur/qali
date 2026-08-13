@@ -158,6 +158,21 @@
       "validators": ["playwright-results", "test-run-job-schema"]
     },
     {
+      "id": "host-failure-fingerprinting",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": ["core/templates/bug-report.md"],
+      "writableOutputDirectories": ["outputs/evidence"],
+      "tools": [],
+      "mutations": ["append-evidence"],
+      "validators": ["failure-fingerprint-schema"]
+    },
+    {
       "id": "failure-explanation",
       "skillIds": ["ai-bug-triage"],
       "policyPaths": [
