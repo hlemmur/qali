@@ -34,6 +34,7 @@ const expectedIds = [
   'reproduction',
   'knowledge-reconciliation',
   'knowledge-reconciliation-journey',
+  'host-knowledge-reconciliation',
   'reliability-diagnosis',
   'selector-repair',
   'human-reporting'

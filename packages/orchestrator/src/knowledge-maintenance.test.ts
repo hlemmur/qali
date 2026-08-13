@@ -4,6 +4,14 @@ import { join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
 import { executeKnowledgeMaintenanceStep } from './knowledge-maintenance.js';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './execution.js';
+import { loadWorkflowDirectory } from './workflows.js';
 
 const command = (parameters: Record<string, unknown>): NormalizedCommand => ({
   intent: 'maintain-knowledge',
@@ -263,5 +271,51 @@ describe('knowledge maintenance', () => {
       effectiveStatus: 'confirmed',
       authority: { decisionRef: 'D-002' }
     });
+  });
+
+  it('runs proposal and governed reconciliation through the production orchestrator', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-e2e-'));
+    const projectRoot = join(workspace, 'projects/shop');
+    mkdirSync(join(projectRoot, 'sources'), { recursive: true });
+    writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
+    writeFileSync(join(projectRoot, 'sources/questions.md'), '# Questions\n');
+    writeFileSync(join(projectRoot, 'sources/decisions.md'), '# Decisions\n');
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'knowledge-maintenance')!;
+    const executionCommand = command({
+      knowledgeChange: {
+        factId: 'REQ-003',
+        statement: 'Checkout displays a delivery estimate.',
+        proposedStatus: 'observed',
+        purpose: 'reference',
+        source: {
+          kind: 'report',
+          ref: 'observations/evidence/exploration/session.json',
+          observedAt: '2026-08-13'
+        }
+      }
+    });
+
+    const result = await executeWorkflow(executionCommand, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (workflowStep, workflowCommand) =>
+          executeKnowledgeMaintenanceStep(workspace, workflowStep, workflowCommand)
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'e'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts.map(({ stepId }) => stepId)).toEqual(['propose', 'reconcile']);
+    const ledger = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/knowledge.json'), 'utf8')
+    );
+    expect(ledger.facts[0]).toMatchObject({ id: 'REQ-003', status: 'observed' });
   });
 });

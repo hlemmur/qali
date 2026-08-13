@@ -41,6 +41,7 @@ import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
   executeExplorationStep,
+  executeKnowledgeMaintenanceStep,
   executeOnboardingMockStep,
   executeTriageStep,
   executeTestRunStep,
@@ -408,6 +409,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     const executionKind = harnessExecutionKind(baseHarnessProfile);
     if (executionKind === 'host') {
+      if (command.intent === 'maintain-knowledge' && step.id === 'reconcile') {
+        return executeKnowledgeMaintenanceStep(workspace, step, command);
+      }
       if (
         command.intent === 'triage-failure' &&
         (step.id === 'fingerprint' || step.id === 'validate-red')
@@ -495,6 +499,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     if (agentExecutionRoute === 'deterministic-triage') {
       return executeTriageStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-knowledge-maintenance') {
+      return executeKnowledgeMaintenanceStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {

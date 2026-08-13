@@ -37,7 +37,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'known-issues',
         'evidence'
       ],
-      writableArtifacts: ['project-context', 'reference', 'questions', 'known-issues'],
+      writableArtifacts: ['project-context', 'reference', 'questions', 'known-issues', 'evidence'],
       tools: ['file-read', 'file-write'],
       mutations: [
         'append-observation',
@@ -288,6 +288,11 @@ export function validateWorkflow(
           stepId: 'validate-red',
           role: 'failure-analyst',
           sensitiveTools: ['shell', 'playwright']
+        },
+        'host-knowledge-reconciliation': {
+          stepId: 'reconcile',
+          role: 'knowledge-curator',
+          sensitiveTools: []
         }
       }[step.harnessProfileId];
       if (
