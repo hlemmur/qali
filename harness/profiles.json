@@ -167,7 +167,7 @@
         "core/policies/authority-and-autonomy.md"
       ],
       "templatePaths": ["core/templates/bug-report.md"],
-      "writableOutputDirectories": ["outputs/sources", "outputs/questions", "outputs/evidence"],
+      "writableOutputDirectories": ["outputs/evidence"],
       "tools": [],
       "mutations": ["append-evidence"],
       "validators": ["failure-fingerprint-schema"]
@@ -227,7 +227,7 @@
         "core/policies/project-knowledge.md"
       ],
       "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
-      "writableOutputDirectories": ["outputs/sources", "outputs/questions", "outputs/evidence"],
+      "writableOutputDirectories": ["outputs/evidence"],
       "tools": [],
       "mutations": ["append-evidence"],
       "validators": ["project-context-schema"]
@@ -242,7 +242,7 @@
         "core/policies/project-knowledge.md"
       ],
       "templatePaths": ["core/templates/project-context.md", "core/templates/questions.md"],
-      "writableOutputDirectories": ["outputs/sources", "outputs/questions", "outputs/evidence"],
+      "writableOutputDirectories": ["outputs/evidence"],
       "tools": [],
       "mutations": ["append-evidence"],
       "validators": ["project-context-schema", "journey-schema"]

@@ -83,7 +83,11 @@ describe('harness profile catalog', () => {
     const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
     const profile = profiles.find(({ id }) => id === 'host-failure-fingerprinting');
 
-    expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
+    expect(profile).toMatchObject({
+      kind: 'host',
+      skillIds: [],
+      writableOutputDirectories: ['outputs/evidence']
+    });
     expect(harnessExecutionKind(profile!)).toBe('host');
   });
 
@@ -98,18 +102,19 @@ describe('harness profile catalog', () => {
   it('adds journey mapping to reconciliation only for a typed journey change', () => {
     const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
 
-    expect(
-      selectHarnessProfile(profiles, 'knowledge-reconciliation', {
-        visualTesting: false,
-        journeyChange: false
-      }).skillIds
-    ).toEqual(['qa-project-context']);
-    expect(
-      selectHarnessProfile(profiles, 'knowledge-reconciliation', {
-        visualTesting: false,
-        journeyChange: true
-      }).skillIds
-    ).toEqual(['qa-project-context', 'journey-mapping']);
+    const reconciliation = selectHarnessProfile(profiles, 'knowledge-reconciliation', {
+      visualTesting: false,
+      journeyChange: false
+    });
+    const journeyReconciliation = selectHarnessProfile(profiles, 'knowledge-reconciliation', {
+      visualTesting: false,
+      journeyChange: true
+    });
+
+    expect(reconciliation.skillIds).toEqual(['qa-project-context']);
+    expect(journeyReconciliation.skillIds).toEqual(['qa-project-context', 'journey-mapping']);
+    expect(reconciliation.writableOutputDirectories).toEqual(['outputs/evidence']);
+    expect(journeyReconciliation.writableOutputDirectories).toEqual(['outputs/evidence']);
   });
 
   it('rejects conditional profiles that widen tools, mutations, outputs, or policies', () => {
