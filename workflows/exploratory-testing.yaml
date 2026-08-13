@@ -43,8 +43,6 @@ steps:
         path: projects/{projectId}/observations/evidence/exploration
       - artifact: exploration
         path: projects/{projectId}/observations/exploration.md
-      - artifact: questions
-        path: projects/{projectId}/sources/questions.md
     requiredTools: [file-read, file-write, browser]
     mutations: [append-observation, append-evidence]
     policyGates: []

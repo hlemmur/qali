@@ -101,9 +101,9 @@ describe('bounded exploratory testing', () => {
     const exploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
     expect(exploration).toContain('# Exploration Charter');
     expect(exploration).toContain('session-obs-exp-001/screenshot.png');
+    expect(exploration).toContain('Q-EXP-001');
     const questions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
-    expect(questions).toContain('Q-EXISTING');
-    expect(questions).toContain('Q-EXP-001');
+    expect(questions).toBe('# Open Questions\n\nQ-EXISTING\n');
     expect(
       existsSync(join(projectRoot, 'observations/evidence/exploration/session-obs-exp-001.json'))
     ).toBe(true);
@@ -129,8 +129,9 @@ describe('bounded exploratory testing', () => {
     const rerunQuestions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
     expect(rerunExploration.match(/OBS-EXP-001/g)).toHaveLength(1);
     expect(rerunExploration.match(/OBS-EXP-002/g)).toHaveLength(1);
-    expect(rerunQuestions.match(/Q-EXP-001/g)).toHaveLength(1);
-    expect(rerunQuestions.match(/Q-EXP-002/g)).toHaveLength(1);
+    expect(rerunExploration.match(/Q-EXP-001/g)).toHaveLength(1);
+    expect(rerunExploration.match(/Q-EXP-002/g)).toHaveLength(1);
+    expect(rerunQuestions).toBe('# Open Questions\n\nQ-EXISTING\n');
     expect(rerunExploration).toContain('session-obs-exp-001/screenshot.png');
     expect(rerunExploration).toContain('session-obs-exp-002/screenshot.png');
     expect(
@@ -265,5 +266,79 @@ describe('bounded exploratory testing', () => {
     expect(report).toContain('Q-EXP-001');
     expect(report).toContain('OBS-EXP-009');
     expect(report).toContain('Prior observation must remain.');
+  });
+
+  it('appends a new exploration session without rewriting prior observations', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-append-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
+    writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
+    writeFileSync(join(projectRoot, 'observations/known-issues.md'), '# Known Issues\n');
+    const priorObservations =
+      '# Exploration Log\n\n| OBS-001 | Existing observation. | observed | `existing.json` | 2026-08-10 | prior |\n';
+    writeFileSync(join(projectRoot, 'observations/exploration.md'), priorObservations);
+    writeFileSync(join(projectRoot, 'sources/questions.md'), '# Questions\n');
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+    const browser = new RestrictedBrowserFacade(new FakeBrowserDriver(), {
+      baseUrl: 'http://example.test',
+      allowedOrigins: ['http://example.test'],
+      credentials: {},
+      testData: {},
+      evidenceDirectory: join(projectRoot, 'observations/evidence/exploration')
+    });
+
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (step, executionCommand) =>
+          executeExplorationStep(workspace, step, executionCommand, browser, {
+            now: () => 1_000
+          })
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'b'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(
+      readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8').startsWith(
+        priorObservations
+      )
+    ).toBe(true);
+  });
+
+  it('records generated open questions without mutating reviewer-owned source questions', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-questions-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources'), { recursive: true });
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
+    writeFileSync(join(projectRoot, 'observations/exploration.md'), '# Exploration Log\n');
+    const reviewerQuestions = '# Questions\n\n| Q-001 | Existing question. | open |\n';
+    writeFileSync(join(projectRoot, 'sources/questions.md'), reviewerQuestions);
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+
+    const result = await executeExplorationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'explore')!,
+      command,
+      new FakeBrowser(),
+      { now: () => 1_000 }
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8')).toBe(reviewerQuestions);
+    expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
+      'Q-EXP-001'
+    );
   });
 });
