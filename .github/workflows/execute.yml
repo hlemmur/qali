@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   validate-and-execute:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: ${{ inputs.project_json && fromJSON(inputs.project_json).environment || 'qali-demo' }}
     timeout-minutes: 30
     env:
@@ -47,22 +47,27 @@ jobs:
       QALI_ALLOWED_ORIGINS_JSON: ${{ vars.QALI_ALLOWED_ORIGINS_JSON }}
       QALI_TEST_CREDENTIALS_JSON: ${{ secrets.QALI_TEST_CREDENTIALS_JSON }}
       QALI_TEST_DATA_JSON: ${{ vars.QALI_TEST_DATA_JSON }}
+      CURSOR_AGENT_VERSION: 2026.08.11-e8db854
+      CURSOR_INSTALLER_SHA256: b1af27b9556c5f1c58d166742dbb33425ebd90a4bbd7e5453d66b920bf1f9f6b
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 22
+          node-version: 22.18.0
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Install Cursor Agent CLI
         if: github.event_name == 'workflow_dispatch' && vars.CURSOR_MODEL != ''
         run: |
-          curl https://cursor.com/install -fsS | bash
+          curl https://cursor.com/install -fsS -o cursor-install.sh
+          echo "$CURSOR_INSTALLER_SHA256  cursor-install.sh" | sha256sum --check
+          bash cursor-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
           command -v agent
-          agent --version || true
+          readlink -f "$(command -v agent)" | grep -F "/versions/$CURSOR_AGENT_VERSION/"
+          agent --version
       - name: Validate repository and policy
         run: npm run check
       - name: Execute requested workflow
@@ -137,7 +142,7 @@ jobs:
         run: npm run post:run-summary
       - name: Upload Playwright and workflow evidence
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
@@ -156,7 +161,7 @@ jobs:
   publish-generated-changes:
     if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'
     needs: validate-and-execute
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -165,13 +170,13 @@ jobs:
       GITHUB_OWNER: ${{ github.repository_owner }}
       GITHUB_REPO: ${{ github.event.repository.name }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 22
+          node-version: 22.18.0
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           path: publication-artifact
