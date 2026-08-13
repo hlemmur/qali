@@ -21,6 +21,15 @@ interface KnowledgeChangeProposal {
   };
 }
 
+const EVIDENCE_SOURCE_KINDS: ReadonlyArray<KnowledgeChangeProposal['source']['kind']> = [
+  'human-decision',
+  'authoritative-doc',
+  'trace',
+  'report',
+  'session',
+  'screenshot'
+];
+
 function parseProposal(value: unknown): KnowledgeChangeProposal {
   if (!value || typeof value !== 'object') throw new Error('knowledge change is required');
   const change = value as Partial<KnowledgeChangeProposal>;
@@ -32,6 +41,7 @@ function parseProposal(value: unknown): KnowledgeChangeProposal {
     !['observed', 'inferred', 'confirmed'].includes(change.proposedStatus ?? '') ||
     !['reference', 'expected-behavior'].includes(change.purpose ?? '') ||
     !change.source ||
+    !EVIDENCE_SOURCE_KINDS.includes(change.source.kind) ||
     typeof change.source.ref !== 'string' ||
     typeof change.source.observedAt !== 'string'
   ) {

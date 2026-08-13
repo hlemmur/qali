@@ -73,6 +73,34 @@ describe('knowledge maintenance', () => {
     });
   });
 
+  it('rejects a proposal with an unknown evidence source kind', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-invalid-source-'));
+    const result = await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('propose', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json'
+        }
+      ]),
+      command({
+        knowledgeChange: {
+          factId: 'REQ-001',
+          statement: 'Checkout requires a postal code.',
+          proposedStatus: 'observed',
+          purpose: 'reference',
+          source: {
+            kind: 'model-claim',
+            ref: 'observations/evidence/exploration/session.json',
+            observedAt: '2026-08-13'
+          }
+        }
+      })
+    );
+
+    expect(result).toEqual({ status: 'failed', error: 'knowledge change proposal is invalid' });
+  });
+
   it('retains contradictory knowledge and opens a sourced question', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-contradiction-'));
     const projectRoot = join(workspace, 'projects/shop');
