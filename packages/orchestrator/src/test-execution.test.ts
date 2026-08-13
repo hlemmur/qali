@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
@@ -100,6 +100,48 @@ describe('deterministic test execution', () => {
     expect(
       readFileSync(join(workspace, command.project.root, 'derived/jobs/test-run.md'), 'utf8')
     ).toContain('Status: passed');
+  });
+
+  it('does not reuse a stale JSON report when the current run cannot write one', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-run-stale-'));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'run-test-suite')!;
+    const reportPath = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/test-runs/results.json'
+    );
+    mkdirSync(dirname(reportPath), { recursive: true });
+    writeFileSync(
+      reportPath,
+      JSON.stringify({
+        suites: [{ specs: [{ tests: [{ status: 'expected', results: [{ status: 'passed' }] }] }] }]
+      })
+    );
+    const runner: PlaywrightRunner = {
+      async run(request) {
+        expect(existsSync(request.reportPath)).toBe(false);
+        return { status: 'failed', exitCode: 1, stderr: 'browser failed before reporting' };
+      }
+    };
+
+    const outcome = await executeTestRunStep({
+      workspace,
+      step: workflow.steps.find(({ id }) => id === 'execute')!,
+      command,
+      runner,
+      targetBaseUrl: 'http://127.0.0.1:4173',
+      signal: new AbortController().signal
+    });
+
+    expect(outcome.summary).toBeUndefined();
+    expect(outcome.result).toEqual({
+      status: 'failed',
+      error: 'browser failed before reporting'
+    });
+    expect(existsSync(reportPath)).toBe(false);
   });
 
   it('runs the test workflow through the production orchestrator in Mock Mode', async () => {

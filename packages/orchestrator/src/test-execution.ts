@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import {
@@ -52,6 +52,7 @@ export async function executeTestRunStep(input: {
   );
   const reportPath = join(evidenceDirectory, 'results.json');
   mkdirSync(evidenceDirectory, { recursive: true });
+  if (existsSync(reportPath)) unlinkSync(reportPath);
   const suite = resolvePlaywrightSuite(command.parameters.suite);
   const run = await runner.run({
     workspace,
