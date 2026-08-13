@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import { assessPromotion, type KnowledgeFact } from '../../knowledge/src/index.js';
 import type { StepExecutionResult } from './execution.js';
 
 interface KnowledgeChangeProposal {
@@ -118,7 +119,93 @@ export async function executeKnowledgeMaintenanceStep(
       );
       return { status: 'succeeded', outputs };
     }
-    return { status: 'failed', error: 'knowledge reconciliation outcome is unsupported' };
+    const decisionsPath = join(projectRoot, 'sources/decisions.md');
+    const decisions = existsSync(decisionsPath) ? readFileSync(decisionsPath, 'utf8') : '';
+    const decisionRef = change.authority?.decisionRef?.trim();
+    const decisionIsRecorded = Boolean(
+      change.authority?.actor === 'human' &&
+      decisionRef &&
+      new RegExp(
+        `(?:^|[|#\\s])${decisionRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[|:\\s]|$)`,
+        'm'
+      ).test(decisions)
+    );
+    const sourceRef = change.authority?.authoritativeSourceRef?.trim();
+    const referenceRoot = resolve(projectRoot, 'sources/reference');
+    const authoritativePath = sourceRef ? resolve(projectRoot, sourceRef) : '';
+    const sourceIsRecorded = Boolean(
+      sourceRef &&
+      authoritativePath.startsWith(`${referenceRoot}${sep}`) &&
+      existsSync(authoritativePath)
+    );
+    const fact: KnowledgeFact = {
+      id: change.factId,
+      statement: change.statement,
+      status: 'observed',
+      sources: [change.source]
+    };
+    const promotion = assessPromotion({
+      fact,
+      targetStatus: change.proposedStatus,
+      purpose: change.purpose,
+      authority: {
+        actor: decisionIsRecorded ? 'human' : 'agent',
+        ...(decisionIsRecorded && decisionRef ? { decisionRef } : {}),
+        ...(sourceIsRecorded && sourceRef ? { authoritativeSourceRef: sourceRef } : {})
+      }
+    });
+    const effectiveStatus =
+      change.proposedStatus === 'confirmed' && !promotion.allowed
+        ? 'observed'
+        : change.proposedStatus;
+    if (existing) {
+      existing.status = effectiveStatus;
+      if (!existing.sources.some(({ ref }) => ref === change.source.ref)) {
+        existing.sources.push(change.source);
+      }
+    } else {
+      ledger.facts.push({
+        id: change.factId,
+        statement: change.statement,
+        status: effectiveStatus,
+        sources: [change.source]
+      });
+    }
+    mkdirSync(dirname(ledgerPath), { recursive: true });
+    writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+    const awaitingAuthority = change.proposedStatus === 'confirmed' && !promotion.allowed;
+    if (awaitingAuthority) {
+      const questionsPath = join(projectRoot, 'sources/questions.md');
+      mkdirSync(dirname(questionsPath), { recursive: true });
+      if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Questions\n');
+      const question = `Who can confirm ${change.factId} as expected behavior?`;
+      if (!readFileSync(questionsPath, 'utf8').includes(question)) {
+        appendFileSync(
+          questionsPath,
+          `\n### Q-AUTH-${change.factId}: ${question}\n\n- Status: open\n- Blocking: yes\n- Source: ${change.source.ref}\n`
+        );
+      }
+    }
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(
+      join(evidenceDirectory, 'reconciliation.json'),
+      `${JSON.stringify(
+        {
+          version: 1,
+          factId: change.factId,
+          outcome: awaitingAuthority ? 'awaiting-authority' : 'recorded',
+          requestedStatus: change.proposedStatus,
+          effectiveStatus,
+          authority: {
+            decisionRef: decisionIsRecorded ? decisionRef : null,
+            authoritativeSourceRef: sourceIsRecorded ? sourceRef : null
+          }
+        },
+        null,
+        2
+      )}\n`
+    );
+    return { status: 'succeeded', outputs };
   }
   let change: KnowledgeChangeProposal;
   try {

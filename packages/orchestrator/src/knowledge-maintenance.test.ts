@@ -148,4 +148,120 @@ describe('knowledge maintenance', () => {
       'Resolve contradictory evidence for REQ-001'
     );
   });
+
+  it('keeps an unvalidated confirmation observed and opens an authority question', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-unvalidated-authority-'));
+    const projectRoot = join(workspace, 'projects/shop');
+    mkdirSync(join(projectRoot, 'sources'), { recursive: true });
+    writeFileSync(join(projectRoot, 'sources/questions.md'), '# Questions\n');
+    writeFileSync(join(projectRoot, 'sources/decisions.md'), '# Decisions\n');
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('propose', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json'
+        }
+      ]),
+      command({
+        knowledgeChange: {
+          factId: 'REQ-002',
+          statement: 'Checkout requires a postal code.',
+          proposedStatus: 'confirmed',
+          purpose: 'expected-behavior',
+          source: {
+            kind: 'report',
+            ref: 'observations/evidence/exploration/session.json',
+            observedAt: '2026-08-13'
+          },
+          authority: { actor: 'human', decisionRef: 'D-MISSING' }
+        }
+      })
+    );
+
+    const result = await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('reconcile', [
+        { artifact: 'reference', path: 'projects/{projectId}/sources/reference' },
+        { artifact: 'questions', path: 'projects/{projectId}/sources/questions.md' },
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance'
+        }
+      ]),
+      command({})
+    );
+
+    expect(result.status).toBe('succeeded');
+    const ledger = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/knowledge.json'), 'utf8')
+    );
+    expect(ledger.facts[0]).toMatchObject({ id: 'REQ-002', status: 'observed' });
+    expect(readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8')).toContain(
+      'Who can confirm REQ-002 as expected behavior?'
+    );
+  });
+
+  it('confirms knowledge only when the cited human decision is recorded', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-authorized-'));
+    const projectRoot = join(workspace, 'projects/shop');
+    mkdirSync(join(projectRoot, 'sources'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/decisions.md'),
+      '# Decisions\n\n| ID | Decision |\n| --- | --- |\n| D-002 | Postal code is required. |\n'
+    );
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('propose', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json'
+        }
+      ]),
+      command({
+        knowledgeChange: {
+          factId: 'REQ-002',
+          statement: 'Checkout requires a postal code.',
+          proposedStatus: 'confirmed',
+          purpose: 'expected-behavior',
+          source: {
+            kind: 'human-decision',
+            ref: 'D-002',
+            observedAt: '2026-08-13'
+          },
+          authority: { actor: 'human', decisionRef: 'D-002' }
+        }
+      })
+    );
+
+    const result = await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('reconcile', [
+        { artifact: 'reference', path: 'projects/{projectId}/sources/reference' },
+        { artifact: 'questions', path: 'projects/{projectId}/sources/questions.md' },
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance'
+        }
+      ]),
+      command({})
+    );
+
+    expect(result.status).toBe('succeeded');
+    const ledger = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/knowledge.json'), 'utf8')
+    );
+    expect(ledger.facts[0]).toMatchObject({ id: 'REQ-002', status: 'confirmed' });
+    const reconciliation = JSON.parse(
+      readFileSync(
+        join(projectRoot, 'observations/evidence/knowledge-maintenance/reconciliation.json'),
+        'utf8'
+      )
+    );
+    expect(reconciliation).toMatchObject({
+      outcome: 'recorded',
+      effectiveStatus: 'confirmed',
+      authority: { decisionRef: 'D-002' }
+    });
+  });
 });
