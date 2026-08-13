@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, relative } from 'node:path';
 import { z } from 'zod';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import { renderGeneratedJson } from '../../knowledge/src/index.js';
 import { parsePlaywrightJsonReport } from '../../playwright/src/index.js';
 import type { StepExecutionResult } from './execution.js';
 
@@ -152,7 +153,7 @@ export async function executeQualityPulseStep(
     for (const output of outputs) {
       const path = join(workspace, output.path);
       mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, generatedJson(presentation));
+      writeFileSync(path, renderGeneratedJson(presentation));
     }
     return { status: 'succeeded', outputs };
   }
