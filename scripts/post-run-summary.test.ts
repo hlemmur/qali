@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   callbackAuthenticationHeaders,
   describeRunStages,
+  publishHostedReport,
   resolveSlackRunStatus,
   userFacingFailureDetails
 } from './post-run-summary.js';
@@ -90,5 +91,46 @@ describe('userFacingFailureDetails', () => {
       publication: 'failed'
     });
     expect(describeRunStages('failure', 'skipped')).toEqual({ execution: 'failed' });
+  });
+});
+
+describe('publishHostedReport', () => {
+  it('uploads HTML and returns the signed report URL', async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      expect(String(input)).toBe('https://worker.test/github/report');
+      return Response.json({
+        ok: true,
+        reportUrl: 'https://worker.test/reports/sauce-demo/42.html?exp=1&sig=abc'
+      });
+    };
+    await expect(
+      publishHostedReport({
+        workerBase: 'https://worker.test',
+        secret: 'callback-secret',
+        runId: '42',
+        projectId: 'sauce-demo',
+        html: '<!DOCTYPE html><html><body>ok</body></html>',
+        nowSeconds: 1_700_000_000,
+        nonce: '42:1:report',
+        requestId: 'Ev1',
+        fetchImpl
+      })
+    ).resolves.toBe('https://worker.test/reports/sauce-demo/42.html?exp=1&sig=abc');
+  });
+
+  it('skips the hosted report URL when upload fails', async () => {
+    const fetchImpl: typeof fetch = async () => new Response('no bucket', { status: 503 });
+    await expect(
+      publishHostedReport({
+        workerBase: 'https://worker.test',
+        secret: 'callback-secret',
+        runId: '42',
+        projectId: 'sauce-demo',
+        html: '<!DOCTYPE html><html></html>',
+        nowSeconds: 1_700_000_000,
+        nonce: '42:1:report',
+        fetchImpl
+      })
+    ).resolves.toBeUndefined();
   });
 });

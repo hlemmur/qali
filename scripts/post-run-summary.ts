@@ -4,9 +4,10 @@
  * Uses a dedicated Actions callback secret that is separate from GitHub webhooks.
  */
 import { createHmac, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { renderHtmlReport, type RunSummary } from '@qali/reporting';
 
 function readJson(path: string): Record<string, unknown> | undefined {
   if (!existsSync(path)) return undefined;
@@ -129,6 +130,44 @@ export function describeRunStages(
   return stages;
 }
 
+export async function publishHostedReport(input: {
+  workerBase: string;
+  secret: string;
+  runId: string;
+  projectId: string;
+  html: string;
+  nowSeconds: number;
+  nonce: string;
+  requestId?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string | undefined> {
+  const body = JSON.stringify({
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+    runId: input.runId,
+    projectId: input.projectId,
+    html: input.html
+  });
+  const response = await (input.fetchImpl ?? fetch)(`${input.workerBase}/github/report`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...callbackAuthenticationHeaders(input.secret, body, input.nowSeconds, input.nonce)
+    },
+    body
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`hosted report upload failed: ${response.status} ${text.slice(0, 400)}`);
+    return undefined;
+  }
+  try {
+    const payload = (await response.json()) as { reportUrl?: unknown };
+    return typeof payload.reportUrl === 'string' ? payload.reportUrl : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function postRunSummary(): Promise<void> {
   const workerBase = (
     process.env.QALI_WORKER_BASE_URL ??
@@ -174,10 +213,57 @@ export async function postRunSummary(): Promise<void> {
     ...(process.env.PUBLISH_RESULT ? { publishResult: process.env.PUBLISH_RESULT } : {})
   });
 
+  const runId = process.env.GITHUB_RUN_ID;
+  const requestId = process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID;
+  const htmlSummary: RunSummary = {
+    runId: runId ?? 'unknown',
+    status,
+    ...(process.env.SUMMARY_INTENT ? { intent: process.env.SUMMARY_INTENT } : {}),
+    projectId: project.id,
+    ...(typeof report.suiteLabel === 'string'
+      ? { suiteLabel: report.suiteLabel }
+      : process.env.SUMMARY_INTENT === 'run-test-suite'
+        ? { suiteLabel: 'smoke' }
+        : {}),
+    ...(Object.keys(stages).length ? { stages } : {}),
+    ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
+    ...(errors.length ? { errors } : {}),
+    ...(Array.isArray(report.evidence)
+      ? { evidence: report.evidence.filter((entry): entry is string => typeof entry === 'string') }
+      : {}),
+    ...(counts ?? {})
+  };
+  const html = renderHtmlReport(htmlSummary);
+  mkdirSync('.qali', { recursive: true });
+  writeFileSync('.qali/report.html', html);
+
+  let reportUrl: string | undefined;
+  if (runId) {
+    try {
+      reportUrl = await publishHostedReport({
+        workerBase,
+        secret,
+        runId,
+        projectId: project.id,
+        html,
+        nowSeconds: Math.floor(Date.now() / 1000),
+        nonce:
+          process.env.GITHUB_RUN_ID && process.env.GITHUB_RUN_ATTEMPT
+            ? `${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT}:report`
+            : `${randomUUID()}:report`,
+        ...(requestId ? { requestId } : {})
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`hosted report upload failed: ${detail.slice(0, 400)}`);
+    }
+  }
+
   const body = JSON.stringify({
-    requestId: process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID,
-    runId: process.env.GITHUB_RUN_ID,
+    requestId,
+    runId,
     htmlUrl: process.env.GITHUB_RUN_URL,
+    ...(reportUrl ? { reportUrl } : {}),
     intent: process.env.SUMMARY_INTENT,
     projectId: project.id,
     ...(typeof report.suiteLabel === 'string'
