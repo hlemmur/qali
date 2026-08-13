@@ -25,6 +25,7 @@ class MemoryStore implements ControlStore {
   readonly runIndex = new Map<string, string>();
   readonly denials: Array<{ reasonCode: string; requestKind: string }> = [];
   readonly rateEvents = new Map<string, string[]>();
+  readonly retentionRuns: Array<{ controlBefore: string; securityBefore: string }> = [];
 
   async accept(work: InboundWork): Promise<boolean> {
     if (this.accepted.has(work.identity)) return false;
@@ -74,6 +75,11 @@ class MemoryStore implements ControlStore {
     events.push(input.eventId);
     this.rateEvents.set(key, events);
     return 'accepted';
+  }
+
+  async purgeExpired(input: { controlBefore: string; securityBefore: string }): Promise<number> {
+    this.retentionRuns.push(input);
+    return 0;
   }
 
   async claim(requestId: string): Promise<boolean> {
@@ -260,6 +266,30 @@ const eventBody = {
 };
 
 describe('Slack control worker', () => {
+  it('runs configured D1 retention from the scheduled control-plane handler', async () => {
+    const store = new MemoryStore();
+    const worker = createWorker({
+      store,
+      now: () => new Date('2026-08-13T12:00:00.000Z')
+    });
+
+    await worker.scheduled(
+      {},
+      {
+        ...baseEnv([]),
+        QALI_CONTROL_RETENTION_DAYS: '30',
+        QALI_SECURITY_RETENTION_DAYS: '14'
+      }
+    );
+
+    expect(store.retentionRuns).toEqual([
+      {
+        controlBefore: '2026-07-14T12:00:00.000Z',
+        securityBefore: '2026-07-30T12:00:00.000Z'
+      }
+    ]);
+  });
+
   it('spans signed intake, queue normalization, dispatch, callback, and compact rendering', async () => {
     const queue: InboundWork[] = [];
     const store = new MemoryStore();

@@ -15,13 +15,18 @@
     "producers": [{ "binding": "INBOUND_QUEUE", "queue": "qali-inbound" }],
     "consumers": [{ "queue": "qali-inbound", "max_batch_size": 10, "max_batch_timeout": 5 }]
   },
+  "triggers": {
+    "crons": ["23 3 * * *"]
+  },
   "vars": {
     "GITHUB_API_URL": "https://api.github.com",
     "GITHUB_WORKFLOW_FILE": "execute.yml",
     "SLACK_ALLOWED_TEAM_IDS": "",
     "SLACK_ALLOWED_CHANNEL_IDS": "",
     "SLACK_ALLOWED_USER_IDS": "U099MTX6423",
-    "SLACK_QA_LEAD_USER_IDS": "U099MTX6423"
+    "SLACK_QA_LEAD_USER_IDS": "U099MTX6423",
+    "QALI_CONTROL_RETENTION_DAYS": "30",
+    "QALI_SECURITY_RETENTION_DAYS": "14"
   },
   "ai": {
     "binding": "AI"

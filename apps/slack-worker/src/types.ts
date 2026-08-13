@@ -37,6 +37,8 @@ export interface Env {
   QALI_REDACTION_PATTERNS_JSON?: string;
   QALI_SENSITIVE_VALUES_JSON?: string;
   QALI_USER_RATE_LIMIT_PER_MINUTE?: string;
+  QALI_CONTROL_RETENTION_DAYS?: string;
+  QALI_SECURITY_RETENTION_DAYS?: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_INSTALLATION_ID: string;
@@ -93,6 +95,7 @@ export interface ControlStore {
     windowStart: string;
     limit: number;
   }): Promise<'accepted' | 'duplicate' | 'limited'>;
+  purgeExpired(input: { controlBefore: string; securityBefore: string }): Promise<number>;
   claim(requestId: string): Promise<boolean>;
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;

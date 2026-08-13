@@ -514,6 +514,17 @@ async function githubRunSummary(
 
 export function createWorker(overrides: WorkerDependencies = {}) {
   return {
+    async scheduled(_controller: unknown, env: Env): Promise<void> {
+      const now = (overrides.now ?? (() => new Date()))();
+      const dayMs = 24 * 60 * 60 * 1_000;
+      const controlDays = positiveInteger(env.QALI_CONTROL_RETENTION_DAYS, 30);
+      const securityDays = positiveInteger(env.QALI_SECURITY_RETENTION_DAYS, 14);
+      await storeService(env, overrides).purgeExpired({
+        controlBefore: new Date(now.getTime() - controlDays * dayMs).toISOString(),
+        securityBefore: new Date(now.getTime() - securityDays * dayMs).toISOString()
+      });
+    },
+
     async fetch(request: Request, env: Env): Promise<Response> {
       const { pathname } = new URL(request.url);
       const now = (overrides.now ?? (() => new Date()))();

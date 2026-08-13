@@ -101,6 +101,26 @@ export class D1ControlStore implements ControlStore {
     return 'accepted';
   }
 
+  async purgeExpired(input: { controlBefore: string; securityBefore: string }): Promise<number> {
+    const statements = [
+      this.db
+        .prepare('DELETE FROM inbound_deduplication WHERE received_at < ?')
+        .bind(input.controlBefore),
+      this.db.prepare('DELETE FROM correlations WHERE updated_at < ?').bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM callback_deduplication WHERE received_at < ?')
+        .bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM rate_limit_events WHERE occurred_at < ?')
+        .bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM security_denials WHERE occurred_at < ?')
+        .bind(input.securityBefore)
+    ];
+    const results = await this.db.batch(statements);
+    return results.reduce((total, result) => total + (result.meta.changes ?? 0), 0);
+  }
+
   async claim(requestId: string): Promise<boolean> {
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
     const result = await this.db
