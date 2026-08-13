@@ -67,12 +67,12 @@ npm run control-plane:deploy
 
 ## 2. Configure allowlists and roles
 
-| Variable                    | Purpose                                                                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `SLACK_ALLOWED_USER_IDS`    | Comma-separated Slack user IDs allowed to talk to Qali. Empty = no user filter. |
-| `SLACK_ALLOWED_TEAM_IDS`    | Restrict to workspace(s). |
-| `SLACK_ALLOWED_CHANNEL_IDS` | Restrict to product channel(s) for mentions. |
-| `SLACK_OPS_CHANNEL_IDS`     | CSV of ops channel IDs (create `#qali-ops` and paste its ID). Maintenance is allowed only here. |
+| Variable                    | Purpose                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_ALLOWED_USER_IDS`    | Comma-separated Slack user IDs allowed to talk to Qali. Empty = no user filter.                                     |
+| `SLACK_ALLOWED_TEAM_IDS`    | Restrict to workspace(s).                                                                                           |
+| `SLACK_ALLOWED_CHANNEL_IDS` | Restrict to product channel(s) for mentions.                                                                        |
+| `SLACK_OPS_CHANNEL_IDS`     | CSV of ops channel IDs (create `#qali-ops` and paste its ID). Maintenance is allowed only here.                     |
 | `SLACK_QA_LEAD_USER_IDS`    | Break-glass user IDs who may request maintenance **in an ops channel**. They remain Developers in product channels. |
 
 ### Role behavior
@@ -102,13 +102,13 @@ Hosted HTML reports are the human-facing recap. Markdown and JSON stay in Git as
 
 ## Troubleshooting
 
-| Symptom                          | Check                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------ |
-| Manifest URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md) |
-| 403 Forbidden                    | User not in `SLACK_ALLOWED_USER_IDS`                                                       |
-| Request ignored                  | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                          |
-| No GitHub run                    | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                             |
-| Signature failures               | Clock skew; verify `SLACK_SIGNING_SECRET`                                                  |
+| Symptom                          | Check                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Manifest URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md)              |
+| 403 Forbidden                    | User not in `SLACK_ALLOWED_USER_IDS`                                                                    |
+| Request ignored                  | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                                       |
+| No GitHub run                    | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                                          |
+| Signature failures               | Clock skew; verify `SLACK_SIGNING_SECRET`                                                               |
 | Maintenance rejected             | Ask in `#qali-ops`; add the user to `SLACK_QA_LEAD_USER_IDS` and the channel to `SLACK_OPS_CHANNEL_IDS` |
 
 ## Cost and retention

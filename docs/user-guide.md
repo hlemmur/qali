@@ -129,10 +129,10 @@ This makes Qali more than a chat bot: the Slack conversation is the front door t
 
 ## Roles and permissions
 
-| Slack surface | Typical access |
-| --- | --- |
-| **Product channel** (Developer) | Onboard from an https URL, explore, generate/run suites, triage, quality pulse, query. Governance parameters are rejected. |
-| **`#qali-ops`** | Knowledge and suite maintenance. Only break-glass users in `SLACK_QA_LEAD_USER_IDS` may do this, and only from an ops channel listed in `SLACK_OPS_CHANNEL_IDS`. |
+| Slack surface                   | Typical access                                                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Product channel** (Developer) | Onboard from an https URL, explore, generate/run suites, triage, quality pulse, query. Governance parameters are rejected.                                       |
+| **`#qali-ops`**                 | Knowledge and suite maintenance. Only break-glass users in `SLACK_QA_LEAD_USER_IDS` may do this, and only from an ops channel listed in `SLACK_OPS_CHANNEL_IDS`. |
 
 Project-level Slack allowlists can restrict teams, channels, and users. Authorization happens before a GitHub workflow is dispatched. Ask in `#qali-ops` for maintenance; do not treat any person as a user-facing QA Lead.
 

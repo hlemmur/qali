@@ -38,10 +38,10 @@ Self-healing produces **equivalent repairs** (selector drift, timing) — not as
 
 ## External roles
 
-| Role              | Enforcement point                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------------- |
-| **Developer** | Worker `authorizeCommand()` before dispatch; product channels may onboard/explore/run; blocks maintenance and governance parameters |
-| **Ops break-glass** | `#qali-ops` (`SLACK_OPS_CHANNEL_IDS`) plus `SLACK_QA_LEAD_USER_IDS`; maintenance and privileged Slack actions |
+| Role                | Enforcement point                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Developer**       | Worker `authorizeCommand()` before dispatch; product channels may onboard/explore/run; blocks maintenance and governance parameters |
+| **Ops break-glass** | `#qali-ops` (`SLACK_OPS_CHANNEL_IDS`) plus `SLACK_QA_LEAD_USER_IDS`; maintenance and privileged Slack actions                       |
 
 Map break-glass users via `SLACK_QA_LEAD_USER_IDS`. They are Developers outside `#qali-ops`. Default for all other allowed users: Developer.
 
