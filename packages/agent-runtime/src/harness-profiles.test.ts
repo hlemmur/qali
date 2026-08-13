@@ -29,6 +29,7 @@ const expectedIds = [
   'visual-test-generation',
   'host-test-execution',
   'host-failure-fingerprinting',
+  'host-regression-validation',
   'failure-explanation',
   'reproduction',
   'knowledge-reconciliation',
@@ -80,6 +81,14 @@ describe('harness profile catalog', () => {
   it('binds failure fingerprinting to a host-only profile before agent explanation', () => {
     const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
     const profile = profiles.find(({ id }) => id === 'host-failure-fingerprinting');
+
+    expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
+    expect(harnessExecutionKind(profile!)).toBe('host');
+  });
+
+  it('binds regression red-state validation to a host-only profile', () => {
+    const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
+    const profile = profiles.find(({ id }) => id === 'host-regression-validation');
 
     expect(profile).toMatchObject({ kind: 'host', skillIds: [] });
     expect(harnessExecutionKind(profile!)).toBe('host');

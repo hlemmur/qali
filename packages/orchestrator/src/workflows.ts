@@ -283,6 +283,11 @@ export function validateWorkflow(
           stepId: 'fingerprint',
           role: 'failure-analyst',
           sensitiveTools: []
+        },
+        'host-regression-validation': {
+          stepId: 'validate-red',
+          role: 'failure-analyst',
+          sensitiveTools: ['shell', 'playwright']
         }
       }[step.harnessProfileId];
       if (

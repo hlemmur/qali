@@ -219,14 +219,27 @@ describe('failure triage', () => {
       join(process.cwd(), 'harness/profiles.json')
     ).find(({ id }) => id === 'triage-and-reproduce')!;
 
-    const result = await executeTriageStep(
+    const draftResult = await executeTriageStep(
       workspace,
       workflow.steps.find(({ id }) => id === 'reproduce')!,
+      command
+    );
+    expect(draftResult.status).toBe('succeeded');
+    const draft = JSON.parse(
+      readFileSync(join(projectRoot, 'observations/evidence/reproductions/draft.json'), 'utf8')
+    );
+    const candidate = readFileSync(join(workspace, draft.candidatePath), 'utf8');
+    expect(candidate).toContain("import '../checkout.spec.js'");
+    expect(candidate).toContain(fingerprint.fingerprint);
+
+    const validationResult = await executeTriageStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'validate-red')!,
       command,
       validator
     );
 
-    expect(result.status).toBe('succeeded');
+    expect(validationResult.status).toBe('succeeded');
     expect(requests).toEqual([
       {
         workspace,
@@ -238,9 +251,6 @@ describe('failure triage', () => {
         fingerprint: fingerprint.fingerprint
       }
     ]);
-    const candidate = readFileSync(join(workspace, requests[0]!.candidatePath), 'utf8');
-    expect(candidate).toContain("import '../checkout.spec.js'");
-    expect(candidate).toContain(fingerprint.fingerprint);
     const reproduction = JSON.parse(
       readFileSync(
         join(projectRoot, 'observations/evidence/reproductions/reproduction.json'),
@@ -299,6 +309,7 @@ describe('failure triage', () => {
       'fingerprint',
       'explain',
       'reproduce',
+      'validate-red',
       'report'
     ]);
     const report = readFileSync(join(projectRoot, 'derived/reports/triage.md'), 'utf8');

@@ -63,22 +63,41 @@ steps:
         path: projects/{projectId}/derived/reports/triage-explanation.md
     outputs:
       - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/draft.json
+      - artifact: tests
+        path: projects/{projectId}/tests
+    requiredTools: [file-read, file-write]
+    mutations: [create-test, append-evidence]
+    policyGates: [execution, approved-scenario]
+    retries: 1
+    timeoutMs: 1200000
+  - id: validate-red
+    role: failure-analyst
+    harnessProfileId: host-regression-validation
+    needs: [reproduce]
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/fingerprint.json
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/draft.json
+    outputs:
+      - artifact: evidence
         path: projects/{projectId}/observations/evidence/reproductions
       - artifact: known-issues
         path: projects/{projectId}/observations/known-issues.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
-      - artifact: tests
-        path: projects/{projectId}/tests
-    requiredTools: [file-read, file-write]
-    mutations: [create-test, append-observation, append-evidence]
+    requiredTools: [file-read, file-write, shell, playwright]
+    mutations: [append-observation, append-evidence]
     policyGates: [execution, approved-scenario]
-    retries: 1
+    retries: 0
     timeoutMs: 1200000
   - id: report
     role: reporter
     harnessProfileId: human-reporting
-    needs: [reproduce]
+    needs: [validate-red]
     inputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/reproductions

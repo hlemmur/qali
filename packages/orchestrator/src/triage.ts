@@ -234,9 +234,6 @@ export async function executeTriageStep(
   }
 
   if (step.id === 'reproduce') {
-    if (!regressionValidator) {
-      return { status: 'failed', error: 'regression red-state validator is unavailable' };
-    }
     if (!existsSync(fingerprintPath)) {
       return { status: 'failed', error: 'failure fingerprint is missing' };
     }
@@ -281,11 +278,62 @@ export async function executeTriageStep(
       ].join('\n')
     );
 
+    const draftPath = join(
+      workspace,
+      outputs.find(({ artifact }) => artifact === 'evidence')!.path
+    );
+    mkdirSync(dirname(draftPath), { recursive: true });
+    writeFileSync(
+      draftPath,
+      `${JSON.stringify(
+        {
+          version: 1,
+          fingerprint: fingerprint.fingerprint,
+          sourceRunId: fingerprint.sourceRunId,
+          candidatePath,
+          sourceTest: failure.file,
+          title: failure.title
+        },
+        null,
+        2
+      )}\n`
+    );
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'validate-red') {
+    if (!regressionValidator) {
+      return { status: 'failed', error: 'regression red-state validator is unavailable' };
+    }
+    const draftPath = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/reproductions/draft.json'
+    );
+    if (!existsSync(fingerprintPath) || !existsSync(draftPath)) {
+      return { status: 'failed', error: 'regression candidate evidence is incomplete' };
+    }
+    const projectRoot = resolve(workspace, command.project.root);
+    const fingerprint = JSON.parse(readFileSync(fingerprintPath, 'utf8')) as FailureFingerprint;
+    const draft = JSON.parse(readFileSync(draftPath, 'utf8')) as {
+      fingerprint: string;
+      sourceRunId: string;
+      candidatePath: string;
+      sourceTest: string;
+      title: string;
+    };
+    if (
+      draft.fingerprint !== fingerprint.fingerprint ||
+      draft.sourceRunId !== fingerprint.sourceRunId
+    ) {
+      return { status: 'failed', error: 'regression candidate does not match the fingerprint' };
+    }
+
     const observation = await regressionValidator.observeRed({
       workspace,
       projectId: command.project.id,
-      candidatePath,
-      title: failure.title,
+      candidatePath: draft.candidatePath,
+      title: draft.title,
       fingerprint: fingerprint.fingerprint
     });
     if (observation.status !== 'red') {
@@ -301,9 +349,9 @@ export async function executeTriageStep(
           version: 1,
           fingerprint: fingerprint.fingerprint,
           sourceRunId: fingerprint.sourceRunId,
-          candidatePath,
-          sourceTest: failure.file,
-          title: failure.title,
+          candidatePath: draft.candidatePath,
+          sourceTest: draft.sourceTest,
+          title: draft.title,
           observedStatus: 'red',
           evidence: observation.evidence
         },
@@ -320,12 +368,12 @@ export async function executeTriageStep(
         knownIssuesPath,
         [
           '',
-          `## BUG-${fingerprint.fingerprint.slice(0, 12)}: ${failure.title}`,
+          `## BUG-${fingerprint.fingerprint.slice(0, 12)}: ${draft.title}`,
           '',
           '- Status: reproduced',
           `- Fingerprint: \`${fingerprint.fingerprint}\``,
           `- Source run: \`${fingerprint.sourceRunId}\``,
-          `- Regression candidate: \`${candidatePath}\``,
+          `- Regression candidate: \`${draft.candidatePath}\``,
           `- Red evidence: ${observation.evidence.map((path) => `\`${path}\``).join(', ')}`,
           ''
         ].join('\n')
