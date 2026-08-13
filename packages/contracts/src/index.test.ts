@@ -6,6 +6,7 @@ import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
   ProjectRegistrySchema,
+  SemanticPublicationManifestSchema,
   ModelQualificationRecordSchema,
   RoleProfileSchema,
   WorkflowAttemptSchema,
@@ -14,6 +15,45 @@ import {
 } from './index.js';
 
 describe('workflow contracts', () => {
+  it('requires semantic publication manifests to contain review-only diffs and executed checks', () => {
+    const manifest = SemanticPublicationManifestSchema.parse({
+      version: 1,
+      requestId: 'REQ-42',
+      projectRoot: 'projects/shop',
+      baseBranch: 'main',
+      reviewOnly: true,
+      title: 'Publish generated checkout coverage',
+      commitMessage: 'Publish generated checkout coverage',
+      checks: [
+        {
+          command: 'npm',
+          args: ['run', 'build'],
+          exitCode: 0,
+          durationMs: 1250,
+          stdout: 'build completed',
+          stderr: ''
+        }
+      ],
+      changes: [
+        {
+          path: 'projects/shop/derived/reports/coverage.md',
+          classification: 'derived-artifact',
+          before: null,
+          after: { content: 'generated', sha256: 'a'.repeat(64) }
+        }
+      ]
+    });
+
+    expect(manifest.checks[0]?.exitCode).toBe(0);
+    expect(() =>
+      SemanticPublicationManifestSchema.parse({
+        ...manifest,
+        reviewOnly: false,
+        checks: [{ name: 'npm run build', passed: true }]
+      })
+    ).toThrow();
+  });
+
   it('records immutable workflow step attempt identity and outcome', () => {
     const attempt = WorkflowAttemptSchema.parse({
       id: 'attempt-1',

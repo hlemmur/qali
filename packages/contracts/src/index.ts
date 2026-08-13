@@ -309,6 +309,63 @@ export const ModelQualificationRegistrySchema = z
   .strict();
 export type ModelQualificationRegistry = z.infer<typeof ModelQualificationRegistrySchema>;
 
+export const PublicationChangeClassificationSchema = z.enum([
+  'observation',
+  'test',
+  'governed-source',
+  'derived-artifact',
+  'raw-evidence',
+  'unsupported'
+]);
+export type PublicationChangeClassification = z.infer<typeof PublicationChangeClassificationSchema>;
+
+const PublicationFileStateSchema = z
+  .object({
+    content: z.string(),
+    sha256: Sha256Schema
+  })
+  .strict();
+
+export const PublicationCheckResultSchema = z
+  .object({
+    command: z.string().min(1),
+    args: z.array(z.string()),
+    exitCode: z.number().int(),
+    durationMs: z.number().int().nonnegative(),
+    stdout: z.string(),
+    stderr: z.string()
+  })
+  .strict();
+export type PublicationCheckResult = z.infer<typeof PublicationCheckResultSchema>;
+
+export const SemanticPublicationChangeSchema = z
+  .object({
+    path: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*\//),
+    classification: PublicationChangeClassificationSchema,
+    before: PublicationFileStateSchema.nullable(),
+    after: PublicationFileStateSchema.nullable(),
+    provenanceRef: z.string().min(1).optional(),
+    approvedScenarioRef: z.string().min(1).optional(),
+    authorityRef: z.string().min(1).optional()
+  })
+  .strict();
+export type SemanticPublicationChange = z.infer<typeof SemanticPublicationChangeSchema>;
+
+export const SemanticPublicationManifestSchema = z
+  .object({
+    version: z.literal(1),
+    requestId: z.string().min(1),
+    projectRoot: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*$/),
+    baseBranch: z.literal('main'),
+    reviewOnly: z.literal(true),
+    title: z.string().min(1),
+    commitMessage: z.string().min(1),
+    checks: z.array(PublicationCheckResultSchema).min(1),
+    changes: z.array(SemanticPublicationChangeSchema).min(1)
+  })
+  .strict();
+export type SemanticPublicationManifest = z.infer<typeof SemanticPublicationManifestSchema>;
+
 export const ProjectMetadataSchema = z
   .object({
     id: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),
