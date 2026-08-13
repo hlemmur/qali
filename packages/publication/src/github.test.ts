@@ -43,7 +43,7 @@ describe('least-privilege GitHub publication adapter', () => {
         after: { content: 'report', sha256: 'a'.repeat(64) }
       }
     ]);
-    const pull = await adapter.createPullRequest({
+    await adapter.createPullRequest({
       branch: 'qali/req-1',
       baseBranch: 'main',
       title: 'Qali updates',
