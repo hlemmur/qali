@@ -263,6 +263,17 @@ describe('workflow catalog', () => {
       )
     ).toThrow(/host execution contract/i);
   });
+
+  it('lets generate-test-suite start from journeys without pre-approved scenarios', () => {
+    const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
+    const generate = workflows.find(({ id }) => id === 'generate-test-suite')!;
+    const generateTests = generate.steps.find(({ id }) => id === 'generate-tests')!;
+
+    expect(generate.preconditions).not.toContain('approved-scenario-present');
+    expect(generateTests.policyGates).toEqual(['execution']);
+    expect(generateTests.mutations).toContain('create-test');
+    expect(() => validateWorkflow(generate, validationContext())).not.toThrow();
+  });
 });
 
 describe('deterministic intent routing', () => {

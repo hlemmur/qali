@@ -6,8 +6,7 @@ executable: true
 triggers:
   - type: command
     intent: generate-test-suite
-preconditions:
-  [project-exists, project-context-present, execution-unblocked, approved-scenario-present]
+preconditions: [project-exists, project-context-present, execution-unblocked]
 steps:
   - id: design-coverage
     role: test-architect
@@ -48,6 +47,6 @@ steps:
         path: projects/{projectId}/tests
     requiredTools: [file-read, file-write]
     mutations: [create-test]
-    policyGates: [execution, approved-scenario]
+    policyGates: [execution]
     retries: 1
     timeoutMs: 900000
