@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@qali/contracts": "0.1.0",
-    "@qali/knowledge": "0.1.0"
+    "@qali/knowledge": "0.1.0",
+    "@qali/playwright": "0.1.0"
   }
 }

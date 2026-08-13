@@ -42,6 +42,7 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeOnboardingMockStep,
+  executeTestRunStep,
   executeTestGenerationStep,
   executeWorkflow,
   loadWorkflowDirectory,
@@ -56,7 +57,6 @@ import {
   SpawnPlaywrightRunner,
   parsePlaywrightJsonReport,
   resolvePlaywrightSuite,
-  summarizePlaywrightRun,
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
@@ -412,40 +412,20 @@ class RoutedStepExecutor implements StepExecutor {
           reason: `host harness profile violates execution contract: ${step.harnessProfileId}`
         } as const;
       }
-      const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
-      mkdirSync(evidenceDir, { recursive: true });
-      const suite = resolvePlaywrightSuite(command.parameters.suite);
-      const run = await this.playwright.run({
+      const outcome = await executeTestRunStep({
         workspace,
-        projectId: command.project.id,
+        step,
+        command,
+        runner: this.playwright,
         targetBaseUrl: this.targetBaseUrl,
-        reportPath: join(evidenceDir, 'results.json'),
-        ...(suite.grep ? { grep: suite.grep } : {}),
         signal: context.signal,
         ...(this.webServer ? { webServer: this.webServer } : {})
       });
-      if (existsSync(join(evidenceDir, 'results.json'))) {
-        const reportPath = join(evidenceDir, 'results.json');
-        this.playwrightSummary = summarizePlaywrightRun(
-          JSON.parse(readFileSync(reportPath, 'utf8')),
-          run
-        );
-        if (!this.playwrightSummary.evidence.includes(reportPath)) {
-          this.playwrightSummary.evidence.unshift(reportPath);
-        }
+      this.playwrightSummary = outcome.summary;
+      if (this.playwrightSummary) {
         writePlaywrightSlackSummary(command, this.playwrightSummary);
       }
-      const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
-      mkdirSync(dirname(jobPath), { recursive: true });
-      writeFileSync(
-        jobPath,
-        generatedMarkdown(
-          `# Test run job\n\nStatus: ${run.status}\nEvidence: \`${join(evidenceDir, 'results.json')}\`\n`
-        )
-      );
-      return run.status === 'passed'
-        ? ({ status: 'succeeded', outputs } as const)
-        : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
+      return outcome.result;
     }
 
     const agentExecutionRoute = selectAgentExecutionRoute(
