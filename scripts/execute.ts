@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
@@ -54,6 +61,7 @@ import {
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
 import { selectAgentExecutionRoute } from './execute-routing.js';
+import { shouldWriteFallbackPlaywrightSummary } from './execute-reporting.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -597,6 +605,8 @@ if (executionMode !== 'mock') {
   process.env.CURSOR_MODEL = qualification.candidate.modelIdentifier;
 }
 mkdirSync(join(workspace, '.qali'), { recursive: true });
+const transientSlackSummaryPath = join(workspace, '.qali/slack-summary.json');
+if (existsSync(transientSlackSummaryPath)) unlinkSync(transientSlackSummaryPath);
 const agentMode =
   Boolean(process.env.CURSOR_MODEL?.trim()) &&
   Boolean(process.env.CURSOR_API_KEY?.trim()) &&
@@ -654,7 +664,13 @@ if (result.status === 'succeeded') {
     command.project.root,
     'observations/evidence/test-runs/results.json'
   );
-  if (command.intent === 'run-test-suite' && existsSync(resultsPath)) {
+  if (
+    shouldWriteFallbackPlaywrightSummary({
+      intent: command.intent,
+      resultsExist: existsSync(resultsPath),
+      executorSummaryExists: existsSync(transientSlackSummaryPath)
+    })
+  ) {
     writePlaywrightSlackSummary(
       command,
       parsePlaywrightJsonReport(JSON.parse(readFileSync(resultsPath, 'utf8')))
