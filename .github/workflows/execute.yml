@@ -129,17 +129,6 @@ jobs:
             printf '%s\n' "- Project: \`$SUMMARY_PROJECT\`"
             echo "- Result: \`${{ job.status }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Post Slack run summary
-        if: always() && github.event_name == 'workflow_dispatch'
-        env:
-          QALI_WORKER_BASE_URL: ${{ vars.QALI_WORKER_BASE_URL }}
-          QALI_CALLBACK_SECRET: ${{ secrets.QALI_CALLBACK_SECRET }}
-          SUMMARY_REQUEST_ID: ${{ inputs.request_id }}
-          SUMMARY_INTENT: ${{ inputs.intent }}
-          PROJECT_JSON: ${{ inputs.project_json }}
-          JOB_STATUS: ${{ job.status }}
-          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: npm run post:run-summary
       - name: Upload Playwright and workflow evidence
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
@@ -189,3 +178,34 @@ jobs:
       - name: Keep patch artifact when publication is not configured
         if: env.QALI_PUBLISH_GITHUB_TOKEN == ''
         run: echo "QALI_PUBLISH_GITHUB_TOKEN is not configured; generated.patch remains an artifact."
+
+  notify-slack:
+    if: always() && github.event_name == 'workflow_dispatch'
+    needs: [validate-and-execute, publish-generated-changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci
+      - name: Download workflow evidence when available
+        continue-on-error: true
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: qali-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .
+      - name: Post final Slack run summary
+        env:
+          QALI_WORKER_BASE_URL: ${{ vars.QALI_WORKER_BASE_URL }}
+          QALI_CALLBACK_SECRET: ${{ secrets.QALI_CALLBACK_SECRET }}
+          SUMMARY_REQUEST_ID: ${{ inputs.request_id }}
+          SUMMARY_INTENT: ${{ inputs.intent }}
+          PROJECT_JSON: ${{ inputs.project_json }}
+          JOB_STATUS: ${{ (needs.validate-and-execute.result != 'success' || needs.publish-generated-changes.result == 'failure' || needs.publish-generated-changes.result == 'cancelled') && 'failure' || 'success' }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run post:run-summary

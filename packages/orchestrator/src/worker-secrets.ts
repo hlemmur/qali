@@ -35,6 +35,27 @@ export interface ProjectEnvironmentConfigToSync {
   variables: SecretValue[];
 }
 
+export interface GitHubEnvironmentSyncTarget {
+  ensureEnvironment(repo: string, environment: string): void;
+  setSecret(repo: string, environment: string, secret: SecretValue): void;
+  setVariable(repo: string, environment: string, variable: SecretValue): void;
+}
+
+export function syncGitHubEnvironmentConfig(
+  repo: string,
+  config: ProjectEnvironmentConfigToSync,
+  target: GitHubEnvironmentSyncTarget
+): number {
+  target.ensureEnvironment(repo, config.environment);
+  for (const secret of config.secrets) {
+    target.setSecret(repo, config.environment, secret);
+  }
+  for (const variable of config.variables) {
+    target.setVariable(repo, config.environment, variable);
+  }
+  return config.secrets.length + config.variables.length;
+}
+
 export function selectProjectEnvironmentConfigToSync(
   env: Record<string, string>,
   environment: string

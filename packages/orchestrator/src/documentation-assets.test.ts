@@ -122,6 +122,21 @@ describe('product documentation assets', () => {
     expect(workflow).not.toMatch(/git push\s+(?:origin\s+)?main/);
   });
 
+  it('reports Slack status only after execution and publication reach terminal outcomes', () => {
+    const workflow = read('.github/workflows/execute.yml');
+    const executionJob = workflow
+      .split('  validate-and-execute:')[1]
+      ?.split('  publish-generated-changes:')[0];
+    const notificationJob = workflow.split('  notify-slack:')[1];
+
+    expect(executionJob).not.toContain('Post Slack run summary');
+    expect(notificationJob).toContain('if: always()');
+    expect(notificationJob).toContain('validate-and-execute');
+    expect(notificationJob).toContain('publish-generated-changes');
+    expect(notificationJob).toContain('Post final Slack run summary');
+    expect(notificationJob).toContain("needs.publish-generated-changes.result == 'failure'");
+  });
+
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executeScript = read('scripts/execute.ts');

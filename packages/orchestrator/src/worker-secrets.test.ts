@@ -4,6 +4,7 @@ import {
   WORKER_SECRET_KEYS,
   parseDotEnv,
   parseEnvSyncGroups,
+  syncGitHubEnvironmentConfig,
   selectActionsConfigToSync,
   selectPublicationEnvironmentConfigToSync,
   selectProjectEnvironmentConfigToSync,
@@ -71,6 +72,33 @@ GITHUB_APP_ID=123
 });
 
 describe('GitHub Actions env sync helpers', () => {
+  it('provisions a GitHub Environment before installing its values', () => {
+    const operations: string[] = [];
+
+    const count = syncGitHubEnvironmentConfig(
+      'hlemmur/qali',
+      {
+        environment: 'qali-publication',
+        secrets: [{ name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'token' }],
+        variables: [{ name: 'QALI_TARGET_BASE_URL', value: 'https://example.test' }]
+      },
+      {
+        ensureEnvironment: (repo, environment) => operations.push(`ensure:${repo}:${environment}`),
+        setSecret: (_repo, environment, secret) =>
+          operations.push(`secret:${environment}:${secret.name}`),
+        setVariable: (_repo, environment, variable) =>
+          operations.push(`variable:${environment}:${variable.name}`)
+      }
+    );
+
+    expect(operations).toEqual([
+      'ensure:hlemmur/qali:qali-publication',
+      'secret:qali-publication:QALI_PUBLISH_GITHUB_TOKEN',
+      'variable:qali-publication:QALI_TARGET_BASE_URL'
+    ]);
+    expect(count).toBe(2);
+  });
+
   it('selects the standard target interface for a named GitHub Environment', () => {
     expect(
       selectProjectEnvironmentConfigToSync(
