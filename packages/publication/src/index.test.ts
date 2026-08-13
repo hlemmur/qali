@@ -260,27 +260,29 @@ describe('generated-change publication policy', () => {
 });
 
 describe('controlled GitHub publisher', () => {
-  it('creates a Qali branch, commit, PR, and auto-merge only after policy checks pass', async () => {
+  it('creates a review-only Qali branch, commit, and evidence-backed PR after checks pass', async () => {
     const calls: string[] = [];
+    let pullRequestBody = '';
     const github: GitHubPublicationPort = {
       createBranch: async (branch) => void calls.push(`branch:${branch}`),
       commit: async (branch, _message, changes) =>
         void calls.push(`commit:${branch}:${changes.length}`),
-      createPullRequest: async () => {
+      createPullRequest: async ({ body }) => {
+        pullRequestBody = body;
         calls.push('pr');
         return { number: 17, nodeId: 'PR_node', url: 'https://github.test/pr/17' };
-      },
-      enableAutoMerge: async (nodeId) => void calls.push(`merge:${nodeId}`)
+      }
     };
     const publisher = new ControlledPublisher(github);
 
     const result = await publisher.publish(
-      request([
-        {
-          path: 'projects/shop/derived/reports/run.md',
-          mutation: 'render-derived-report',
-          content: 'generated'
-        }
+      semanticManifest([
+        createSemanticPublicationChange({
+          path: 'projects/shop/observations/exploration.md',
+          before: null,
+          after: '# Observation\n',
+          provenanceRef: 'run:42'
+        })
       ])
     );
 
@@ -289,7 +291,10 @@ describe('controlled GitHub publisher', () => {
       branch: 'qali/req-42',
       pullRequestUrl: 'https://github.test/pr/17'
     });
-    expect(calls).toEqual(['branch:qali/req-42', 'commit:qali/req-42:1', 'pr', 'merge:PR_node']);
+    expect(calls).toEqual(['branch:qali/req-42', 'commit:qali/req-42:1', 'pr']);
+    expect(pullRequestBody).toContain('`npm run build`');
+    expect(pullRequestBody).toContain('exit 0');
+    expect(pullRequestBody).toContain('Review-only publication');
   });
 
   it('does not call GitHub when publication policy rejects a request', async () => {
@@ -302,20 +307,17 @@ describe('controlled GitHub publisher', () => {
       },
       createPullRequest: async () => {
         throw new Error('must not run');
-      },
-      enableAutoMerge: async () => {
-        throw new Error('must not run');
       }
     };
 
     await expect(
       new ControlledPublisher(github).publish(
-        request([
-          {
-            path: 'src/app.ts',
-            mutation: 'modify-source-code',
-            content: 'source'
-          }
+        semanticManifest([
+          createSemanticPublicationChange({
+            path: 'projects/shop/derived/reports/report.md',
+            before: null,
+            after: 'manual report'
+          })
         ])
       )
     ).resolves.toMatchObject({ status: 'rejected' });

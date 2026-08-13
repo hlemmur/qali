@@ -1,4 +1,5 @@
-import type { GitHubPublicationPort, PublicationChange, PullRequestReference } from './index.js';
+import type { SemanticPublicationChange } from '../../contracts/src/index.js';
+import type { GitHubPublicationPort, PullRequestReference } from './index.js';
 
 export interface GitHubPublicationAdapterOptions {
   token: string;
@@ -58,7 +59,11 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
     this.branchBases.set(branch, sha);
   }
 
-  async commit(branch: string, message: string, changes: PublicationChange[]): Promise<void> {
+  async commit(
+    branch: string,
+    message: string,
+    changes: SemanticPublicationChange[]
+  ): Promise<void> {
     const parentSha = this.branchBases.get(branch);
     if (!parentSha) throw new Error(`branch was not created by this publisher: ${branch}`);
     const baseCommit = await this.request(this.repoPath(`/git/commits/${parentSha}`));
@@ -67,13 +72,13 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
 
     const tree = [];
     for (const change of changes) {
-      if (change.deleted || typeof change.content !== 'string') {
+      if (!change.after) {
         throw new Error(`adapter received an unsafe change: ${change.path}`);
       }
       const blob = await this.request(this.repoPath('/git/blobs'), {
         method: 'POST',
         body: JSON.stringify({
-          content: Buffer.from(change.content, 'utf8').toString('base64'),
+          content: Buffer.from(change.after.content, 'utf8').toString('base64'),
           encoding: 'base64'
         })
       });
@@ -119,16 +124,5 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
       throw new Error('GitHub pull request response was incomplete');
     }
     return { number: pull.number, nodeId: pull.node_id, url: pull.html_url };
-  }
-
-  async enableAutoMerge(pullRequestNodeId: string): Promise<void> {
-    await this.request('/graphql', {
-      method: 'POST',
-      body: JSON.stringify({
-        query:
-          'mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: $mergeMethod}) { pullRequest { id } } }',
-        variables: { pullRequestId: pullRequestNodeId, mergeMethod: 'SQUASH' }
-      })
-    });
   }
 }
