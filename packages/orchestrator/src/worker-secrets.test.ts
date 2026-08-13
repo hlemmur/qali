@@ -5,6 +5,7 @@ import {
   parseDotEnv,
   parseEnvSyncGroups,
   selectActionsConfigToSync,
+  selectPublicationEnvironmentConfigToSync,
   selectProjectEnvironmentConfigToSync,
   selectSecretsToSync
 } from './worker-secrets.js';
@@ -113,8 +114,7 @@ describe('GitHub Actions env sync helpers', () => {
     expect(decision.repo).toBe('hlemmur/qali');
     expect(decision.secrets).toEqual([
       { name: 'CURSOR_API_KEY', value: 'key-123' },
-      { name: 'QALI_CALLBACK_SECRET', value: 'callback-secret' },
-      { name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }
+      { name: 'QALI_CALLBACK_SECRET', value: 'callback-secret' }
     ]);
     expect(decision.variables).toEqual([
       { name: 'CURSOR_MODEL', value: 'composer-2.5' },
@@ -124,6 +124,18 @@ describe('GitHub Actions env sync helpers', () => {
       }
     ]);
     expect(decision.skipped).toEqual([]);
+  });
+
+  it('scopes the publication token to its dedicated GitHub Environment', () => {
+    expect(
+      selectPublicationEnvironmentConfigToSync({
+        QALI_PUBLISH_GITHUB_TOKEN: 'ghp_publish'
+      })
+    ).toEqual({
+      environment: 'qali-publication',
+      secrets: [{ name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }],
+      variables: []
+    });
   });
 
   it('never derives the Actions callback secret from the webhook secret', () => {

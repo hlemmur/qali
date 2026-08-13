@@ -56,6 +56,17 @@ export function selectProjectEnvironmentConfigToSync(
   };
 }
 
+export function selectPublicationEnvironmentConfigToSync(
+  env: Record<string, string>
+): ProjectEnvironmentConfigToSync {
+  const token = env.QALI_PUBLISH_GITHUB_TOKEN?.trim() ?? '';
+  return {
+    environment: 'qali-publication',
+    secrets: token ? [{ name: 'QALI_PUBLISH_GITHUB_TOKEN', value: token }] : [],
+    variables: []
+  };
+}
+
 export function parseDotEnv(contents: string): Record<string, string> {
   const values: Record<string, string> = {};
   const lines = contents.split(/\r?\n/);
@@ -180,7 +191,6 @@ export function selectActionsConfigToSync(
 
   if (includeAllActions) {
     pushMapped(secrets, skipped, env, 'QALI_CALLBACK_SECRET', 'QALI_CALLBACK_SECRET');
-    pushMapped(secrets, skipped, env, 'QALI_PUBLISH_GITHUB_TOKEN', 'QALI_PUBLISH_GITHUB_TOKEN');
     pushMapped(variables, skipped, env, 'WORKER_BASE_URL', 'QALI_WORKER_BASE_URL');
   }
 

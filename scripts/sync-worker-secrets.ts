@@ -26,6 +26,7 @@ import {
   parseDotEnv,
   parseEnvSyncGroups,
   selectActionsConfigToSync,
+  selectPublicationEnvironmentConfigToSync,
   selectProjectEnvironmentConfigToSync,
   selectSecretsToSync
 } from '../packages/orchestrator/src/worker-secrets.js';
@@ -102,10 +103,13 @@ if (groups.actions.length > 0) {
         selectProjectEnvironmentConfigToSync(env, project.githubEnvironment)
       )
     : [];
+  const environmentTargets = groups.actions.includes('actions')
+    ? [...projectTargets, selectPublicationEnvironmentConfigToSync(env)]
+    : projectTargets;
   const total =
     actions.secrets.length +
     actions.variables.length +
-    projectTargets.reduce(
+    environmentTargets.reduce(
       (count, target) => count + target.secrets.length + target.variables.length,
       0
     );
@@ -153,7 +157,7 @@ if (groups.actions.length > 0) {
   }
 
   if (groups.actions.includes('actions')) {
-    for (const target of projectTargets) {
+    for (const target of environmentTargets) {
       for (const secret of target.secrets) {
         if (dryRun) {
           console.log(

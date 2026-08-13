@@ -161,6 +161,7 @@ jobs:
   publish-generated-changes:
     if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'
     needs: validate-and-execute
+    environment: qali-publication
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
