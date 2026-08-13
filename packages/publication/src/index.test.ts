@@ -98,11 +98,11 @@ describe('semantic publication policy', () => {
       before:
         "test('checkout', async ({ page }) => { await expect(page.getByText('Paid')).toBeVisible(); });\n",
       after:
-        "test.skip('checkout', async ({ page }) => { await expect(page.getByText('Pending')).toBeVisible(); });\n"
+        "test('checkout', async ({ page }) => { await expect(page.getByText('Pending')).toBeVisible(); });\n"
     });
     expect(assessSemanticPublication(semanticManifest([weakenedOracle]))).toMatchObject({
       allowed: false,
-      reason: expect.stringMatching(/oracle|skip/i)
+      reason: expect.stringMatching(/oracle/i)
     });
   });
 

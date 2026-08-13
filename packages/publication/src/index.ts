@@ -25,8 +25,11 @@ function oracleFingerprint(source: string): string {
         ts.isIdentifier(expression.expression) &&
         expression.expression.text === 'expect'
       ) {
+        const subject = expression.arguments
+          .map((argument) => argument.getText(file).replace(/\s+/g, ' '))
+          .join(',');
         const args = node.arguments.map((argument) => argument.getText(file).replace(/\s+/g, ' '));
-        assertions.push(`${chain.join('.')}:${args.join(',')}`);
+        assertions.push(`${subject}:${chain.join('.')}:${args.join(',')}`);
       }
     }
     ts.forEachChild(node, visit);
