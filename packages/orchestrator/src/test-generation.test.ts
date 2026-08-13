@@ -119,4 +119,48 @@ describe('deterministic test generation', () => {
       "expect(page.getByRole('heading', { name: 'Good morning, Alex Morgan' })).toBeVisible()"
     );
   });
+
+  it('uses visual assertions for baselines and labels evidence-only screenshots separately', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/visual.md'),
+      [
+        '## VIS-001: Approved dashboard baseline',
+        '',
+        '- Status: approved for automation',
+        '- Traceability: REQ-003',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/dashboard',
+          actions: [],
+          assertions: [
+            { kind: 'visual', name: 'dashboard.png' },
+            { kind: 'evidenceScreenshot', name: 'dashboard-run-evidence.png' }
+          ]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      { ...command, parameters: { visualTesting: true } }
+    );
+
+    const generated = readFileSync(
+      join(projectRoot, 'tests/generated/vis-001.generated.spec.ts'),
+      'utf8'
+    );
+    expect(generated).toContain("await expect(page).toHaveScreenshot('dashboard.png')");
+    expect(generated).toContain('// Evidence-only screenshot; not a visual assertion.');
+    expect(generated).toContain("testInfo.outputPath('dashboard-run-evidence.png')");
+  });
 });

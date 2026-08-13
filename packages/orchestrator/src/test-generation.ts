@@ -26,6 +26,8 @@ interface PlaywrightScenario {
   assertions: Array<
     | { kind: 'visible'; role: string; name: string }
     | { kind: 'text'; testId: string; value: string }
+    | { kind: 'visual'; name: string }
+    | { kind: 'evidenceScreenshot'; name: string }
   >;
 }
 
@@ -103,7 +105,7 @@ export async function executeTestGenerationStep(
         '',
         `// Approved scenario: ${scenario.id}`,
         `// Requirements: ${scenario.requirementIds.join(', ')}`,
-        `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }) => {`,
+        `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }, testInfo) => {`,
         `  await page.goto(${quoted(scenario.playwright.path)});`
       ];
       for (const action of scenario.playwright.actions) {
@@ -125,6 +127,13 @@ export async function executeTestGenerationStep(
         } else if (assertion.kind === 'text') {
           lines.push(
             `  await expect(page.getByTestId(${quoted(assertion.testId)})).toHaveText(${quoted(assertion.value)});`
+          );
+        } else if (assertion.kind === 'visual') {
+          lines.push(`  await expect(page).toHaveScreenshot(${quoted(assertion.name)});`);
+        } else if (assertion.kind === 'evidenceScreenshot') {
+          lines.push(
+            '  // Evidence-only screenshot; not a visual assertion.',
+            `  await page.screenshot({ path: testInfo.outputPath(${quoted(assertion.name)}), fullPage: true });`
           );
         }
       }
