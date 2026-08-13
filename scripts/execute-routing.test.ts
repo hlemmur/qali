@@ -13,17 +13,23 @@ const command = (intent: NormalizedCommand['intent']): NormalizedCommand => ({
 
 describe('agent execution routing', () => {
   it('keeps onboarding deterministic when the Cursor CLI is available', () => {
-    expect(selectAgentExecutionRoute(command('onboard-project'), true)).toBe(
+    expect(selectAgentExecutionRoute(command('onboard-project'), true, true)).toBe(
       'deterministic-onboarding'
     );
   });
 
+  it('uses the restricted deterministic explorer in Mock Mode when the Cursor CLI is available', () => {
+    expect(selectAgentExecutionRoute(command('explore-project'), true, true)).toBe(
+      'deterministic-exploration'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
-    expect(selectAgentExecutionRoute(command('explore-project'), true)).toBe('cursor');
+    expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });
 
   it('uses the deterministic fallback when the Cursor CLI is unavailable', () => {
-    expect(selectAgentExecutionRoute(command('explore-project'), false)).toBe(
+    expect(selectAgentExecutionRoute(command('explore-project'), false, false)).toBe(
       'deterministic-fallback'
     );
   });
