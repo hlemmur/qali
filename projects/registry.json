@@ -25,7 +25,8 @@
         "triage-failure",
         "maintain-knowledge",
         "maintain-suite",
-        "quality-pulse"
+        "quality-pulse",
+        "query-project"
       ],
       "schedules": [
         {
