@@ -1,7 +1,11 @@
 import type { NormalizedCommand } from '../packages/contracts/src/index.js';
 
 export type AgentExecutionRoute =
-  'deterministic-onboarding' | 'deterministic-exploration' | 'deterministic-fallback' | 'cursor';
+  | 'deterministic-onboarding'
+  | 'deterministic-exploration'
+  | 'deterministic-test-generation'
+  | 'deterministic-fallback'
+  | 'cursor';
 
 export function selectAgentExecutionRoute(
   command: NormalizedCommand,
@@ -10,5 +14,8 @@ export function selectAgentExecutionRoute(
 ): AgentExecutionRoute {
   if (command.intent === 'onboard-project') return 'deterministic-onboarding';
   if (mockMode && command.intent === 'explore-project') return 'deterministic-exploration';
+  if (mockMode && command.intent === 'generate-test-suite') {
+    return 'deterministic-test-generation';
+  }
   return cursorCliAvailable ? 'cursor' : 'deterministic-fallback';
 }

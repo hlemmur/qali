@@ -24,6 +24,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('uses deterministic test generation and validation in Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('generate-test-suite'), true, true)).toBe(
+      'deterministic-test-generation'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });

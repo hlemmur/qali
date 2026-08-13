@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('DEMO-GEN-001 generated dashboard journey', async ({ page }) => {
+// Approved scenario: DEMO-SMK-001
+// Requirements: REQ-001, REQ-003, REQ-005
+test('DEMO-SMK-001 generated scenario', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Email').fill('alex@example.test');
   await page.getByLabel('Password').fill('demo123');
