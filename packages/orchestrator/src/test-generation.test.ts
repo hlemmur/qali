@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
@@ -396,5 +396,40 @@ describe('deterministic test generation', () => {
         new FakeGeneratedTestValidator()
       )
     ).rejects.toThrow(/SCN-UNTRACED.*requirement traceability/i);
+  });
+
+  it('removes stale generated specs before validating the current approved set', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    mkdirSync(join(projectRoot, 'tests/generated'), { recursive: true });
+    writeFileSync(join(projectRoot, 'tests/generated/stale.generated.spec.ts'), 'obsolete');
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/current.md'),
+      [
+        '## SCN-CURRENT: Current scenario',
+        '- Status: approved for automation',
+        '- Traceability: REQ-001',
+        '```json qali-playwright',
+        JSON.stringify({ path: '/', actions: [], assertions: [] }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command,
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(existsSync(join(projectRoot, 'tests/generated/stale.generated.spec.ts'))).toBe(false);
+    expect(existsSync(join(projectRoot, 'tests/generated/scn-current.generated.spec.ts'))).toBe(
+      true
+    );
   });
 });

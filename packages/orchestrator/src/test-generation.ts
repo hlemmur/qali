@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { format } from 'prettier';
@@ -155,6 +155,9 @@ export async function executeTestGenerationStep(
     }
     const generatedDirectory = join(projectRoot, 'tests/generated');
     mkdirSync(generatedDirectory, { recursive: true });
+    for (const name of readdirSync(generatedDirectory)) {
+      if (name.endsWith('.generated.spec.ts')) unlinkSync(join(generatedDirectory, name));
+    }
     const generatedPaths: string[] = [];
     const scenarioIds: string[] = [];
     for (const scenario of generatedScenarios) {
