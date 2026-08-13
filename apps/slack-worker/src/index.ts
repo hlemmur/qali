@@ -121,8 +121,8 @@ function channelAllowed(env: Env, channelId: string): boolean {
 
 function roleForSlackUser(env: Env, userId: string, channelId: string) {
   return externalRoleForUser(userId, {
-    breakGlassUserIds: env.SLACK_QA_LEAD_USER_IDS,
-    opsChannelIds: env.SLACK_OPS_CHANNEL_IDS,
+    ...(env.SLACK_QA_LEAD_USER_IDS ? { breakGlassUserIds: env.SLACK_QA_LEAD_USER_IDS } : {}),
+    ...(env.SLACK_OPS_CHANNEL_IDS ? { opsChannelIds: env.SLACK_OPS_CHANNEL_IDS } : {}),
     channelId
   });
 }

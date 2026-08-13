@@ -31,9 +31,10 @@ export function externalRoleForUser(
     channelId?: string;
   } = {}
 ): ExternalRole {
+  const channelId = options.channelId;
+  if (!channelId) return 'developer';
   const isBreakGlass = csv(options.breakGlassUserIds).has(userId);
-  const isOpsChannel =
-    Boolean(options.channelId) && csv(options.opsChannelIds).has(options.channelId);
+  const isOpsChannel = csv(options.opsChannelIds).has(channelId);
   return isBreakGlass && isOpsChannel ? 'qa-lead-admin' : 'developer';
 }
 
