@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import { z } from 'zod';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { parsePlaywrightJsonReport } from '../../playwright/src/index.js';
 import type { StepExecutionResult } from './execution.js';
@@ -64,6 +65,52 @@ const presentation = {
   }
 };
 
+const count = z.number().int().nonnegative();
+const QualityPulseFactBodySchema = z
+  .object({
+    version: z.literal(1),
+    projectId: z.string().min(1),
+    generatedAt: z.iso.datetime(),
+    sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+    runs: z
+      .object({
+        count,
+        total: count,
+        passed: count,
+        failed: count,
+        skipped: count,
+        durationMs: z.number().finite().nonnegative()
+      })
+      .strict(),
+    risks: z.object({ total: count, open: count }).strict(),
+    failures: z.object({ count }).strict(),
+    coverage: z
+      .object({
+        approvedScenarios: count,
+        automatedScenarios: count,
+        percent: z.number().finite().min(0).max(100)
+      })
+      .strict(),
+    openDecisions: z.object({ questions: count, proposedDecisions: count, total: count }).strict(),
+    sources: z.array(z.string().min(1)).default([])
+  })
+  .strict();
+const QualityPulseFactsSchema = QualityPulseFactBodySchema.extend({
+  factsHash: z.string().regex(/^[a-f0-9]{64}$/)
+}).strict();
+
+function parseFacts(input: unknown, projectId: string): z.infer<typeof QualityPulseFactsSchema> {
+  const facts = QualityPulseFactsSchema.parse(input);
+  const { factsHash, ...body } = facts;
+  if (
+    facts.projectId !== projectId ||
+    createHash('sha256').update(JSON.stringify(body)).digest('hex') !== factsHash
+  ) {
+    throw new Error('quality pulse facts are invalid');
+  }
+  return facts;
+}
+
 function parsePresentation(input: unknown): typeof presentation {
   if (!input || typeof input !== 'object') throw new Error('quality pulse presentation is invalid');
   const value = input as { title?: unknown; sections?: Record<string, unknown> };
@@ -113,21 +160,12 @@ export async function executeQualityPulseStep(
     if (!existsSync(factsPath) || !existsSync(presentationPath)) {
       return { status: 'failed', error: 'quality pulse facts or presentation is missing' };
     }
-    const facts = JSON.parse(readFileSync(factsPath, 'utf8')) as {
-      runs: {
-        count: number;
-        total: number;
-        passed: number;
-        failed: number;
-        skipped: number;
-        durationMs: number;
-      };
-      risks: { total: number; open: number };
-      failures: { count: number };
-      coverage: { approvedScenarios: number; automatedScenarios: number; percent: number };
-      openDecisions: { questions: number; proposedDecisions: number; total: number };
-      sources: string[];
-    };
+    let facts: z.infer<typeof QualityPulseFactsSchema>;
+    try {
+      facts = parseFacts(JSON.parse(readFileSync(factsPath, 'utf8')), command.project.id);
+    } catch {
+      return { status: 'failed', error: 'quality pulse facts are invalid' };
+    }
     let labels: typeof presentation;
     try {
       labels = parsePresentation(JSON.parse(readFileSync(presentationPath, 'utf8')));
@@ -167,7 +205,8 @@ export async function executeQualityPulseStep(
     }
     return { status: 'succeeded', outputs };
   }
-  const runFiles = files(projectRoot, 'observations/evidence/test-runs', '.json');
+  const canonicalRun = source(projectRoot, 'observations/evidence/test-runs/results.json');
+  const runFiles = canonicalRun ? [canonicalRun] : [];
   const runSummaries = runFiles.map(({ contents }) =>
     parsePlaywrightJsonReport(JSON.parse(contents))
   );
@@ -204,25 +243,26 @@ export async function executeQualityPulseStep(
   ]
     .map(({ path }) => path)
     .sort();
-  const facts = {
+  const sourceHash = createHash('sha256')
+    .update(
+      [
+        ...runFiles,
+        ...riskFiles,
+        ...scenarioFiles,
+        ...testFiles,
+        ...(questions ? [questions] : []),
+        ...(decisions ? [decisions] : [])
+      ]
+        .sort((left, right) => left.path.localeCompare(right.path))
+        .map(({ path, contents }) => `${path}\u0000${contents}`)
+        .join('\u0000')
+    )
+    .digest('hex');
+  const factBody = {
     version: 1,
     projectId: command.project.id,
     generatedAt: command.receivedAt,
-    factsHash: createHash('sha256')
-      .update(
-        [
-          ...runFiles,
-          ...riskFiles,
-          ...scenarioFiles,
-          ...testFiles,
-          ...(questions ? [questions] : []),
-          ...(decisions ? [decisions] : [])
-        ]
-          .sort((left, right) => left.path.localeCompare(right.path))
-          .map(({ path, contents }) => `${path}\u0000${contents}`)
-          .join('\u0000')
-      )
-      .digest('hex'),
+    sourceHash,
     runs: {
       count: runSummaries.length,
       total: runSummaries.reduce((total, run) => total + run.total, 0),
@@ -246,6 +286,10 @@ export async function executeQualityPulseStep(
         (decisions ? tableStatusCount(decisions.contents, 'proposed') : 0)
     },
     sources
+  };
+  const facts = {
+    ...factBody,
+    factsHash: createHash('sha256').update(JSON.stringify(factBody)).digest('hex')
   };
   for (const output of outputs) {
     const path = join(workspace, output.path);

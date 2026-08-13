@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -43,7 +44,7 @@ describe('quality pulse', () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-pulse-'));
     write(
       workspace,
-      'observations/evidence/test-runs/run-1.json',
+      'observations/evidence/test-runs/results.json',
       JSON.stringify({
         suites: [
           {
@@ -56,6 +57,24 @@ describe('quality pulse', () => {
                     results: [{ status: 'failed', duration: 50, error: { message: 'boom' } }]
                   }
                 ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    write(
+      workspace,
+      'observations/evidence/test-runs/history/run-1.json',
+      JSON.stringify({
+        suites: [
+          {
+            specs: [
+              {
+                tests: Array.from({ length: 5 }, () => ({
+                  status: 'unexpected',
+                  results: [{ status: 'failed', duration: 999 }]
+                }))
               }
             ]
           }
@@ -105,7 +124,7 @@ describe('quality pulse', () => {
     });
     expect(facts.sources).toEqual([
       'derived/scenarios/approved/checkout.md',
-      'observations/evidence/test-runs/run-1.json',
+      'observations/evidence/test-runs/results.json',
       'sources/decisions.md',
       'sources/questions.md',
       'sources/reference/risks.md',
@@ -115,20 +134,24 @@ describe('quality pulse', () => {
 
   it('keeps presentation text separate while the host renders immutable facts', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-presentation-'));
+    const factBody = {
+      version: 1,
+      projectId: 'shop',
+      generatedAt: command.receivedAt,
+      sourceHash: 'b'.repeat(64),
+      runs: { count: 2, total: 8, passed: 7, failed: 1, skipped: 0, durationMs: 4200 },
+      risks: { total: 3, open: 2 },
+      failures: { count: 1 },
+      coverage: { approvedScenarios: 5, automatedScenarios: 4, percent: 80 },
+      openDecisions: { questions: 1, proposedDecisions: 1, total: 2 },
+      sources: ['observations/evidence/test-runs/run-1.json']
+    };
     write(
       workspace,
       'observations/evidence/quality-pulse/facts.json',
       `${JSON.stringify({
-        version: 1,
-        projectId: 'shop',
-        generatedAt: command.receivedAt,
-        factsHash: 'a'.repeat(64),
-        runs: { count: 2, total: 8, passed: 7, failed: 1, skipped: 0, durationMs: 4200 },
-        risks: { total: 3, open: 2 },
-        failures: { count: 1 },
-        coverage: { approvedScenarios: 5, automatedScenarios: 4, percent: 80 },
-        openDecisions: { questions: 1, proposedDecisions: 1, total: 2 },
-        sources: ['observations/evidence/test-runs/run-1.json']
+        ...factBody,
+        factsHash: createHash('sha256').update(JSON.stringify(factBody)).digest('hex')
       })}\n`
     );
 
@@ -169,6 +192,41 @@ describe('quality pulse', () => {
     expect(report).toContain('- Coverage: 4/5 approved scenarios automated (80%)');
     expect(report).toContain('- Open decisions: 2 (1 questions, 1 proposed decisions)');
     expect(report).toContain('observations/evidence/test-runs/run-1.json');
+  });
+
+  it('fails closed when deterministic quality facts are malformed', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-corrupt-facts-'));
+    write(
+      workspace,
+      'observations/evidence/quality-pulse/facts.json',
+      JSON.stringify({ version: 1, projectId: 'shop', runs: { total: 'many' } })
+    );
+    await executeQualityPulseStep(
+      workspace,
+      {
+        id: 'present',
+        outputs: [
+          {
+            artifact: 'reports',
+            path: 'projects/{projectId}/derived/reports/quality-pulse-presentation.json'
+          }
+        ]
+      } as WorkflowStep,
+      command
+    );
+
+    await expect(
+      executeQualityPulseStep(
+        workspace,
+        {
+          id: 'render',
+          outputs: [
+            { artifact: 'reports', path: 'projects/{projectId}/derived/reports/quality-pulse.md' }
+          ]
+        } as WorkflowStep,
+        command
+      )
+    ).resolves.toEqual({ status: 'failed', error: 'quality pulse facts are invalid' });
   });
 
   it('uses one production-orchestrator workflow for command and scheduled Mock Mode pulses', async () => {
