@@ -113,7 +113,10 @@ describe('workflow catalog', () => {
       'run-test-suite/report': 'human-reporting',
       'suite-maintenance/diagnose': 'reliability-diagnosis',
       'suite-maintenance/repair-selectors': 'selector-repair',
+      'triage-and-reproduce/fingerprint': 'host-failure-fingerprinting',
+      'triage-and-reproduce/explain': 'failure-explanation',
       'triage-and-reproduce/reproduce': 'reproduction',
+      'triage-and-reproduce/validate-red': 'host-regression-validation',
       'triage-and-reproduce/report': 'human-reporting'
     });
   });

@@ -10,10 +10,46 @@ triggers:
     event: test-run-failed
 preconditions: [project-exists, failure-evidence-present]
 steps:
+  - id: fingerprint
+    role: failure-analyst
+    harnessProfileId: host-failure-fingerprinting
+    needs: []
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/test-runs
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/fingerprint.json
+    requiredTools: [file-read, file-write]
+    mutations: [append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000
+  - id: explain
+    role: failure-analyst
+    harnessProfileId: failure-explanation
+    needs: [fingerprint]
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/fingerprint.json
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/triage-explanation.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
   - id: reproduce
     role: failure-analyst
     harnessProfileId: reproduction
-    needs: []
+    needs: [explain]
     inputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
@@ -23,6 +59,29 @@ steps:
         path: projects/{projectId}/observations/evidence/test-runs
       - artifact: known-issues
         path: projects/{projectId}/observations/known-issues.md
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/triage-explanation.md
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/draft.json
+      - artifact: tests
+        path: projects/{projectId}/tests
+    requiredTools: [file-read, file-write]
+    mutations: [create-test, append-evidence]
+    policyGates: [execution, approved-scenario]
+    retries: 1
+    timeoutMs: 1200000
+  - id: validate-red
+    role: failure-analyst
+    harnessProfileId: host-regression-validation
+    needs: [reproduce]
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/fingerprint.json
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/reproductions/draft.json
     outputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/reproductions
@@ -30,17 +89,15 @@ steps:
         path: projects/{projectId}/observations/known-issues.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
-      - artifact: tests
-        path: projects/{projectId}/tests
-    requiredTools: [file-read, file-write]
-    mutations: [create-test, append-observation, append-evidence]
+    requiredTools: [file-read, file-write, shell, playwright]
+    mutations: [append-observation, append-evidence]
     policyGates: [execution, approved-scenario]
-    retries: 1
+    retries: 0
     timeoutMs: 1200000
   - id: report
     role: reporter
     harnessProfileId: human-reporting
-    needs: [reproduce]
+    needs: [validate-red]
     inputs:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/reproductions

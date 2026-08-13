@@ -109,6 +109,7 @@ export interface PlaywrightRunRequest {
   targetBaseUrl: string;
   reportPath: string;
   grep?: string;
+  testPaths?: string[];
   webServer?: { command: string; url: string };
   signal?: AbortSignal;
 }
@@ -144,10 +145,22 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
   constructor(private readonly spawn: PlaywrightSpawn = nodeSpawn as unknown as PlaywrightSpawn) {}
 
   run(request: PlaywrightRunRequest): Promise<PlaywrightRunResult> {
+    const projectTestsPath = `projects/${request.projectId}/tests`;
+    const testPaths = request.testPaths?.length ? request.testPaths : [projectTestsPath];
+    if (
+      testPaths.some(
+        (path) =>
+          (path !== projectTestsPath && !path.startsWith(`${projectTestsPath}/`)) ||
+          path.includes('..') ||
+          (path !== projectTestsPath && !path.endsWith('.spec.ts'))
+      )
+    ) {
+      throw new Error('Playwright test path is outside the selected project');
+    }
     const args = [
       join(request.workspace, 'node_modules', '@playwright', 'test', 'cli.js'),
       'test',
-      `projects/${request.projectId}/tests`,
+      ...testPaths,
       '--reporter=json'
     ];
     if (request.grep) args.push('--grep', request.grep);

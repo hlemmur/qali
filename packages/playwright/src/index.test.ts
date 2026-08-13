@@ -134,6 +134,32 @@ describe('Playwright adapter', () => {
     expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
   });
 
+  it('scopes regression validation to explicit candidate test paths', async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => true);
+    const spawn = vi.fn<PlaywrightSpawn>(() => child);
+    const runner = new SpawnPlaywrightRunner(spawn);
+    const pending = runner.run({
+      workspace: '/repo',
+      projectId: 'shop',
+      targetBaseUrl: 'https://staging.example.test',
+      reportPath: 'test-results/regression.json',
+      testPaths: ['projects/shop/tests/regressions/failure.spec.ts']
+    });
+    queueMicrotask(() => child.emit('close', 1));
+
+    await expect(pending).resolves.toMatchObject({ status: 'failed' });
+    const args = spawn.mock.calls[0]![1];
+    expect(args).toContain('projects/shop/tests/regressions/failure.spec.ts');
+    expect(args).not.toContain('projects/shop/tests');
+  });
+
   it('injects mock web-server env for Playwright when provided', async () => {
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
