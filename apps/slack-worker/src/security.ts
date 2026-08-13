@@ -56,3 +56,34 @@ export async function verifySignedRequest(input: SignedRequest): Promise<boolean
   const expected = await signHmacForTest(input.secret, signed, input.prefix);
   return constantTimeEqual(expected, input.signature);
 }
+
+export interface CallbackRequest {
+  secret: string;
+  body: string;
+  signature: string | null;
+  timestamp: string | null;
+  nonce: string | null;
+  nowSeconds: number;
+  replayWindowSeconds?: number;
+}
+
+export async function verifyCallbackRequest(
+  input: CallbackRequest
+): Promise<{ valid: true; identity: string } | { valid: false }> {
+  if (!input.signature || !input.timestamp || !input.nonce) return { valid: false };
+  const timestamp = Number(input.timestamp);
+  if (
+    !Number.isInteger(timestamp) ||
+    Math.abs(input.nowSeconds - timestamp) > (input.replayWindowSeconds ?? 300)
+  ) {
+    return { valid: false };
+  }
+  const expected = await signHmacForTest(
+    input.secret,
+    `${input.timestamp}.${input.nonce}.${input.body}`,
+    'sha256='
+  );
+  return constantTimeEqual(expected, input.signature)
+    ? { valid: true, identity: `${input.timestamp}:${input.nonce}` }
+    : { valid: false };
+}
