@@ -2,10 +2,12 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
+import type { PlaywrightRunner } from '../../playwright/src/index.js';
 import { describe, expect, it } from 'vitest';
 import {
   executeTriageStep,
   fingerprintFailureReport,
+  PlaywrightTriageRegressionValidator,
   type TriageRegressionValidator
 } from './triage.js';
 import {
@@ -304,5 +306,33 @@ describe('failure triage', () => {
     expect(report).toContain('Observed regression state: **red**');
     expect(report).toContain('tests/regressions/');
     expect(report).toContain('test-results/regression-trace.zip');
+  });
+
+  it('accepts a regression candidate as red only with fresh Playwright failure evidence', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-validator-'));
+    const runner: PlaywrightRunner = {
+      async run(request) {
+        mkdirSync(dirname(request.reportPath), { recursive: true });
+        writeFileSync(
+          request.reportPath,
+          JSON.stringify(failureReport('Expected decline banner', 40))
+        );
+        return { status: 'failed', exitCode: 1 };
+      }
+    };
+    const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
+
+    const result = await validator.observeRed({
+      workspace,
+      projectId: 'shop',
+      candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
+      title: 'CHK-001 checkout rejects an expired card',
+      fingerprint: 'a'.repeat(64)
+    });
+
+    expect(result).toEqual({
+      status: 'red',
+      evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
+    });
   });
 });

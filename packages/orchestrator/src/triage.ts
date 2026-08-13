@@ -1,7 +1,19 @@
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import {
+  resolvePlaywrightSuite,
+  summarizePlaywrightRun,
+  type PlaywrightRunner
+} from '../../playwright/src/index.js';
 import type { StepExecutionResult } from './execution.js';
 
 export interface FailureFingerprintEntry {
@@ -31,6 +43,50 @@ export interface TriageRegressionValidator {
     | { status: 'red'; evidence: string[] }
     | { status: 'not-red'; error: string; evidence?: string[] }
   >;
+}
+
+export class PlaywrightTriageRegressionValidator implements TriageRegressionValidator {
+  constructor(
+    private readonly runner: PlaywrightRunner,
+    private readonly targetBaseUrl: string,
+    private readonly webServer?: { command: string; url: string }
+  ) {}
+
+  async observeRed(
+    request: Parameters<TriageRegressionValidator['observeRed']>[0]
+  ): Promise<Awaited<ReturnType<TriageRegressionValidator['observeRed']>>> {
+    const reportPath = join(
+      request.workspace,
+      `projects/${request.projectId}/observations/evidence/reproductions/red-results.json`
+    );
+    mkdirSync(dirname(reportPath), { recursive: true });
+    if (existsSync(reportPath)) unlinkSync(reportPath);
+    const suite = resolvePlaywrightSuite(request.title);
+    const run = await this.runner.run({
+      workspace: request.workspace,
+      projectId: request.projectId,
+      targetBaseUrl: this.targetBaseUrl,
+      reportPath,
+      testPaths: [request.candidatePath],
+      ...(suite.grep ? { grep: suite.grep } : {}),
+      ...(this.webServer ? { webServer: this.webServer } : {})
+    });
+    if (!existsSync(reportPath)) {
+      return {
+        status: 'not-red',
+        error: run.stderr ?? 'Playwright produced no regression failure report'
+      };
+    }
+    const summary = summarizePlaywrightRun(JSON.parse(readFileSync(reportPath, 'utf8')), run);
+    if (run.status !== 'failed' || summary.failed === 0) {
+      return {
+        status: 'not-red',
+        error: 'regression candidate did not reproduce a failing test',
+        evidence: [reportPath, ...summary.evidence]
+      };
+    }
+    return { status: 'red', evidence: [reportPath, ...summary.evidence] };
+  }
 }
 
 interface ReportResult {
