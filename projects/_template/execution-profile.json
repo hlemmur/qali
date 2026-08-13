@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "id": "{{PROJECT_ID}}-mock",
+  "id": "{{PROJECT_ID}}-staging",
   "projectId": "{{PROJECT_ID}}",
-  "environmentLabel": "mock",
+  "environmentLabel": "staging",
   "targetVariables": {
     "baseUrl": "QALI_TARGET_BASE_URL",
     "allowedOrigins": "QALI_ALLOWED_ORIGINS_JSON",
@@ -32,10 +32,5 @@
   },
   "publication": {
     "reviewOnly": true
-  },
-  "displayBadge": "MOCK MODE",
-  "webServer": {
-    "command": "node projects/{{PROJECT_ID}}/app/server.mjs",
-    "url": "http://127.0.0.1:4173/health"
   }
 }

@@ -203,6 +203,36 @@ describe('canonical project template', () => {
     }
   });
 
+  it('scaffolds a staging-shaped profile without Mock Mode or a local web server', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('merchant-portal', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-13'
+      });
+      const profile = JSON.parse(
+        readFileSync(join(projectRoot, 'execution-profile.json'), 'utf8')
+      ) as {
+        id: string;
+        environmentLabel: string;
+        displayBadge?: string;
+        webServer?: unknown;
+      };
+
+      expect(profile).toMatchObject({
+        id: 'merchant-portal-staging',
+        environmentLabel: 'staging'
+      });
+      expect(profile.displayBadge).toBeUndefined();
+      expect(profile.webServer).toBeUndefined();
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('rejects execution profiles that do not belong to the project', () => {
     const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
     const templateRoot = new URL('../../../projects/_template/', import.meta.url);
