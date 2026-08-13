@@ -4,6 +4,7 @@ import {
   FakePlaywrightRunner,
   PlaywrightTestGenerationRequestSchema,
   SpawnPlaywrightRunner,
+  summarizePlaywrightRun,
   parsePlaywrightJsonReport,
   type PlaywrightSpawn
 } from './index.js';
@@ -49,6 +50,24 @@ describe('Playwright adapter', () => {
       durationMs: 200,
       evidence: ['test-results/trace.zip', 'test-results/failure.png'],
       errors: ['Expected dashboard']
+    });
+  });
+
+  it('preserves process failure state when the JSON report has no failed tests', () => {
+    expect(
+      summarizePlaywrightRun(
+        { suites: [] },
+        { status: 'failed', exitCode: 1, stderr: 'No tests found' }
+      )
+    ).toEqual({
+      status: 'failed',
+      total: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      durationMs: 0,
+      evidence: [],
+      errors: ['No tests found']
     });
   });
 

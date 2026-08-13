@@ -13,6 +13,10 @@ export interface PlaywrightEvidenceSummary {
   errors: string[];
 }
 
+export interface PlaywrightRunEvidence extends PlaywrightEvidenceSummary {
+  status: 'passed' | 'failed';
+}
+
 interface JsonResult {
   status?: string;
   duration?: number;
@@ -61,6 +65,20 @@ export function parsePlaywrightJsonReport(input: unknown): PlaywrightEvidenceSum
     }
   }
   return summary;
+}
+
+export function summarizePlaywrightRun(
+  report: unknown,
+  run: PlaywrightRunResult
+): PlaywrightRunEvidence {
+  const summary = parsePlaywrightJsonReport(report);
+  const errors = [...summary.errors];
+  if (run.stderr?.trim() && !errors.includes(run.stderr.trim())) errors.push(run.stderr.trim());
+  return {
+    status: run.status === 'failed' || summary.failed > 0 ? 'failed' : 'passed',
+    ...summary,
+    errors
+  };
 }
 
 export const PlaywrightTestGenerationRequestSchema = z
