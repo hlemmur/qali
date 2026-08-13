@@ -93,7 +93,7 @@ Without GitHub wiring, the Worker still accepts and queues work; dispatch will f
 
 Qali posts:
 
-1. **Acknowledgement** — “Working on it…” for work, or a direct answer for quality questions
+1. **Acknowledgement** — inferred project/environment/suite plus a plain-language phase for work, or a direct answer for quality questions. App Home lists needs-attention, running, and recent work.
 2. **Summary** — pass/fail counts, duration, and an environment label (Mock Mode badge only when the execution profile is mock)
 3. **Actions** — “Show details”, “Rerun”, “Triage failure” (role-gated)
 

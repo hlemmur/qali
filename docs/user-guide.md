@@ -52,12 +52,14 @@ Qali classifies only the intent, project ID, and a declarative focus. It cannot 
 
 ### 2. Get an immediate acknowledgement
 
-Qali responds in the message thread so it does not flood the channel. Questions are answered directly. Work requests show a short progression such as:
+Qali responds in the message thread so it does not flood the channel. Questions are answered directly. Work requests show one updatable status that states the inferred project, environment, and suite, then a plain-language activity:
 
-1. `Working on it…`
-2. `Started explore-project.`
+1. `I'll use sauce-demo, production, smoke.` plus `Checking project and permission`
+2. The same message updates to exploring, running, or generating, with elapsed time
 3. A queued/running result card
 4. A terminal passed, failed, blocked, cancelled, or timed-out result
+
+Open Qali's App Home for a personal control room: needs attention, running, and recent work. The channel stays the team surface.
 
 ### 3. Read essentials first
 
