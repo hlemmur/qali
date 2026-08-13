@@ -106,11 +106,18 @@ describe('semantic publication policy', () => {
     });
     expect(assessSemanticPublication(semanticManifest([newTest]))).toMatchObject({
       allowed: false,
-      reason: expect.stringMatching(/approved scenario/i)
+      reason: expect.stringMatching(/approved scenario|generation source/i)
     });
     expect(
       assessSemanticPublication(
         semanticManifest([{ ...newTest, approvedScenarioRef: 'SCN-CHECKOUT-01' }])
+      )
+    ).toEqual({ allowed: true });
+    expect(
+      assessSemanticPublication(
+        semanticManifest([
+          { ...newTest, generationSourceRef: 'sources/reference/journeys.md#JRN-001' }
+        ])
       )
     ).toEqual({ allowed: true });
 

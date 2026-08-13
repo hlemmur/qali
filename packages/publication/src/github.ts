@@ -125,4 +125,18 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
     }
     return { number: pull.number, nodeId: pull.node_id, url: pull.html_url };
   }
+
+  async enableAutoMerge(pullRequestNodeId: string): Promise<void> {
+    const result = await this.request('/graphql', {
+      method: 'POST',
+      body: JSON.stringify({
+        query:
+          'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id}}}',
+        variables: { id: pullRequestNodeId }
+      })
+    });
+    if (result.errors) {
+      throw new Error(`GitHub auto-merge enable failed: ${JSON.stringify(result.errors)}`);
+    }
+  }
 }

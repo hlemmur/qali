@@ -37,7 +37,7 @@ describe('publication preparation', () => {
       ]
     });
 
-    expect(manifest.reviewOnly).toBe(true);
+    expect(manifest.reviewOnly).toBe(false);
     expect(manifest.checks).toEqual([
       expect.objectContaining({ exitCode: 0, stdout: 'semantic check passed', stderr: '' })
     ]);

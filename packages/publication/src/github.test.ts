@@ -68,4 +68,36 @@ describe('least-privilege GitHub publication adapter', () => {
     ).toBe(false);
     expect(requests.some(({ url }) => url.endsWith('/graphql'))).toBe(false);
   });
+
+  it('enables squash auto-merge for Qali-owned test publication', async () => {
+    const requests: Array<{ url: string; method?: string; body?: unknown }> = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      requests.push({
+        url: String(input),
+        ...(init?.method ? { method: init.method } : {}),
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {})
+      });
+      return Response.json({
+        data: { enablePullRequestAutoMerge: { pullRequest: { id: 'PR_node' } } }
+      });
+    };
+    const adapter = new GitHubRestPublicationAdapter({
+      token: 'installation-token',
+      owner: 'qali',
+      repo: 'control',
+      apiUrl: 'https://github.test',
+      fetcher
+    });
+
+    await adapter.enableAutoMerge('PR_node');
+    expect(requests).toEqual([
+      expect.objectContaining({
+        url: 'https://github.test/graphql',
+        method: 'POST',
+        body: expect.objectContaining({
+          query: expect.stringMatching(/enablePullRequestAutoMerge/)
+        })
+      })
+    ]);
+  });
 });
