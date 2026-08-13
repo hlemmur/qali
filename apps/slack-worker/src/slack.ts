@@ -24,7 +24,8 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
             .map((error) => (error.length > 120 ? `${error.slice(0, 117)}…` : error))
         }
       : {}),
-    ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {})
+    ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {}),
+    ...(summary.stages ? { stages: summary.stages } : {})
   };
   const expandValue = JSON.stringify({
     requestId: correlation.requestId,
@@ -51,7 +52,8 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
               .map((error) => (error.length > 160 ? `${error.slice(0, 157)}…` : error))
           }
         : {}),
-      ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {})
+      ...(summary.durationMs !== undefined ? { durationMs: summary.durationMs } : {}),
+      ...(summary.stages ? { stages: summary.stages } : {})
     },
     {
       ...(summary.htmlUrl ? { detailsUrl: summary.htmlUrl } : {}),

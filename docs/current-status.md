@@ -19,6 +19,14 @@ Qali is deployed and the live Slack → Cloudflare Worker/D1/Queue → GitHub Ac
 
 Qali is **not yet ready for the first real customer project** under the acceptance criteria in the hardening plan. The exact agent runtime has not been qualified, safe publication has not completed because the current publication token is invalid, and most of the uniquely correlated live release-candidate matrix remains to be executed.
 
+### Teammate rebuild (in progress)
+
+| Slice                                                | Evidence level            | Notes                                                                 |
+| ---------------------------------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| Stage-aware Slack cards and user-facing failure copy | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                |
+| Active-project artifact upload glob                  | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                     |
+| Slack app / FAQ copy (Playwright + E2E teammate)     | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified |
+
 ## Readiness vocabulary
 
 | Level             | Definition                                                                                                                       | Current interpretation                                                          |

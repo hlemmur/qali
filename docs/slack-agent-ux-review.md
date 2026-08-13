@@ -176,11 +176,11 @@ Qali should not copy Linear's issue model literally. Its equivalent durable obje
 
 ### P0 — trust and comprehension
 
-1. Make terminal cards stage-aware: execution, evidence validation, publication, and notification.
+1. Make terminal cards stage-aware: execution, evidence validation, publication, and notification. **Implemented (unit-tested; not live-verified).** Cards now show execution vs publication; kitchen copy such as “GitHub Actions failed before a test report was produced” is stripped.
 2. Add richer progressive status with elapsed time and plain-language activity.
 3. Add source, environment, project, and evidence references to completion summaries.
 4. Add confirmation previews for consequential governed changes.
-5. Fix app profile and onboarding copy so the AI role and deterministic Playwright boundary are unmistakable.
+5. Fix app profile and onboarding copy so the AI role and deterministic Playwright boundary are unmistakable. **Implemented (unit-tested; not live-verified).** Slack app description names Playwright and evidence-backed results. User guide states Qali is the E2E QA teammate.
 6. Add App Home sections for needs-attention, running, and recent work.
 
 ### P1 — efficient daily use

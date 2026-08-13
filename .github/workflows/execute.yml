@@ -139,9 +139,9 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            projects/*/observations/evidence/
-            projects/*/derived/reports/
-            projects/*/derived/workflow-state/
+            projects/${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.project_json).id || '_demo' }}/observations/evidence/
+            projects/${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.project_json).id || '_demo' }}/derived/reports/
+            projects/${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.project_json).id || '_demo' }}/derived/workflow-state/
             .qali/generated.patch
             .qali/publication-request.json
             .qali/slack-summary.json
@@ -207,5 +207,7 @@ jobs:
           SUMMARY_INTENT: ${{ inputs.intent }}
           PROJECT_JSON: ${{ inputs.project_json }}
           JOB_STATUS: ${{ (needs.validate-and-execute.result != 'success' || needs.publish-generated-changes.result == 'failure' || needs.publish-generated-changes.result == 'cancelled') && 'failure' || 'success' }}
+          EXECUTE_RESULT: ${{ needs.validate-and-execute.result }}
+          PUBLISH_RESULT: ${{ needs.publish-generated-changes.result }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: npm run post:run-summary

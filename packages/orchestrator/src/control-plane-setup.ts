@@ -52,7 +52,7 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
     display_information: {
       name: 'Qali',
       description:
-        'Slack-first autonomous QA agent. Ask Qali to test features, explore your app, generate/run test suits or report quality status',
+        'AI-assisted QA that explores your app, generates and runs Playwright tests, triages failures, and returns evidence-backed results.',
       background_color: '#ff0084'
     },
     features: {

@@ -89,6 +89,10 @@ describe('product documentation assets', () => {
     }
     expect(combined).toMatch(/Developer/);
     expect(combined).toMatch(/QA Lead\/Admin/);
+    expect(read('docs/user-guide.md')).toMatch(/E2E QA teammate/i);
+    expect(read('docs/user-guide.md')).not.toMatch(
+      /Is Qali a replacement for Playwright or a QA engineer\?/
+    );
   });
 
   it('contains no workstation-specific absolute paths', () => {
@@ -140,6 +144,18 @@ describe('product documentation assets', () => {
     expect(notificationJob).toContain('publish-generated-changes');
     expect(notificationJob).toContain('Post final Slack run summary');
     expect(notificationJob).toContain("needs.publish-generated-changes.result == 'failure'");
+    expect(notificationJob).toContain('EXECUTE_RESULT');
+    expect(notificationJob).toContain('PUBLISH_RESULT');
+  });
+
+  it('uploads evidence only for the active project, not every projects/* tree', () => {
+    const workflow = read('.github/workflows/execute.yml');
+    const upload = workflow
+      .split('Upload Playwright and workflow evidence')[1]
+      ?.split('publish-generated-changes:')[0];
+
+    expect(upload).not.toMatch(/projects\/\*\//);
+    expect(upload).toContain('fromJSON(inputs.project_json).id');
   });
 
   it('does not expose qualification bypass controls to the shared execute workflow', () => {

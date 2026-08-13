@@ -144,6 +144,11 @@ export interface SlackRunSummary {
   evidence?: string[];
   errors?: string[];
   expanded?: boolean;
+  stages?: {
+    execution?: string;
+    validation?: string;
+    publication?: string;
+  };
   counts?: {
     total: number;
     passed: number;

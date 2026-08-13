@@ -139,4 +139,21 @@ describe('compact run reporting', () => {
     expect(report.markdown).toContain('| Passed | 2 |');
     expect(report.markdown).toContain('results.json');
   });
+
+  it('separates execution from publication on a terminal card', () => {
+    const payload = renderSlackRunSummary({
+      runId: 'explore-1',
+      status: 'failed',
+      intent: 'explore-project',
+      projectId: '_demo',
+      stages: { execution: 'passed', publication: 'failed' },
+      errors: ['Work finished, but the review change could not be published.']
+    });
+
+    const body = JSON.stringify(payload.blocks);
+    expect(body).toContain('Execution passed');
+    expect(body).toContain('Publication failed');
+    expect(body).not.toMatch(/GitHub Actions/i);
+    expect(payload.text).toContain('failed');
+  });
 });
