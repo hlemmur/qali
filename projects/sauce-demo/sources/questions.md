@@ -1,0 +1,18 @@
+# Questions
+
+> Qali-authored governed source for unresolved knowledge. Answers require provenance and a date.
+
+| ID    | Question                                                                   | Status   | Blocking | Owner             | Source   | Asked      | Answer / decision                                                                            |
+| ----- | -------------------------------------------------------------------------- | -------- | -------- | ----------------- | -------- | ---------- | -------------------------------------------------------------------------------------------- |
+| Q-001 | What is the product purpose, who uses it, and which journeys are critical? | answered | no       | product authority | CTX-001  | 2026-08-13 | Public Sauce Labs demo store; login, inventory, and cart are the first live journeys. D-002. |
+| Q-002 | What runtime, UI, API, data, and hosting technologies are used?            | answered | no       | engineering       | CTX-003  | 2026-08-13 | Black-box; Qali does not require customer source.                                            |
+| Q-003 | Which test frameworks, suites, and configuration paths exist?              | answered | no       | engineering       | CTX-004  | 2026-08-13 | Playwright in this repo after approved scenarios. No `*.spec.ts` until then.                 |
+| Q-004 | Which CI triggers, gates, and artifacts apply?                             | answered | no       | engineering       | CTX-005  | 2026-08-13 | GitHub Actions environment `qali-sauce-demo`.                                                |
+| Q-005 | Which environments exist and how closely do they match production?         | answered | no       | engineering       | CTX-006  | 2026-08-13 | Public production demo only; no local mock.                                                  |
+| Q-006 | Which measurable quality targets apply?                                    | answered | no       | QA lead           | CTX-007  | 2026-08-13 | First proof is login → inventory → cart.                                                     |
+| Q-007 | Who owns product authority, QA, and reviews?                               | answered | no       | sponsor           | CTX-008  | 2026-08-13 | Qali is the E2E teammate; humans resolve product-truth disputes.                             |
+| Q-008 | Where are authoritative requirements recorded?                             | answered | no       | product authority | REQ-001  | 2026-08-13 | Inferred from the public demo until exploration confirms them.                               |
+| Q-009 | What are the critical end-to-end user journeys?                            | answered | no       | product authority | JRN-001  | 2026-08-13 | Sign in to inventory; add a product to the cart.                                             |
+| Q-010 | Which failures create the greatest business harm?                          | answered | no       | product authority | RSK-001  | 2026-08-13 | Login blocked, inventory missing, or credentials leaking.                                    |
+| Q-011 | Which synthetic accounts and fixtures are safe for testing?                | answered | no       | engineering       | DATA-001 | 2026-08-13 | Named `standard_user` plus Environment password. Never commit the password. D-003.           |
+| Q-012 | Which project-specific access or execution restrictions apply?             | answered | no       | sponsor           | AUT-004  | 2026-08-13 | Public origin only; no local webServer; named fills only; no traces after credentials.       |

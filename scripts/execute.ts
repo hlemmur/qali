@@ -66,7 +66,7 @@ import {
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
-import { selectAgentExecutionRoute } from './execute-routing.js';
+import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
 
@@ -610,7 +610,7 @@ if (executionProfile.id !== command.project.executionProfileId) {
 }
 const executionTarget = resolveExecutionTarget(executionProfile, process.env);
 const executionMode = qualificationExecutionMode(executionProfile.environmentLabel, false);
-if (executionMode !== 'mock') {
+if (requiresQualifiedAgentRuntime(command.intent, executionProfile.environmentLabel)) {
   const primaryModel = process.env.CURSOR_MODEL?.trim();
   if (!primaryModel || !process.env.CURSOR_API_KEY?.trim() || !agentCliAvailable()) {
     throw new Error('Qualified Cursor Agent runtime is required outside Mock Mode');

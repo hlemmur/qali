@@ -21,12 +21,13 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 
 ### Teammate rebuild (in progress)
 
-| Slice                                                | Evidence level            | Notes                                                                           |
-| ---------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------- |
-| Stage-aware Slack cards and user-facing failure copy | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                          |
-| Active-project artifact upload glob                  | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                               |
-| Slack app / FAQ copy (Playwright + E2E teammate)     | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified           |
-| `query-project` + D1 quality snapshot                | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified |
+| Slice                                                    | Evidence level            | Notes                                                                                                                |
+| -------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Stage-aware Slack cards and user-facing failure copy     | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                                                               |
+| Active-project artifact upload glob                      | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                                                                    |
+| Slack app / FAQ copy (Playwright + E2E teammate)         | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified                                                |
+| `query-project` + D1 quality snapshot                    | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified                                      |
+| Sauce Demo live Slack target; Mock Mode off product path | Implemented + unit-tested | Live registry is `sauce-demo` only; `_demo` remains a Vitest fixture; not live-verified until a post-merge Slack run |
 
 ## Readiness vocabulary
 
@@ -175,7 +176,8 @@ The qualification mechanism is implemented, but `qualification/registry.json` co
 
 - Mock Mode and qualification-mode behavior are testable.
 - No exact Cursor CLI/model/harness combination is approved for unattended staging/production execution.
-- Live `_demo` runs prove the Mock Mode production route and infrastructure, not qualified model behavior.
+- Live `_demo` fixture runs prove the Mock Mode production route and infrastructure, not qualified model behavior.
+- Live `sauce-demo` Slack runs on a production profile are not qualified until an exact identity is recorded.
 
 Required: run the dedicated evaluation suite, record the HTTPS run URL, create an active unexpired record, and prove rejection after an identity-changing asset update.
 

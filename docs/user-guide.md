@@ -4,17 +4,17 @@ Qali is a Slack-first QA teammate. You describe what you want tested in plain la
 
 You do not need to learn Qali's internal agents, skills, workflow files, or command syntax. The normal interface is a conversation:
 
-> `@Qali explore checkout on shop-web`
+> `@Qali explore login on sauce-demo`
 
-> `@Qali generate a smoke suite for shop-web`
+> `@Qali generate a smoke suite for sauce-demo`
 
 > `@Qali what's our current quality status?`
 
 > `@Qali when was the latest full regression?`
 
-> `@Qali run the smoke suite on shop-web`
+> `@Qali run the smoke suite on sauce-demo`
 
-> `@Qali triage the latest failures on shop-web`
+> `@Qali triage the latest failures on sauce-demo`
 
 ## Why teams use Qali
 
@@ -37,12 +37,12 @@ The core promise is simple: AI can help with judgment and explanation, but Playw
 
 Mention Qali in an allowed project channel or send it a direct message. Include the project and the outcome you want. Good requests are short and specific:
 
-- `@Qali onboard project payments-web`
-- `@Qali explore the failed-card checkout journey on payments-web`
-- `@Qali generate tests for the approved checkout scenarios on payments-web`
-- `@Qali run the smoke suite on payments-web`
-- `@Qali triage the latest payments-web failures`
-- `@Qali show the quality pulse for payments-web`
+- `@Qali onboard project sauce-demo`
+- `@Qali explore the login journey on sauce-demo`
+- `@Qali generate tests for the approved login scenarios on sauce-demo`
+- `@Qali run the smoke suite on sauce-demo`
+- `@Qali triage the latest sauce-demo failures`
+- `@Qali show the quality pulse for sauce-demo`
 - `@Qali what's our current quality status?`
 - `@Qali when was the latest full regression?`
 
@@ -171,18 +171,9 @@ Then the operator:
 
 See [Project template](project-template.md), [GitHub setup](setup-github.md), [Slack setup](setup-slack.md), and [Cloudflare setup](setup-cloudflare.md) for operator-level installation.
 
-### Try Qali locally in Mock Mode
+### Try Qali against Sauce Demo
 
-The self-contained `_demo` target requires no Slack, Cloudflare, GitHub, or AI credentials:
-
-```bash
-npm ci
-npm run check
-npm run demo:test
-npm run demo:loop
-```
-
-Mock Mode uses the same production orchestrator and displays a visible `MOCK MODE` label; it is not a separate happy-path demo implementation.
+The live Slack target is Sauce Demo (`https://www.saucedemo.com`, project id `sauce-demo`). In an allowed channel, mention `@Qali` and ask in plain language. Local credential-free fixtures (`projects/_demo`, `npm run demo:loop`) stay in the [developer guide](developer-guide.md); they are not the Slack product path.
 
 ## Reading results correctly
 
@@ -237,7 +228,7 @@ Raw screenshots, traces, videos, cookies, and logs remain outside Git and are re
 
 ### Does Qali support multiple projects?
 
-The contracts and registry are multi-project. Each project has its own root, Slack scope, GitHub Environment, target configuration, policies, and publication settings. The current live release-candidate exercise uses `_demo`; real-project onboarding still requires completion of the release acceptance matrix.
+The contracts and registry are multi-project. Each project has its own root, Slack scope, GitHub Environment, target configuration, policies, and publication settings. The current live Slack target is `sauce-demo`. Additional real-project onboarding still requires a registered pack, GitHub Environment, and completion of the release acceptance matrix.
 
 ### Does Qali test preview deployments?
 

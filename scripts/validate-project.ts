@@ -7,7 +7,7 @@ import {
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--refresh');
 const refresh = process.argv.includes('--refresh');
-const projectRoot = resolve(process.cwd(), args[0] ?? 'projects/_demo');
+const projectRoot = resolve(process.cwd(), args[0] ?? 'projects/sauce-demo');
 if (refresh) {
   const updated = refreshGeneratedMarkers(projectRoot);
   console.log(JSON.stringify({ refreshed: updated }, null, 2));

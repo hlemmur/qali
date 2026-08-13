@@ -29,24 +29,23 @@ Slack → Cloudflare Worker (intake, roles, dedupe, D1)
 
 See [docs/architecture.md](docs/architecture.md) for the full control plane / execution plane split.
 
-## Local quick start — `[MOCK MODE]`
+## Live target
 
-The reviewed Slack, Cloudflare, GitHub Actions, and deterministic execution path has been deployed and exercised against the demo project. The self-contained local demo remains the fastest way to verify the vertical slice without external credentials. See the [readiness status](docs/current-status.md) before treating any individual workflow as live-verified.
+The reviewed Slack, Cloudflare, GitHub Actions, and deterministic execution path has been deployed and exercised. The live Slack target is [Sauce Demo](https://www.saucedemo.com) (`projects/sauce-demo`). See the [readiness status](docs/current-status.md) before treating any individual workflow as live-verified.
 
 ```bash
 npm ci
-npm run check          # format, lint, build, unit tests
-npm run demo:test      # Playwright against projects/_demo
-npm run demo:loop      # explore → generate → run → report (Mock Mode)
+npm run check                                 # format, lint, build, unit tests
+npm run project:validate -- projects/sauce-demo
 ```
 
-The demo uses a local Node mock app (`projects/_demo/app/`) — no external credentials required.
+Credentials live in GitHub Environment `qali-sauce-demo` and are never committed. Local credential-free fixtures (`projects/_demo`, `npm run demo:loop`) stay in the [developer guide](docs/developer-guide.md); they are not the Slack product path.
 
 ## Project scaffolding
 
 ```bash
-# Validate the demo project layout and governance
-npm run project:validate -- projects/_demo
+# Validate the live Sauce Demo pack
+npm run project:validate -- projects/sauce-demo
 
 # Copy projects/_template/ to projects/<your-project>/ and fill sources/
 ```
@@ -85,7 +84,7 @@ See [docs/autonomy-and-security.md](docs/autonomy-and-security.md) and [docs/set
 
 ## Live control plane (optional)
 
-Local Mock Mode needs no Cloudflare. To wire Slack + Worker + Actions:
+The Slack Worker is already deployed for this repo. To reprovision or rewire Slack + Worker + Actions:
 
 ```bash
 npx wrangler login

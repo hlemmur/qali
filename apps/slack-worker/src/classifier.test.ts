@@ -14,11 +14,11 @@ const work = (text: string): InboundWork => ({
 });
 
 describe('intent classification fallbacks', () => {
-  it('maps common Slack phrases to intents and defaults to the demo project', () => {
+  it('maps common Slack phrases to intents and defaults to sauce-demo', () => {
     expect(heuristicClassify(work('<@BOT> explore the login flow')).intent).toBe('explore-project');
     expect(heuristicClassify(work('please run the smoke suite')).intent).toBe('run-test-suite');
     expect(heuristicClassify(work('generate dashboard tests')).intent).toBe('generate-test-suite');
-    expect(heuristicClassify(work('quality pulse')).projectId).toBe('_demo');
+    expect(heuristicClassify(work('quality pulse')).projectId).toBe('sauce-demo');
     expect(heuristicClassify(work('quality pulse')).intent).toBe('quality-pulse');
     expect(heuristicClassify(work('run tests in projects/acme')).projectId).toBe('acme');
     expect(heuristicClassify(work('explore checkout and use projects/acme'))).toEqual({
@@ -31,7 +31,7 @@ describe('intent classification fallbacks', () => {
   it('treats quality questions as read-only queries instead of work', () => {
     expect(heuristicClassify(work("<@BOT> what's our current quality status?"))).toEqual({
       intent: 'query-project',
-      projectId: '_demo',
+      projectId: 'sauce-demo',
       focus: { classification: 'heuristic-fallback', topic: 'status' }
     });
     expect(heuristicClassify(work('@Qali when was the latest full regression?'))).toMatchObject({

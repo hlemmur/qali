@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "id": "sauce-demo-production",
+  "projectId": "sauce-demo",
+  "environmentLabel": "production",
+  "targetVariables": {
+    "baseUrl": "QALI_TARGET_BASE_URL",
+    "allowedOrigins": "QALI_ALLOWED_ORIGINS_JSON",
+    "credentials": "QALI_TEST_CREDENTIALS_JSON",
+    "testData": "QALI_TEST_DATA_JSON"
+  },
+  "browser": {
+    "name": "chromium",
+    "allowDownloads": false,
+    "allowPopups": false,
+    "allowedSubmissions": [{ "role": "button", "name": "Login" }]
+  },
+  "rate": {
+    "maxActionsPerMinute": 30
+  },
+  "mutation": {
+    "allowed": [
+      "append-observation",
+      "append-evidence",
+      "render-derived-report",
+      "format-document",
+      "create-test"
+    ]
+  },
+  "cleanup": {
+    "strategy": "none"
+  },
+  "redaction": {
+    "patterns": []
+  },
+  "retention": {
+    "evidenceDays": 14
+  },
+  "publication": {
+    "reviewOnly": true
+  }
+}

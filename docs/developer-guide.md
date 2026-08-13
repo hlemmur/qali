@@ -259,7 +259,7 @@ The identity includes:
 
 Any meaningful runtime change invalidates the identity. The registry is version-controlled in `qualification/registry.json` and expiry is enforced.
 
-Current operational nuance: `_demo` uses a trusted Mock Mode execution profile. A live Slack/Actions transport run can therefore use deterministic workflow implementations even when an agent CLI is installed. That proves live orchestration and host behavior, not a qualified unattended model. Never label this “qualified live agent” evidence.
+Current operational nuance: the live Slack target `sauce-demo` uses a production execution profile with no Mock Mode badge and no local webServer. Unattended agent steps still require a qualified identity; without one they block rather than falling back. Host-deterministic intents (`quality-pulse`, `query-project`) skip that agent gate so the daily schedule can run without a mock profile. `projects/_demo` remains a Vitest fixture only. Never label an unqualified Sauce Demo run “qualified live agent” evidence.
 
 ## 9. Semantic publication
 
@@ -345,7 +345,7 @@ npm run demo:loop
 npm run control-plane:dry-run
 ```
 
-`npm run check` covers formatting, lint, TypeScript, project registry, qualification registry, and Vitest. Browser/server tests may need host loopback access; sandbox `listen EPERM 127.0.0.1` is an environment restriction, not necessarily a product failure.
+`npm run check` covers formatting, lint, TypeScript, project registry, qualification registry, and Vitest. `demo:test` and `demo:loop` exercise the local `_demo` fixture; they are not the Slack product path. Browser/server tests may need host loopback access; sandbox `listen EPERM 127.0.0.1` is an environment restriction, not necessarily a product failure.
 
 ### Provision and synchronize
 
