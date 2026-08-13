@@ -17,7 +17,7 @@ const registry: ProjectRegistry = {
         roles: ['developer', 'qa-lead-admin']
       },
       publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
-      enabledWorkflows: ['explore-project', 'run-test-suite'],
+      enabledWorkflows: ['onboard-project', 'explore-project', 'run-test-suite'],
       schedules: [],
       activeExecutionProfile: 'demo-mock'
     }
@@ -120,6 +120,30 @@ describe('trusted project resolution', () => {
     );
     expect(command.project.id).toBe('_demo');
     expect(command.slack?.channelId).toBe('C_OPS');
+  });
+
+  it('dispatches onboard-project for a new hostname slug using the requesting channel as donor', () => {
+    const command = resolveTrustedCommand(
+      {
+        intent: 'onboard-project',
+        projectId: 'example-com',
+        focus: { targetUrl: 'https://example.com/', origin: 'https://example.com' }
+      },
+      work,
+      registry,
+      [profile('mock')]
+    );
+    expect(command.project).toMatchObject({
+      id: 'example-com',
+      root: 'projects/example-com',
+      environment: 'qali-example-com',
+      environmentLabel: 'production',
+      executionProfileId: 'example-com-production'
+    });
+    expect(command.parameters).toEqual({
+      targetUrl: 'https://example.com/',
+      origin: 'https://example.com'
+    });
   });
 
   it('rejects missing or mismatched execution profiles', () => {

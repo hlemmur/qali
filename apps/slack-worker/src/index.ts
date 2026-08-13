@@ -2,6 +2,7 @@ import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifi
 import { handleSlackAction, LINK_ONLY_ACTIONS } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
+import { applyOnboardTarget, parseOnboardTarget } from './onboard-target.js';
 import { verifyCallbackRequest, verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
@@ -684,7 +685,15 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
-          const classification = await classifier.classify(message.body);
+          const onboard = parseOnboardTarget(message.body.text);
+          const classifyWork =
+            onboard.ok && onboard.credentials
+              ? { ...message.body, text: onboard.sanitizedText }
+              : message.body;
+          const classification = applyOnboardTarget(
+            await classifier.classify(classifyWork),
+            classifyWork.text
+          );
           const command = resolveTrustedCommand(
             classification,
             message.body,
