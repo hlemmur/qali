@@ -60,20 +60,17 @@ Manual edits to derived files or generated tests are overwritten on the next wor
 - Approved scenarios reference valid journeys
 - No forbidden cross-class writes
 
-## Demo project
+## Live example
 
-`projects/_demo` is a **Mock Mode** target with:
-
-- Local web app on port 4173 (`app/server.mjs`)
-- Approved smoke scenario
-- Sample generated test and exploration evidence
-
-Run:
+`projects/sauce-demo` is the live Slack target: Sauce Demo at `https://www.saucedemo.com`, production execution profile, GitHub Environment `qali-sauce-demo`. It has no local webServer and no Mock Mode badge. Credentials stay in that Environment and are never committed.
 
 ```bash
-npm run demo:test
-npm run demo:loop
+npm run project:validate -- projects/sauce-demo
 ```
+
+## Local fixture
+
+`projects/_demo` is a credential-free Vitest and `npm run demo:loop` fixture with a local app on port 4173. It is not registered for Slack. See the [developer guide](developer-guide.md).
 
 ## Environment configuration
 

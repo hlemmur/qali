@@ -237,7 +237,7 @@ curl https://cursor.com/install -fsS | bash
 
 Without either value (or if `agent` is missing), execution keeps using the **deterministic fallback** so smoke runs still succeed.
 
-Local Mock Mode still works via `npm run demo:loop` with no Cursor install.
+The local `_demo` fixture still works via `npm run demo:loop` with no Cursor install. That path is not the live Slack target.
 
 ---
 

@@ -25,18 +25,26 @@ describe('product documentation assets', () => {
     expect(() => requiredDocs.map(read)).not.toThrow();
   });
 
-  it('documents the exact verified local commands and Mock Mode status', () => {
+  it('documents the live Sauce Demo target and keeps local gates', () => {
     const readme = read('README.md');
     const scripts = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
 
-    for (const command of ['check', 'demo:test', 'demo:loop']) {
-      expect(scripts.scripts[command]).toBeDefined();
-      expect(readme).toContain(`npm run ${command}`);
-    }
-    expect(readme).toContain('[MOCK MODE]');
+    expect(scripts.scripts.check).toBeDefined();
+    expect(scripts.scripts['demo:test']).toBeDefined();
+    expect(scripts.scripts['demo:loop']).toBeDefined();
+    expect(readme).toContain('npm run check');
+    expect(readme).toContain('https://www.saucedemo.com');
+    expect(readme).toContain('sauce-demo');
+    expect(readme).not.toContain('[MOCK MODE]');
     expect(readme).toMatch(/has been deployed and exercised/i);
     expect(readme).toContain('[readiness status](docs/current-status.md)');
     expect(readme).toMatch(/no preview URL/i);
+    expect(read('docs/developer-guide.md')).toContain('npm run demo:loop');
+    expect(read('docs/user-guide.md')).toContain('sauce-demo');
+    expect(read('docs/user-guide.md')).not.toMatch(/Try Qali locally in Mock Mode/);
+    expect(read('.env.example')).toContain('qali-sauce-demo');
+    expect(read('.env.example')).toContain('https://www.saucedemo.com');
+    expect(read('.env.example')).not.toContain('secret_sauce');
   });
 
   it('documents Cloudflare provision and Slack manifest workflows', () => {

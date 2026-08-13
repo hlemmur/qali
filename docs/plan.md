@@ -1,6 +1,6 @@
 # Qali MVP Scaffold Plan
 
-> Authoritative implementation plan. Migrated from the Cursor plan session (Aug 2026). All MVP todos are **completed** as of commit after `42be0aa`. See [origin-context.md](origin-context.md) for product decisions and [roadmap.md](roadmap.md) for next phases.
+> Authoritative implementation plan. Migrated from the Cursor plan session (Aug 2026). All MVP todos are **completed** as of commit after `42be0aa`. Live Slack now targets Sauce Demo (`projects/sauce-demo`); `projects/_demo` remains a local fixture. See [origin-context.md](origin-context.md) for product decisions and [roadmap.md](roadmap.md) for next phases.
 
 ## Product boundary
 

@@ -85,10 +85,10 @@ Workflows in `workflows/` declare which internal role may read/write each class.
 | Suite Maintainer  | Self-healing equivalent repairs     |
 | Reporter          | Compact Slack + detailed Markdown   |
 
-## Mock Mode
+## Live target and local fixture
 
-`projects/_demo` provides a self-contained target. `npm run demo:loop` runs the full chain without Slack, Cloudflare, GitHub, or Cursor credentials. Reports are written to `projects/_demo/derived/reports/`.
+The live Slack registry points at `projects/sauce-demo` (`https://www.saucedemo.com`). `projects/_demo` remains a credential-free Vitest and `npm run demo:loop` fixture; it is not a Slack product path.
 
 ## Deployment status
 
-This repository is scaffold-complete but **not deployed** to production Slack/Cloudflare/GitHub from the authoring environment. Follow [setup-slack.md](setup-slack.md) and [setup-github.md](setup-github.md) to wire credentials.
+The Slack Worker and GitHub Actions path are deployed for this repository. Follow [setup-slack.md](setup-slack.md) and [setup-github.md](setup-github.md) to reprovision credentials. See [current-status.md](current-status.md) before treating any workflow as live-verified.

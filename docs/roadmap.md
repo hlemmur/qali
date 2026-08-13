@@ -2,7 +2,7 @@
 
 ## 2-day MVP (this repository)
 
-Delivered and verified locally in `[MOCK MODE]`:
+Delivered and verified locally against the `_demo` fixture (historical 2-day MVP). Live Slack now targets Sauce Demo (`projects/sauce-demo`); see [current-status.md](current-status.md).
 
 | Feature                                                               | Status |
 | --------------------------------------------------------------------- | ------ |
@@ -31,7 +31,7 @@ npm run demo:loop
 
 - Deploy Worker to Cloudflare with real Slack app
 - Wire GitHub App dispatch and publication token
-- End-to-end Slack → Actions → Slack callback on `_demo`
+- End-to-end Slack → Actions → Slack callback on `sauce-demo`
 - PR comment / check run integration for feature branches
 - Scheduled nightly quality pulse to Slack channel
 - Basic operator dashboard (workflow state + last run)

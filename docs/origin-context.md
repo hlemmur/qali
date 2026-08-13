@@ -40,7 +40,7 @@ Qali **selectively migrates** governance, skills, templates, and validators from
 5. **External roles** — Developer (default) vs QA Lead/Admin (`SLACK_QA_LEAD_USER_IDS`).
 6. **Autonomy** — `conservative` / `balanced` / `autonomous`; demo uses `autonomous` with hard semantic safety rules.
 7. **Publication** — Safe generated changes via `qali/*` branch → PR → auto-merge; never direct push to `main`.
-8. **Mock Mode** — `projects/_demo` + `npm run demo:loop` for credential-free local proof.
+8. **Local fixture** — `projects/_demo` + `npm run demo:loop` for credential-free Vitest/local proof. Live Slack target is Sauce Demo (`projects/sauce-demo`).
 
 ## Confirmed environment assumptions
 
@@ -89,8 +89,8 @@ Work was delivered in vertical slices with TDD:
 ## How to continue
 
 1. Read [README.md](../README.md) and [plan.md](plan.md)
-2. Run `npm run check && npm run demo:loop` to verify workspace health
-3. Pick next item from [roadmap.md](roadmap.md) — typically **Phase 2: live integration**
+2. Run `npm run check` to verify workspace health. `npm run demo:loop` is the local `_demo` fixture, not the Slack path.
+3. Pick next item from [roadmap.md](roadmap.md) and [current-status.md](current-status.md)
 4. For target-project onboarding, scaffold from `projects/_template/` and follow [project-template.md](project-template.md)
 5. When changing governance or workflows, keep `documentation-assets.test.ts` and workflow YAML validators green
 
@@ -98,9 +98,9 @@ Work was delivered in vertical slices with TDD:
 
 ```bash
 npm run check              # format, lint, build, unit tests
-npm run demo:test          # Playwright against _demo
-npm run demo:loop          # full Mock Mode sequence
-npm run project:validate -- projects/_demo
+npm run project:validate -- projects/sauce-demo
+npm run demo:test          # Playwright against the local _demo fixture
+npm run demo:loop          # credential-free local fixture sequence
 npm run execute            # run workflow from COMMAND_JSON env
 npm run publish:prepare    # build publication manifest from git diff
 ```
