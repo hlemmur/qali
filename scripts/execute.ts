@@ -67,6 +67,7 @@ import {
 import { renderRunReport } from '../packages/reporting/src/index.js';
 import { selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
+import { withProjectWebServer } from './project-web-server.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -488,17 +489,20 @@ class RoutedStepExecutor implements StepExecutor {
         ...process.env,
         QALI_BROWSER_EVIDENCE_DIR: evidenceDirectory
       });
-      const driver = await PlaywrightBrowserDriver.launch({
-        allowedOrigins: config.allowedOrigins,
-        browserName: config.browserName,
-        ...(config.executablePath ? { executablePath: config.executablePath } : {})
-      });
-      try {
-        const browser = new RestrictedBrowserFacade(driver, config);
-        return await executeExplorationStep(workspace, step, command, browser);
-      } finally {
-        await driver.close();
-      }
+      const explore = async () => {
+        const driver = await PlaywrightBrowserDriver.launch({
+          allowedOrigins: config.allowedOrigins,
+          browserName: config.browserName,
+          ...(config.executablePath ? { executablePath: config.executablePath } : {})
+        });
+        try {
+          const browser = new RestrictedBrowserFacade(driver, config);
+          return await executeExplorationStep(workspace, step, command, browser);
+        } finally {
+          await driver.close();
+        }
+      };
+      return this.webServer ? withProjectWebServer(this.webServer, explore) : explore();
     }
     if (agentExecutionRoute === 'deterministic-test-generation') {
       return executeTestGenerationStep(
