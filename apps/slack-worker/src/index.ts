@@ -23,6 +23,12 @@ import type {
 } from './types.js';
 import type { ProjectExecutionProfile, ProjectRegistry, QualitySnapshot } from '@qali/contracts';
 import {
+  dispatchedWorkPhase,
+  formatWorkAcknowledgement,
+  initialWorkPhase
+} from './acknowledgement.js';
+import { homeItemsFromCorrelations, renderAppHome } from './home.js';
+import {
   formatQualityQueryAnswer,
   mergeQualitySnapshot,
   parseQualitySnapshot
@@ -181,6 +187,7 @@ async function slackEvents(
   request: Request,
   env: Env,
   store: ControlStore,
+  slack: SlackPort,
   now: Date
 ): Promise<Response> {
   const raw = await request.text();
@@ -208,6 +215,13 @@ async function slackEvents(
     return new Response('Ignored', { status: 200 });
   }
   const event = record(payload.event);
+  if (event?.type === 'app_home_opened' && typeof event.user === 'string') {
+    if (slack.publishHome) {
+      const items = homeItemsFromCorrelations(await store.listWorkForUser(event.user));
+      await slack.publishHome(event.user, renderAppHome(items));
+    }
+    return new Response('OK', { status: 200 });
+  }
   const isMessage =
     event?.type === 'app_mention' || (event?.type === 'message' && event?.channel_type === 'im');
   const isBot =
@@ -594,7 +608,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
       const now = (overrides.now ?? (() => new Date()))();
       const store = storeService(env, overrides);
       if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-      if (pathname === '/slack/events') return slackEvents(request, env, store, now);
+      if (pathname === '/slack/events') {
+        return slackEvents(request, env, store, slackService(env, overrides), now);
+      }
       if (pathname === '/slack/interactions') return slackInteraction(request, env, store, now);
       if (pathname === '/github/webhook') {
         return githubWebhook(request, env, store, slackService(env, overrides), now);
@@ -617,6 +633,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
         }
         let dispatchAttempted = false;
         let dispatchSucceeded = false;
+        let statusTs: string | undefined;
         try {
           if (message.body.kind === 'action') {
             dispatchAttempted = true;
@@ -698,10 +715,10 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             }
           }
           try {
-            await slack.postThreadNotice({
+            statusTs = await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
-              text: command.intent === 'query-project' ? 'Looking that up…' : 'Working on it…'
+              text: formatWorkAcknowledgement(command, initialWorkPhase(command.intent))
             });
           } catch (ackError) {
             console.error(
@@ -714,13 +731,24 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
           if (command.intent !== 'query-project') {
-            await slack.postThreadNotice({
-              channelId: message.body.slack.channelId,
-              threadTs: message.body.slack.threadTs,
-              text: dispatched.htmlUrl
-                ? `Started: ${dispatched.htmlUrl}`
-                : `Started \`${command.intent}\`.`
-            });
+            const progress = formatWorkAcknowledgement(
+              command,
+              dispatchedWorkPhase(command.intent),
+              0
+            );
+            if (statusTs && slack.updateThreadNotice) {
+              await slack.updateThreadNotice({
+                channelId: message.body.slack.channelId,
+                ts: statusTs,
+                text: progress
+              });
+            } else {
+              await slack.postThreadNotice({
+                channelId: message.body.slack.channelId,
+                threadTs: message.body.slack.threadTs,
+                text: progress
+              });
+            }
           }
           message.ack();
         } catch (error) {
