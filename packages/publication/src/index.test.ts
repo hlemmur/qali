@@ -1,10 +1,160 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   ControlledPublisher,
   assessGeneratedChanges,
+  assessSemanticPublication,
+  createSemanticPublicationChange,
   type GitHubPublicationPort,
   type PublicationRequest
 } from './index.js';
+import type { SemanticPublicationManifest } from '../../contracts/src/index.js';
+
+const semanticManifest = (
+  changes: SemanticPublicationManifest['changes']
+): SemanticPublicationManifest => ({
+  version: 1,
+  requestId: 'REQ-42',
+  projectRoot: 'projects/shop',
+  baseBranch: 'main',
+  reviewOnly: true,
+  title: 'Qali governed updates',
+  commitMessage: 'Publish governed Qali updates',
+  checks: [
+    {
+      command: 'npm',
+      args: ['run', 'build'],
+      exitCode: 0,
+      durationMs: 100,
+      stdout: 'ok',
+      stderr: ''
+    }
+  ],
+  changes
+});
+
+describe('semantic publication policy', () => {
+  it('allows append-only observations and rejects replacement or raw browser evidence', () => {
+    const appended = createSemanticPublicationChange({
+      path: 'projects/shop/observations/exploration.md',
+      before: '# Observations\n',
+      after: '# Observations\n\n- Checkout failed (evidence: run-42).\n',
+      provenanceRef: 'run:42'
+    });
+    expect(assessSemanticPublication(semanticManifest([appended]))).toEqual({ allowed: true });
+
+    const replaced = createSemanticPublicationChange({
+      path: 'projects/shop/observations/exploration.md',
+      before: '# Observations\n\n- Existing fact.\n',
+      after: '# Observations\n\n- Rewritten fact.\n',
+      provenanceRef: 'run:42'
+    });
+    expect(assessSemanticPublication(semanticManifest([replaced]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/append-only/i)
+    });
+
+    const trace = createSemanticPublicationChange({
+      path: 'projects/shop/observations/evidence/run-42/trace.zip',
+      before: null,
+      after: 'raw trace bytes',
+      provenanceRef: 'run:42'
+    });
+    expect(assessSemanticPublication(semanticManifest([trace]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/outside git/i)
+    });
+  });
+
+  it('requires approved scenarios for new tests and unchanged oracles for modified tests', () => {
+    const newTest = createSemanticPublicationChange({
+      path: 'projects/shop/tests/checkout.spec.ts',
+      before: null,
+      after: "test('checkout', async ({ page }) => { await expect(page).toHaveURL('/done'); });\n"
+    });
+    expect(assessSemanticPublication(semanticManifest([newTest]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/approved scenario/i)
+    });
+    expect(
+      assessSemanticPublication(
+        semanticManifest([{ ...newTest, approvedScenarioRef: 'SCN-CHECKOUT-01' }])
+      )
+    ).toEqual({ allowed: true });
+
+    const selectorRepair = createSemanticPublicationChange({
+      path: 'projects/shop/tests/checkout.spec.ts',
+      before:
+        "test('checkout', async ({ page }) => { await page.locator('#pay').click(); await expect(page.getByText('Paid')).toBeVisible(); });\n",
+      after:
+        "test('checkout', async ({ page }) => { await page.getByRole('button', { name: 'Pay' }).click(); await expect(page.getByText('Paid')).toBeVisible(); });\n"
+    });
+    expect(assessSemanticPublication(semanticManifest([selectorRepair]))).toEqual({
+      allowed: true
+    });
+
+    const weakenedOracle = createSemanticPublicationChange({
+      path: 'projects/shop/tests/checkout.spec.ts',
+      before:
+        "test('checkout', async ({ page }) => { await expect(page.getByText('Paid')).toBeVisible(); });\n",
+      after:
+        "test.skip('checkout', async ({ page }) => { await expect(page.getByText('Pending')).toBeVisible(); });\n"
+    });
+    expect(assessSemanticPublication(semanticManifest([weakenedOracle]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/oracle|skip/i)
+    });
+  });
+
+  it('requires authority and provenance for governed-source changes', () => {
+    const source = createSemanticPublicationChange({
+      path: 'projects/shop/sources/reference/risks.md',
+      before: '# Risks\n',
+      after: '# Risks\n\n- RISK-2: Payment timeout.\n',
+      provenanceRef: 'run:42'
+    });
+    expect(assessSemanticPublication(semanticManifest([source]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/authority and provenance/i)
+    });
+    expect(
+      assessSemanticPublication(semanticManifest([{ ...source, authorityRef: 'decision:D-12' }]))
+    ).toEqual({ allowed: true });
+
+    const decision = createSemanticPublicationChange({
+      path: 'projects/shop/sources/decisions.md',
+      before: '# Decisions\n',
+      after: '# Decisions\n\n- Auto-merge all changes.\n',
+      provenanceRef: 'run:42',
+      authorityRef: 'decision:D-12'
+    });
+    expect(assessSemanticPublication(semanticManifest([decision]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/reviewer-owned authority/i)
+    });
+  });
+
+  it('publishes derived artifacts only when their generated-content hash is valid', () => {
+    const body = '\n\n# Coverage\n\nAll approved scenarios are traced.\n';
+    const generated = `<!-- qali:generated owner=qali sha256=${createHash('sha256').update(body).digest('hex')} -->${body}`;
+    const report = createSemanticPublicationChange({
+      path: 'projects/shop/derived/reports/coverage.md',
+      before: null,
+      after: generated
+    });
+    expect(assessSemanticPublication(semanticManifest([report]))).toEqual({ allowed: true });
+
+    const tampered = createSemanticPublicationChange({
+      path: report.path,
+      before: null,
+      after: `${generated}\nManually declared check: passed.\n`
+    });
+    expect(assessSemanticPublication(semanticManifest([tampered]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/generated hash/i)
+    });
+  });
+});
 
 const request = (
   changes: PublicationRequest['changes'],

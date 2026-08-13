@@ -1,3 +1,193 @@
+import { createHash } from 'node:crypto';
+import ts from 'typescript';
+import {
+  SemanticPublicationManifestSchema,
+  type PublicationChangeClassification,
+  type SemanticPublicationChange,
+  type SemanticPublicationManifest
+} from '../../contracts/src/index.js';
+
+const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+function oracleFingerprint(source: string): string {
+  const file = ts.createSourceFile('publication.spec.ts', source, ts.ScriptTarget.Latest, true);
+  const assertions: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const chain: string[] = [];
+      let expression: ts.Expression = node.expression;
+      while (ts.isPropertyAccessExpression(expression)) {
+        chain.unshift(expression.name.text);
+        expression = expression.expression;
+      }
+      if (
+        ts.isCallExpression(expression) &&
+        ts.isIdentifier(expression.expression) &&
+        expression.expression.text === 'expect'
+      ) {
+        const args = node.arguments.map((argument) => argument.getText(file).replace(/\s+/g, ' '));
+        assertions.push(`${chain.join('.')}:${args.join(',')}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return sha256(JSON.stringify(assertions));
+}
+
+const containsSkippedTest = (source: string): boolean =>
+  /\b(?:test|describe)(?:\.describe)?\.(?:fixme|skip)\s*\(/.test(source);
+
+function hasValidGeneratedHash(path: string, content: string): boolean {
+  if (path.endsWith('.json')) {
+    try {
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      const marker = parsed._qali as Record<string, unknown> | undefined;
+      const body = { ...parsed };
+      delete body._qali;
+      return (
+        marker?.generated === 'owner=qali' &&
+        typeof marker.sha256 === 'string' &&
+        marker.sha256 === sha256(JSON.stringify(body))
+      );
+    } catch {
+      return false;
+    }
+  }
+  const match = /^<!-- qali:generated owner=qali sha256=([a-f0-9]{64}) -->([\s\S]*)$/.exec(content);
+  return Boolean(match && match[1] === sha256(match[2]!));
+}
+
+const RAW_EVIDENCE_PATTERN =
+  /(?:^|\/)(?:cookies?|logs?|screenshots?|traces?|videos?)(?:\/|\.|$)|\.(?:har|log|mp4|png|trace|webm|zip)$/i;
+
+export function classifyPublicationPath(path: string): PublicationChangeClassification {
+  if (path.includes('/observations/evidence/') && RAW_EVIDENCE_PATTERN.test(path)) {
+    return 'raw-evidence';
+  }
+  if (path.includes('/observations/')) return 'observation';
+  if (path.includes('/tests/')) return 'test';
+  if (path.includes('/sources/')) return 'governed-source';
+  if (path.includes('/derived/')) return 'derived-artifact';
+  return 'unsupported';
+}
+
+export function createSemanticPublicationChange(input: {
+  path: string;
+  before: string | null;
+  after: string | null;
+  provenanceRef?: string;
+  approvedScenarioRef?: string;
+  authorityRef?: string;
+}): SemanticPublicationChange {
+  return {
+    path: input.path,
+    classification: classifyPublicationPath(input.path),
+    before: input.before === null ? null : { content: input.before, sha256: sha256(input.before) },
+    after: input.after === null ? null : { content: input.after, sha256: sha256(input.after) },
+    ...(input.provenanceRef ? { provenanceRef: input.provenanceRef } : {}),
+    ...(input.approvedScenarioRef ? { approvedScenarioRef: input.approvedScenarioRef } : {}),
+    ...(input.authorityRef ? { authorityRef: input.authorityRef } : {})
+  };
+}
+
+export type PublicationPolicyDecision = { allowed: true } | { allowed: false; reason: string };
+
+export function assessSemanticPublication(
+  value: SemanticPublicationManifest
+): PublicationPolicyDecision {
+  let manifest: SemanticPublicationManifest;
+  try {
+    manifest = SemanticPublicationManifestSchema.parse(value);
+  } catch {
+    return { allowed: false, reason: 'semantic publication manifest is invalid' };
+  }
+  if (manifest.checks.some((check) => check.exitCode !== 0)) {
+    return { allowed: false, reason: 'all executed publication checks must pass' };
+  }
+  for (const change of manifest.changes) {
+    if (!change.path.startsWith(`${manifest.projectRoot}/`)) {
+      return { allowed: false, reason: `change is outside the governed project: ${change.path}` };
+    }
+    if (change.classification !== classifyPublicationPath(change.path)) {
+      return { allowed: false, reason: `semantic classification mismatch: ${change.path}` };
+    }
+    if (change.before && sha256(change.before.content) !== change.before.sha256) {
+      return { allowed: false, reason: `before hash mismatch: ${change.path}` };
+    }
+    if (change.after && sha256(change.after.content) !== change.after.sha256) {
+      return { allowed: false, reason: `after hash mismatch: ${change.path}` };
+    }
+    if (!change.after)
+      return { allowed: false, reason: `deletions are not publishable: ${change.path}` };
+    if (change.classification === 'raw-evidence') {
+      return { allowed: false, reason: `raw browser evidence remains outside Git: ${change.path}` };
+    }
+    if (change.classification === 'observation') {
+      if (!change.provenanceRef) {
+        return { allowed: false, reason: `observations require provenance: ${change.path}` };
+      }
+      if (change.before && !change.after.content.startsWith(change.before.content)) {
+        return {
+          allowed: false,
+          reason: `observation publication must be append-only: ${change.path}`
+        };
+      }
+      continue;
+    }
+    if (change.classification === 'test') {
+      if (containsSkippedTest(change.after.content)) {
+        return { allowed: false, reason: `skipped tests are not publishable: ${change.path}` };
+      }
+      if (!change.before) {
+        if (!change.approvedScenarioRef) {
+          return {
+            allowed: false,
+            reason: `new tests require an approved scenario: ${change.path}`
+          };
+        }
+        continue;
+      }
+      if (oracleFingerprint(change.before.content) !== oracleFingerprint(change.after.content)) {
+        return {
+          allowed: false,
+          reason: `modified tests must preserve the assertion oracle fingerprint: ${change.path}`
+        };
+      }
+      continue;
+    }
+    if (change.classification === 'governed-source') {
+      if (
+        change.path.endsWith('/sources/decisions.md') ||
+        change.path.endsWith('/sources/autonomy-policy.md')
+      ) {
+        return {
+          allowed: false,
+          reason: `reviewer-owned authority artifacts cannot be generated: ${change.path}`
+        };
+      }
+      if (!change.authorityRef || !change.provenanceRef) {
+        return {
+          allowed: false,
+          reason: `governed source changes require authority and provenance: ${change.path}`
+        };
+      }
+      continue;
+    }
+    if (change.classification === 'derived-artifact') {
+      if (!hasValidGeneratedHash(change.path, change.after.content)) {
+        return {
+          allowed: false,
+          reason: `derived artifact has an invalid generated hash: ${change.path}`
+        };
+      }
+      continue;
+    }
+    return { allowed: false, reason: `semantic class is not publishable: ${change.path}` };
+  }
+  return { allowed: true };
+}
+
 export const PUBLICATION_MUTATIONS = [
   'append-observation',
   'append-evidence',
@@ -40,8 +230,6 @@ export interface PublicationRequest {
   checks: DeterministicCheck[];
   changes: PublicationChange[];
 }
-
-export type PublicationPolicyDecision = { allowed: true } | { allowed: false; reason: string };
 
 const ALWAYS_REJECT = new Set<PublicationMutation>([
   'promote-to-confirmed',
