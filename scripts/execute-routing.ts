@@ -7,6 +7,7 @@ export type AgentExecutionRoute =
   | 'deterministic-triage'
   | 'deterministic-knowledge-maintenance'
   | 'deterministic-suite-maintenance'
+  | 'deterministic-quality-pulse'
   | 'deterministic-fallback'
   | 'cursor';
 
@@ -27,5 +28,6 @@ export function selectAgentExecutionRoute(
   if (mockMode && command.intent === 'maintain-suite') {
     return 'deterministic-suite-maintenance';
   }
+  if (mockMode && command.intent === 'quality-pulse') return 'deterministic-quality-pulse';
   return cursorCliAvailable ? 'cursor' : 'deterministic-fallback';
 }

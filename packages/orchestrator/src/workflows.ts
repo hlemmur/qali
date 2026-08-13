@@ -136,6 +136,27 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
       ]
     }
   }),
+  'quality-analyst': role({
+    id: 'quality-analyst',
+    displayName: 'Quality Analyst',
+    permissions: {
+      readableArtifacts: [
+        'project-context',
+        'reference',
+        'questions',
+        'decisions',
+        'known-issues',
+        'scenarios',
+        'tests',
+        'evidence',
+        'reports',
+        'jobs'
+      ],
+      writableArtifacts: ['evidence', 'reports'],
+      tools: ['file-read', 'file-write', 'report-renderer'],
+      mutations: ['append-evidence', 'render-derived-report']
+    }
+  }),
   reporter: role({
     id: 'reporter',
     displayName: 'Reporter',
@@ -297,6 +318,16 @@ export function validateWorkflow(
         'host-suite-maintenance-guard': {
           stepIds: ['snapshot', 'validate-repair'],
           role: 'suite-maintainer',
+          sensitiveTools: []
+        },
+        'host-quality-aggregation': {
+          stepIds: ['aggregate'],
+          role: 'quality-analyst',
+          sensitiveTools: []
+        },
+        'host-quality-render': {
+          stepIds: ['render'],
+          role: 'quality-analyst',
           sensitiveTools: []
         }
       }[step.harnessProfileId];

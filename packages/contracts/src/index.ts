@@ -28,6 +28,7 @@ export const ROLE_IDS = [
   'executor',
   'failure-analyst',
   'suite-maintainer',
+  'quality-analyst',
   'reporter'
 ] as const;
 export const RoleIdSchema = z.enum(ROLE_IDS);

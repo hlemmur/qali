@@ -322,6 +322,36 @@
       "tools": [],
       "mutations": ["render-derived-report", "format-document"],
       "validators": ["report-schema"]
+    },
+    {
+      "id": "host-quality-aggregation",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/evidence"],
+      "tools": [],
+      "mutations": ["append-evidence"],
+      "validators": ["quality-pulse-facts-schema"]
+    },
+    {
+      "id": "host-quality-render",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/reports"],
+      "tools": [],
+      "mutations": ["render-derived-report"],
+      "validators": ["quality-pulse-report-schema"]
     }
   ]
 }

@@ -48,6 +48,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('uses deterministic quality presentation in Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('quality-pulse'), true, true)).toBe(
+      'deterministic-quality-pulse'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });

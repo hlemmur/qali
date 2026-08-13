@@ -42,6 +42,7 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeKnowledgeMaintenanceStep,
+  executeQualityPulseStep,
   executeSuiteMaintenanceStep,
   executeOnboardingMockStep,
   executeTriageStep,
@@ -410,6 +411,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     const executionKind = harnessExecutionKind(baseHarnessProfile);
     if (executionKind === 'host') {
+      if (command.intent === 'quality-pulse' && (step.id === 'aggregate' || step.id === 'render')) {
+        return executeQualityPulseStep(workspace, step, command);
+      }
       if (
         command.intent === 'maintain-suite' &&
         (step.id === 'snapshot' || step.id === 'validate-repair')
@@ -512,6 +516,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     if (agentExecutionRoute === 'deterministic-suite-maintenance') {
       return executeSuiteMaintenanceStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-quality-pulse') {
+      return executeQualityPulseStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
