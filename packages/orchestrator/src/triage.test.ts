@@ -8,6 +8,13 @@ import {
   fingerprintFailureReport,
   type TriageRegressionValidator
 } from './triage.js';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './execution.js';
 import { loadWorkflowDirectory } from './workflows.js';
 
 const failureReport = (error: string, duration: number) => ({
@@ -243,5 +250,59 @@ describe('failure triage', () => {
       observedStatus: 'red',
       evidence: ['test-results/regression-trace.zip']
     });
+  });
+
+  it('runs fingerprint, explanation, red reproduction, and reporting through the production orchestrator', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-e2e-'));
+    const command: NormalizedCommand = {
+      intent: 'triage-failure',
+      project: { id: 'shop', root: 'projects/shop', environmentLabel: 'mock' },
+      requestedBy: 'U1',
+      externalRole: 'qa-lead-admin',
+      receivedAt: '2026-08-13T00:00:00.000Z',
+      parameters: { sourceRunId: 'run-1' }
+    };
+    const projectRoot = join(workspace, command.project.root);
+    const resultsPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
+    mkdirSync(dirname(resultsPath), { recursive: true });
+    writeFileSync(resultsPath, JSON.stringify(failureReport('Expected decline banner', 40)));
+    mkdirSync(join(projectRoot, 'tests'), { recursive: true });
+    writeFileSync(join(projectRoot, 'tests/checkout.spec.ts'), '// existing failing oracle\n');
+    writeFileSync(join(projectRoot, 'observations/known-issues.md'), '# Known Issues\n');
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'triage-and-reproduce')!;
+    const validator: TriageRegressionValidator = {
+      async observeRed() {
+        return { status: 'red', evidence: ['test-results/regression-trace.zip'] };
+      }
+    };
+
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (step, executionCommand) =>
+          executeTriageStep(workspace, step, executionCommand, validator)
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'd'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts.map(({ stepId }) => stepId)).toEqual([
+      'fingerprint',
+      'explain',
+      'reproduce',
+      'report'
+    ]);
+    const report = readFileSync(join(projectRoot, 'derived/reports/triage.md'), 'utf8');
+    expect(report).toContain('Source run: `run-1`');
+    expect(report).toContain('Observed regression state: **red**');
+    expect(report).toContain('tests/regressions/');
+    expect(report).toContain('test-results/regression-trace.zip');
   });
 });

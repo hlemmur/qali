@@ -58,6 +58,12 @@ interface ReportSuite {
   suites?: ReportSuite[];
 }
 
+const generatedMarkdown = (body: string): string => {
+  const normalized = `\n\n${body.trim()}\n`;
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+};
+
 const normalizeError = (value: string): string => {
   const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
   return (
@@ -166,10 +172,8 @@ export async function executeTriageStep(
         ''
       ])
     ].join('\n');
-    const normalized = `\n\n${body.trim()}\n`;
-    const hash = createHash('sha256').update(normalized).digest('hex');
     mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`);
+    writeFileSync(outputPath, generatedMarkdown(body));
     return { status: 'succeeded', outputs };
   }
 
@@ -274,6 +278,41 @@ export async function executeTriageStep(
     const questionsPath = join(projectRoot, 'sources/questions.md');
     mkdirSync(dirname(questionsPath), { recursive: true });
     if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Open Questions\n');
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'report') {
+    const reproductionPath = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/reproductions/reproduction.json'
+    );
+    if (!existsSync(fingerprintPath) || !existsSync(reproductionPath)) {
+      return { status: 'failed', error: 'triage evidence is incomplete' };
+    }
+    const fingerprint = JSON.parse(readFileSync(fingerprintPath, 'utf8')) as FailureFingerprint;
+    const reproduction = JSON.parse(readFileSync(reproductionPath, 'utf8')) as {
+      candidatePath: string;
+      observedStatus: string;
+      evidence: string[];
+    };
+    const body = [
+      '# Triage report',
+      '',
+      `Source run: \`${fingerprint.sourceRunId}\``,
+      `Failure fingerprint: \`${fingerprint.fingerprint}\``,
+      `Failed tests: ${fingerprint.failureCount}`,
+      `Observed regression state: **${reproduction.observedStatus}**`,
+      `Regression candidate: \`${reproduction.candidatePath}\``,
+      '',
+      '## Evidence',
+      '',
+      ...reproduction.evidence.map((path) => `- \`${path}\``),
+      ''
+    ].join('\n');
+    const outputPath = join(workspace, outputs[0]!.path);
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, generatedMarkdown(body));
     return { status: 'succeeded', outputs };
   }
 
