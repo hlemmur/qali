@@ -82,6 +82,30 @@ describe('Playwright adapter', () => {
     });
   });
 
+  it('does not report runner warnings as test errors when the process succeeds', () => {
+    expect(
+      summarizePlaywrightRun(
+        {
+          suites: [
+            {
+              specs: [
+                {
+                  tests: [
+                    {
+                      status: 'expected',
+                      results: [{ status: 'passed', duration: 12 }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { status: 'passed', exitCode: 0, stderr: 'NO_COLOR is ignored' }
+      )
+    ).toMatchObject({ status: 'passed', passed: 1, errors: [] });
+  });
+
   it('runs deterministic project tests without a shell', async () => {
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;

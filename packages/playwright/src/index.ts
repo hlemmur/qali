@@ -73,7 +73,9 @@ export function summarizePlaywrightRun(
 ): PlaywrightRunEvidence {
   const summary = parsePlaywrightJsonReport(report);
   const errors = [...summary.errors];
-  if (run.stderr?.trim() && !errors.includes(run.stderr.trim())) errors.push(run.stderr.trim());
+  if (run.status === 'failed' && run.stderr?.trim() && !errors.includes(run.stderr.trim())) {
+    errors.push(run.stderr.trim());
+  }
   return {
     status: run.status === 'failed' || summary.failed > 0 ? 'failed' : 'passed',
     ...summary,
