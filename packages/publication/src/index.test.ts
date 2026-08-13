@@ -65,17 +65,19 @@ describe('semantic publication policy', () => {
       reason: expect.stringMatching(/outside git/i)
     });
 
-    const misplacedScreenshot = createSemanticPublicationChange({
-      path: 'projects/shop/observations/run-42.png',
-      before: null,
-      after: 'raw screenshot bytes',
-      provenanceRef: 'run:42'
-    });
-    expect(misplacedScreenshot.classification).toBe('raw-evidence');
-    expect(assessSemanticPublication(semanticManifest([misplacedScreenshot]))).toMatchObject({
-      allowed: false,
-      reason: expect.stringMatching(/outside git/i)
-    });
+    for (const extension of ['png', 'jpg', 'jpeg', 'webp', 'gif']) {
+      const misplacedScreenshot = createSemanticPublicationChange({
+        path: `projects/shop/observations/run-42.${extension}`,
+        before: null,
+        after: 'raw screenshot bytes',
+        provenanceRef: 'run:42'
+      });
+      expect(misplacedScreenshot.classification).toBe('raw-evidence');
+      expect(assessSemanticPublication(semanticManifest([misplacedScreenshot]))).toMatchObject({
+        allowed: false,
+        reason: expect.stringMatching(/outside git/i)
+      });
+    }
   });
 
   it('requires approved scenarios for new tests and unchanged oracles for modified tests', () => {

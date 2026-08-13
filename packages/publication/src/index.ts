@@ -70,7 +70,7 @@ function hasValidGeneratedHash(path: string, content: string): boolean {
 }
 
 const RAW_EVIDENCE_PATTERN =
-  /(?:^|\/)(?:cookies?|logs?|screenshots?|traces?|videos?)(?:\/|\.|$)|\.(?:har|log|mp4|png|trace|webm|zip)$/i;
+  /(?:^|\/)(?:cookies?|logs?|screenshots?|traces?|videos?)(?:\/|\.|$)|\.(?:gif|har|jpe?g|log|mp4|png|trace|webm|webp|zip)$/i;
 
 export function classifyPublicationPath(path: string): PublicationChangeClassification {
   if (RAW_EVIDENCE_PATTERN.test(path)) return 'raw-evidence';
