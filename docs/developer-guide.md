@@ -76,6 +76,17 @@ After classification, `@qali/project-config` resolves the canonical root, GitHub
 
 The Workers AI classifier uses a strict JSON schema. A deterministic heuristic fallback preserves intake availability, but both routes feed the same trusted resolver and authorization checks.
 
+Questions about status, last run, coverage, schedule, expected results, history, journeys, or known issues classify as `query-project`. The Worker answers from a D1 quality snapshot when one exists. If the snapshot is missing, Actions runs a host-only pack read with no Playwright, Cursor, or publication. Imperative run, explore, generate, triage, onboard, maintain, and quality-pulse requests remain work intents.
+
+### 4.1.1 Implementation and review policy
+
+- Use `main` only for read-only live verification of reviewed commits.
+- Put defects and features on a new isolated `codex/*` branch. Write the failing test first, apply the smallest fix, run full gates, and open a ready PR.
+- Never expose secrets in logs, diffs, PR bodies, or Slack.
+- Never review, approve, or merge your own PR. Never merge any PR from the authoring session. An independent reviewer comments or squash-merges.
+- After opening a PR, poll for merge or reviewer comments, then continue with fixes or the next slice.
+- Preserve cross-system evidence. Distinguish **implemented**, **mock-tested**, **qualified**, and **live-verified**; do not promote a weaker level.
+
 ### 4.2 Project knowledge ownership
 
 Qali uses `sources → observations → derived artifacts/tests`:
@@ -363,7 +374,7 @@ Never print secret values. Verify name presence and API validity only.
 7. Run uniquely correlated live scenarios in a private channel.
 8. Preserve Slack, D1, GitHub, artifact, harness, and publication evidence.
 
-Never deploy an unreviewed implementation fix. Never merge your own PR.
+Never deploy an unreviewed implementation fix. Never review, approve, or merge your own PR. Never merge any PR from the authoring session. Poll for independent review or merge, then continue.
 
 ## 13. Troubleshooting runbook
 
