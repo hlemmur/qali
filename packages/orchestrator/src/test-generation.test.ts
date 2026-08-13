@@ -321,4 +321,80 @@ describe('deterministic test generation', () => {
     );
     expect(validator.requests).toHaveLength(1);
   });
+
+  it.each([
+    ['protocol-relative path', { path: '//evil.example', actions: [], assertions: [] }],
+    ['parent path segment', { path: '/../admin', actions: [], assertions: [] }],
+    [
+      'unknown action',
+      { path: '/', actions: [{ kind: 'evaluate', script: 'alert(1)' }], assertions: [] }
+    ],
+    [
+      'malformed assertion',
+      { path: '/', actions: [], assertions: [{ kind: 'text', testId: 'balance' }] }
+    ],
+    [
+      'traversing screenshot name',
+      { path: '/', actions: [], assertions: [{ kind: 'visual', name: '../escape.png' }] }
+    ]
+  ])('rejects a %s contract before validation', async (_label, contract) => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/invalid.md'),
+      [
+        '## SCN-INVALID: Invalid contract',
+        '- Status: approved for automation',
+        '- Traceability: REQ-001',
+        '```json qali-playwright',
+        JSON.stringify(contract),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+    const validator = new FakeGeneratedTestValidator();
+
+    await expect(
+      executeTestGenerationStep(
+        workspace,
+        workflow.steps.find(({ id }) => id === 'generate-tests')!,
+        command,
+        validator
+      )
+    ).rejects.toThrow(/invalid qali-playwright scenario/i);
+    expect(validator.requests).toHaveLength(0);
+  });
+
+  it('rejects generated scenarios without requirement traceability', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/untraced.md'),
+      [
+        '## SCN-UNTRACED: Missing requirement',
+        '- Status: approved for automation',
+        '```json qali-playwright',
+        JSON.stringify({ path: '/', actions: [], assertions: [] }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    await expect(
+      executeTestGenerationStep(
+        workspace,
+        workflow.steps.find(({ id }) => id === 'generate-tests')!,
+        command,
+        new FakeGeneratedTestValidator()
+      )
+    ).rejects.toThrow(/SCN-UNTRACED.*requirement traceability/i);
+  });
 });

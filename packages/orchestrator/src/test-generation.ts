@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { format } from 'prettier';
+import { z } from 'zod';
 
 const expand = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
@@ -19,19 +20,55 @@ interface ApprovedScenario {
   playwright?: PlaywrightScenario;
 }
 
-interface PlaywrightScenario {
-  path: string;
-  actions: Array<
-    { kind: 'fill'; label: string; value: string } | { kind: 'click'; role: string; name: string }
-  >;
-  assertions: Array<
-    | { kind: 'visible'; role: string; name: string }
-    | { kind: 'text'; testId: string; value: string }
-    | { kind: 'roleText'; role: string; value: string }
-    | { kind: 'visual'; name: string }
-    | { kind: 'evidenceScreenshot'; name: string }
-  >;
-}
+const RoleSchema = z.enum([
+  'alert',
+  'button',
+  'checkbox',
+  'heading',
+  'link',
+  'listitem',
+  'menuitem',
+  'option',
+  'radio',
+  'row',
+  'tab',
+  'textbox'
+]);
+const ScreenshotNameSchema = z.string().regex(/^(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9._-]*\.png$/);
+const PlaywrightScenarioSchema = z
+  .object({
+    path: z.string().refine((value) => {
+      const pathname = value.split(/[?#]/, 1)[0] ?? '';
+      return (
+        value.startsWith('/') &&
+        !value.startsWith('//') &&
+        !value.includes('//') &&
+        !/[\\\s]/.test(value) &&
+        !pathname.split('/').some((segment) => segment === '.' || segment === '..')
+      );
+    }),
+    actions: z.array(
+      z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('fill'), label: z.string().min(1), value: z.string() }).strict(),
+        z.object({ kind: z.literal('click'), role: RoleSchema, name: z.string().min(1) }).strict()
+      ])
+    ),
+    assertions: z.array(
+      z.discriminatedUnion('kind', [
+        z
+          .object({ kind: z.literal('visible'), role: RoleSchema, name: z.string().min(1) })
+          .strict(),
+        z
+          .object({ kind: z.literal('text'), testId: z.string().min(1), value: z.string() })
+          .strict(),
+        z.object({ kind: z.literal('roleText'), role: RoleSchema, value: z.string() }).strict(),
+        z.object({ kind: z.literal('visual'), name: ScreenshotNameSchema }).strict(),
+        z.object({ kind: z.literal('evidenceScreenshot'), name: ScreenshotNameSchema }).strict()
+      ])
+    )
+  })
+  .strict();
+type PlaywrightScenario = z.infer<typeof PlaywrightScenarioSchema>;
 
 export interface GeneratedTestValidator {
   validate(request: {
@@ -54,16 +91,11 @@ const quoted = (value: string): string =>
 function playwrightScenario(body: string): PlaywrightScenario | undefined {
   const encoded = /```json qali-playwright\s*\n([\s\S]*?)\n```/i.exec(body)?.[1];
   if (!encoded) return undefined;
-  const value = JSON.parse(encoded) as PlaywrightScenario;
-  if (
-    typeof value.path !== 'string' ||
-    !value.path.startsWith('/') ||
-    !Array.isArray(value.actions) ||
-    !Array.isArray(value.assertions)
-  ) {
+  try {
+    return PlaywrightScenarioSchema.parse(JSON.parse(encoded));
+  } catch {
     throw new Error('invalid qali-playwright scenario');
   }
-  return value;
 }
 
 function approvedScenarios(markdown: string): ApprovedScenario[] {
@@ -113,12 +145,19 @@ export async function executeTestGenerationStep(
     .filter((name) => name.endsWith('.md'))
     .flatMap((name) => approvedScenarios(readFileSync(join(scenarioDirectory, name), 'utf8')));
   if (step.id === 'generate-tests') {
+    const generatedScenarios = scenarios.filter(
+      (scenario): scenario is ApprovedScenario & { playwright: PlaywrightScenario } =>
+        Boolean(scenario.playwright)
+    );
+    const untraced = generatedScenarios.find((scenario) => scenario.requirementIds.length === 0);
+    if (untraced) {
+      throw new Error(`${untraced.id} is missing requirement traceability`);
+    }
     const generatedDirectory = join(projectRoot, 'tests/generated');
     mkdirSync(generatedDirectory, { recursive: true });
     const generatedPaths: string[] = [];
     const scenarioIds: string[] = [];
-    for (const scenario of scenarios) {
-      if (!scenario.playwright) continue;
+    for (const scenario of generatedScenarios) {
       const usesTestInfo = scenario.playwright.assertions.some(
         ({ kind }) => kind === 'evidenceScreenshot'
       );
