@@ -110,6 +110,18 @@ describe('trusted project resolution', () => {
     ).toThrow(message);
   });
 
+  it('authorizes ops-channel requests for a registered project', () => {
+    const command = resolveTrustedCommand(
+      { intent: 'explore-project', projectId: '_demo', focus: {} },
+      { ...work, slack: { ...work.slack, channelId: 'C_OPS' }, externalRole: 'qa-lead-admin' },
+      registry,
+      [profile('mock')],
+      { opsChannelIds: ['C_OPS'] }
+    );
+    expect(command.project.id).toBe('_demo');
+    expect(command.slack?.channelId).toBe('C_OPS');
+  });
+
   it('rejects missing or mismatched execution profiles', () => {
     expect(() =>
       resolveTrustedCommand(

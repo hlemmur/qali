@@ -112,13 +112,29 @@ const transientQueueFailure = (detail: string): boolean =>
     detail
   );
 
+function channelAllowed(env: Env, channelId: string): boolean {
+  const productChannels = csv(env.SLACK_ALLOWED_CHANNEL_IDS);
+  if (productChannels.size === 0) return true;
+  return productChannels.has(channelId) || csv(env.SLACK_OPS_CHANNEL_IDS).has(channelId);
+}
+
+function roleForSlackUser(env: Env, userId: string, channelId: string) {
+  return externalRoleForUser(userId, {
+    breakGlassUserIds: env.SLACK_QA_LEAD_USER_IDS,
+    opsChannelIds: env.SLACK_OPS_CHANNEL_IDS,
+    channelId
+  });
+}
+
 function allowed(env: Env, teamId: string, channelId: string, userId: string): boolean {
   const checks: Array<[Set<string>, string]> = [
     [csv(env.SLACK_ALLOWED_TEAM_IDS), teamId],
-    [csv(env.SLACK_ALLOWED_CHANNEL_IDS), channelId],
     [csv(env.SLACK_ALLOWED_USER_IDS), userId]
   ];
-  return checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value));
+  return (
+    channelAllowed(env, channelId) &&
+    checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value))
+  );
 }
 
 function allowedHome(env: Env, teamId: string, userId: string): boolean {
@@ -257,7 +273,7 @@ async function slackEvents(
     kind: 'message',
     text: event.text,
     requestedBy: event.user,
-    externalRole: externalRoleForUser(event.user, env.SLACK_QA_LEAD_USER_IDS),
+    externalRole: roleForSlackUser(env, event.user, event.channel),
     receivedAt: now.toISOString(),
     slack: {
       teamId: payload.team_id,
@@ -322,7 +338,7 @@ async function slackInteraction(
     return json(200, { ok: true });
   }
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
-  const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
+  const externalRole = roleForSlackUser(env, userId, channelId);
   if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
     await store.recordSecurityDenial({
       occurredAt: now.toISOString(),
@@ -673,7 +689,8 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             classification,
             message.body,
             overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
-            overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
+            overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES,
+            { opsChannelIds: [...csv(env.SLACK_OPS_CHANNEL_IDS)] }
           );
           const executionProfiles = overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
           const executionProfile = executionProfiles.find(

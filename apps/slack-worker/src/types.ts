@@ -33,6 +33,7 @@ export interface Env {
   SLACK_ALLOWED_CHANNEL_IDS?: string;
   SLACK_ALLOWED_USER_IDS?: string;
   SLACK_QA_LEAD_USER_IDS?: string;
+  SLACK_OPS_CHANNEL_IDS?: string;
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
   QALI_CALLBACK_SECRET: string;

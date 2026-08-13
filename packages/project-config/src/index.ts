@@ -98,16 +98,18 @@ export function resolveTrustedCommand(
   untrustedClassification: unknown,
   work: TrustedRequestContext,
   registryInput: ProjectRegistry,
-  profileInputs: readonly ProjectExecutionProfile[]
+  profileInputs: readonly ProjectExecutionProfile[],
+  options: { opsChannelIds?: readonly string[] } = {}
 ): NormalizedCommand {
   const classification = ClassifiedIntentSchema.parse(untrustedClassification);
   const registry = ProjectRegistrySchema.parse(registryInput);
   const project = registry.projects.find((candidate) => candidate.id === classification.projectId);
   if (!project) throw new Error(`Unknown project: ${classification.projectId}`);
   const scope = project.allowedSlack;
+  const inOpsChannel = (options.opsChannelIds ?? []).includes(work.slack.channelId);
   const authorized =
     includesOrUnscoped(scope.teamIds, work.slack.teamId) &&
-    scope.channelIds.includes(work.slack.channelId) &&
+    (scope.channelIds.includes(work.slack.channelId) || inOpsChannel) &&
     includesOrUnscoped(scope.userIds, work.requestedBy) &&
     scope.roles.includes(work.externalRole);
   if (!authorized) throw new Error(`Slack scope is not authorized for project ${project.id}`);
