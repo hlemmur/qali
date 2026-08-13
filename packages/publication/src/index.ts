@@ -102,6 +102,12 @@ export function createSemanticPublicationChange(input: {
 
 export type PublicationPolicyDecision = { allowed: true } | { allowed: false; reason: string };
 
+function isSafeProjectPath(path: string, projectRoot: string): boolean {
+  if (!path.startsWith(`${projectRoot}/`) || path.includes('\\')) return false;
+  const segments = path.split('/');
+  return !segments.some((segment) => segment === '.' || segment === '..' || segment === '');
+}
+
 export function assessSemanticPublication(
   value: SemanticPublicationManifest
 ): PublicationPolicyDecision {
@@ -115,8 +121,11 @@ export function assessSemanticPublication(
     return { allowed: false, reason: 'all executed publication checks must pass' };
   }
   for (const change of manifest.changes) {
-    if (!change.path.startsWith(`${manifest.projectRoot}/`)) {
-      return { allowed: false, reason: `change is outside the governed project: ${change.path}` };
+    if (!isSafeProjectPath(change.path, manifest.projectRoot)) {
+      return {
+        allowed: false,
+        reason: `unsafe path is outside the governed project: ${change.path}`
+      };
     }
     if (change.classification !== classifyPublicationPath(change.path)) {
       return { allowed: false, reason: `semantic classification mismatch: ${change.path}` };

@@ -80,6 +80,24 @@ describe('semantic publication policy', () => {
     }
   });
 
+  it('rejects path traversal and platform-specific escape syntax', () => {
+    for (const path of [
+      'projects/shop/observations/../../.github/workflows/evil.yml',
+      'projects/shop/observations\\..\\..\\evil.yml'
+    ]) {
+      const escaped = createSemanticPublicationChange({
+        path,
+        before: null,
+        after: 'malicious workflow',
+        provenanceRef: 'run:42'
+      });
+      expect(assessSemanticPublication(semanticManifest([escaped]))).toMatchObject({
+        allowed: false,
+        reason: expect.stringMatching(/unsafe path/i)
+      });
+    }
+  });
+
   it('requires approved scenarios for new tests and unchanged oracles for modified tests', () => {
     const newTest = createSemanticPublicationChange({
       path: 'projects/shop/tests/checkout.spec.ts',
