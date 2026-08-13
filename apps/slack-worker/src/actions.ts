@@ -61,7 +61,7 @@ function rebuildCommand(
   registry: ProjectRegistry,
   profiles: readonly ProjectExecutionProfile[]
 ): NormalizedCommand {
-  let projectId = '_demo';
+  let projectId = 'sauce-demo';
   let focus: Record<string, unknown> = {
     sourceRequestId: correlation.requestId,
     ...(correlation.runId ? { sourceRunId: correlation.runId } : {})

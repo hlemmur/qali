@@ -48,8 +48,8 @@ describe('agent execution routing', () => {
     );
   });
 
-  it('uses deterministic quality presentation in Mock Mode', () => {
-    expect(selectAgentExecutionRoute(command('quality-pulse'), true, true)).toBe(
+  it('uses deterministic quality presentation even outside Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('quality-pulse'), true, false)).toBe(
       'deterministic-quality-pulse'
     );
   });

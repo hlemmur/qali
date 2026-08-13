@@ -29,7 +29,7 @@ export function selectAgentExecutionRoute(
   if (mockMode && command.intent === 'maintain-suite') {
     return 'deterministic-suite-maintenance';
   }
-  if (mockMode && command.intent === 'quality-pulse') return 'deterministic-quality-pulse';
+  if (command.intent === 'quality-pulse') return 'deterministic-quality-pulse';
   if (command.intent === 'query-project') return 'deterministic-query-project';
   return cursorCliAvailable ? 'cursor' : 'deterministic-fallback';
 }

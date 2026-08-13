@@ -19,15 +19,15 @@ function readJson(path: string): Record<string, unknown> | undefined {
 
 function projectRootFromEnv(): { id: string; root: string } {
   const raw = process.env.PROJECT_JSON ?? process.env.SUMMARY_PROJECT;
-  if (!raw) return { id: '_demo', root: 'projects/_demo' };
+  if (!raw) return { id: 'sauce-demo', root: 'projects/sauce-demo' };
   try {
     const parsed = JSON.parse(raw) as { id?: string; root?: string };
     return {
-      id: parsed.id ?? '_demo',
-      root: parsed.root ?? `projects/${parsed.id ?? '_demo'}`
+      id: parsed.id ?? 'sauce-demo',
+      root: parsed.root ?? `projects/${parsed.id ?? 'sauce-demo'}`
     };
   } catch {
-    return { id: '_demo', root: 'projects/_demo' };
+    return { id: 'sauce-demo', root: 'projects/sauce-demo' };
   }
 }
 

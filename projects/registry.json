@@ -2,9 +2,9 @@
   "version": 1,
   "projects": [
     {
-      "id": "_demo",
-      "root": "projects/_demo",
-      "githubEnvironment": "qali-demo",
+      "id": "sauce-demo",
+      "root": "projects/sauce-demo",
+      "githubEnvironment": "qali-sauce-demo",
       "allowedSlack": {
         "teamIds": [],
         "channelIds": ["C0BPN1KEHC4"],
@@ -35,7 +35,7 @@
           "enabled": true
         }
       ],
-      "activeExecutionProfile": "demo-mock"
+      "activeExecutionProfile": "sauce-demo-production"
     }
   ]
 }

@@ -171,6 +171,8 @@ describe('product documentation assets', () => {
 
     expect(upload).not.toMatch(/projects\/\*\//);
     expect(upload).toContain('fromJSON(inputs.project_json).id');
+    expect(upload).toContain("|| 'sauce-demo'");
+    expect(upload).not.toContain("|| '_demo'");
   });
 
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
