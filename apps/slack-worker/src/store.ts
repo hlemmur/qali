@@ -49,6 +49,16 @@ export class D1ControlStore implements ControlStore {
     return (result?.meta.changes ?? 0) === 1;
   }
 
+  async acceptCallback(identity: string, receivedAt: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'INSERT INTO callback_deduplication (identity, received_at) VALUES (?, ?) ON CONFLICT(identity) DO NOTHING'
+      )
+      .bind(identity, receivedAt)
+      .run();
+    return result.meta.changes === 1;
+  }
+
   async claim(requestId: string): Promise<boolean> {
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
     const result = await this.db

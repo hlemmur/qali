@@ -33,6 +33,7 @@ export interface Env {
   SLACK_QA_LEAD_USER_IDS?: string;
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
+  QALI_CALLBACK_SECRET: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_INSTALLATION_ID: string;
@@ -75,6 +76,7 @@ export interface Correlation {
 
 export interface ControlStore {
   accept(work: InboundWork): Promise<boolean>;
+  acceptCallback(identity: string, receivedAt: string): Promise<boolean>;
   claim(requestId: string): Promise<boolean>;
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;

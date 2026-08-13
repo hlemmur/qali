@@ -20,6 +20,7 @@ import type {
 
 class MemoryStore implements ControlStore {
   readonly accepted = new Map<string, InboundWork>();
+  readonly callbacks = new Set<string>();
   readonly correlations = new Map<string, Correlation>();
   readonly runIndex = new Map<string, string>();
 
@@ -37,6 +38,12 @@ class MemoryStore implements ControlStore {
       threadTs: work.slack.threadTs,
       requestTs: work.slack.requestTs
     });
+    return true;
+  }
+
+  async acceptCallback(identity: string): Promise<boolean> {
+    if (this.callbacks.has(identity)) return false;
+    this.callbacks.add(identity);
     return true;
   }
 
@@ -177,7 +184,8 @@ const baseEnv = (queue: InboundWork[]): Env =>
     INBOUND_QUEUE: { send: async (work: InboundWork) => void queue.push(work) },
     SLACK_SIGNING_SECRET: 'slack-secret',
     SLACK_BOT_TOKEN: 'xoxb-test',
-    GITHUB_WEBHOOK_SECRET: 'github-secret'
+    GITHUB_WEBHOOK_SECRET: 'github-secret',
+    QALI_CALLBACK_SECRET: 'callback-secret'
   }) as Env;
 
 async function slackEvent(body: unknown, timestamp = '1700000000'): Promise<Request> {
@@ -691,5 +699,57 @@ describe('Slack control worker', () => {
       body: raw
     });
     expect((await worker.fetch(forged, baseEnv([]))).status).toBe(401);
+  });
+
+  it('accepts each fresh Actions callback nonce only once', async () => {
+    const store = new MemoryStore();
+    const work = {
+      identity: 'event:Ev1',
+      requestId: 'Ev1',
+      kind: 'message',
+      text: 'run',
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: '2023-11-14T22:13:20.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+    } satisfies InboundWork;
+    await store.accept(work);
+    const slack: SlackPort = {
+      postResult: vi.fn(async () => '2.2'),
+      updateResult: vi.fn(async () => undefined),
+      postThreadNotice: vi.fn(async () => undefined)
+    };
+    const worker = createWorker({
+      store,
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = JSON.stringify({ requestId: 'Ev1', status: 'passed' });
+    const timestamp = '1700000000';
+    const nonce = 'run-42-attempt-1';
+    const signature = await signHmacForTest(
+      'callback-secret',
+      `${timestamp}.${nonce}.${body}`,
+      'sha256='
+    );
+    const callback = () =>
+      new Request('https://worker.test/github/run-summary', {
+        method: 'POST',
+        headers: {
+          'x-qali-timestamp': timestamp,
+          'x-qali-nonce': nonce,
+          'x-qali-signature': signature
+        },
+        body
+      });
+
+    expect((await worker.fetch(callback(), baseEnv([]))).status).toBe(200);
+    expect(await (await worker.fetch(callback(), baseEnv([]))).json()).toEqual({
+      ok: true,
+      skipped: 'replay'
+    });
+    expect(slack.postResult).toHaveBeenCalledTimes(1);
   });
 });

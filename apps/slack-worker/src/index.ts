@@ -2,7 +2,7 @@ import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifi
 import { handleSlackAction, LINK_ONLY_ACTIONS } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
-import { verifySignedRequest } from './security.js';
+import { verifyCallbackRequest, verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
 import {
@@ -361,19 +361,23 @@ async function githubRunSummary(
   request: Request,
   env: Env,
   store: ControlStore,
-  slack: SlackPort
+  slack: SlackPort,
+  now: Date
 ): Promise<Response> {
   const raw = await request.text();
-  if (
-    !(await verifySignedRequest({
-      secret: env.GITHUB_WEBHOOK_SECRET,
-      body: raw,
-      signature: request.headers.get('x-hub-signature-256'),
-      nowSeconds: Math.floor(Date.now() / 1000),
-      prefix: 'sha256='
-    }))
-  ) {
+  const authentication = await verifyCallbackRequest({
+    secret: env.QALI_CALLBACK_SECRET,
+    body: raw,
+    signature: request.headers.get('x-qali-signature'),
+    timestamp: request.headers.get('x-qali-timestamp'),
+    nonce: request.headers.get('x-qali-nonce'),
+    nowSeconds: Math.floor(now.getTime() / 1000)
+  });
+  if (!authentication.valid) {
     return new Response('Unauthorized', { status: 401 });
+  }
+  if (!(await store.acceptCallback(authentication.identity, now.toISOString()))) {
+    return json(200, { ok: true, skipped: 'replay' });
   }
   let payload: Record<string, unknown>;
   try {
@@ -445,7 +449,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
         return githubWebhook(request, env, store, slackService(env, overrides), now);
       }
       if (pathname === '/github/run-summary') {
-        return githubRunSummary(request, env, store, slackService(env, overrides));
+        return githubRunSummary(request, env, store, slackService(env, overrides), now);
       }
       return new Response('Not Found', { status: 404 });
     },
