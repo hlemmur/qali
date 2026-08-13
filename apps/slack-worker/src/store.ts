@@ -1,5 +1,9 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
-import type { NormalizedCommand } from '@qali/contracts';
+import {
+  QualitySnapshotSchema,
+  type NormalizedCommand,
+  type QualitySnapshot
+} from '@qali/contracts';
 import type { ControlStore, Correlation, InboundWork } from './types.js';
 
 const rowToCorrelation = (row: Record<string, unknown>): Correlation => ({
@@ -114,6 +118,9 @@ export class D1ControlStore implements ControlStore {
         .prepare('DELETE FROM rate_limit_events WHERE occurred_at < ?')
         .bind(input.controlBefore),
       this.db
+        .prepare('DELETE FROM quality_snapshots WHERE updated_at < ?')
+        .bind(input.controlBefore),
+      this.db
         .prepare('DELETE FROM security_denials WHERE occurred_at < ?')
         .bind(input.securityBefore)
     ];
@@ -204,5 +211,29 @@ export class D1ControlStore implements ControlStore {
         .bind(status, lastError ?? null, new Date().toISOString(), requestId);
     }
     await statement.run();
+  }
+
+  async getQualitySnapshot(projectId: string): Promise<QualitySnapshot | null> {
+    const row = await this.db
+      .prepare('SELECT snapshot_json FROM quality_snapshots WHERE project_id = ?')
+      .bind(projectId)
+      .first<{ snapshot_json: string }>();
+    if (!row?.snapshot_json) return null;
+    try {
+      return QualitySnapshotSchema.parse(JSON.parse(row.snapshot_json));
+    } catch {
+      return null;
+    }
+  }
+
+  async upsertQualitySnapshot(snapshot: QualitySnapshot): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT INTO quality_snapshots (project_id, snapshot_json, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(project_id) DO UPDATE SET snapshot_json = excluded.snapshot_json, updated_at = excluded.updated_at`
+      )
+      .bind(snapshot.projectId, JSON.stringify(snapshot), snapshot.updatedAt)
+      .run();
   }
 }

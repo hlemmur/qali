@@ -81,7 +81,8 @@ const INTENT_INCOMPLETE: Record<string, string> = {
   'triage-failure': 'Triage did not finish with a complete report.',
   'maintain-knowledge': 'Knowledge maintenance did not finish.',
   'maintain-suite': 'Suite maintenance did not finish.',
-  'quality-pulse': 'Quality pulse did not finish.'
+  'quality-pulse': 'Quality pulse did not finish.',
+  'query-project': 'I could not finish reading the project pack.'
 };
 
 export function userFacingFailureDetails(input: {
@@ -142,6 +143,9 @@ export async function postRunSummary(): Promise<void> {
 
   const project = projectRootFromEnv();
   const report = findTestRunJson(project.root) ?? {};
+  const snapshot =
+    readJson('.qali/quality-snapshot.json') ??
+    readJson(join(project.root, 'derived/reports/quality-snapshot.json'));
   const counts =
     typeof report.total === 'number' &&
     typeof report.passed === 'number' &&
@@ -186,7 +190,8 @@ export async function postRunSummary(): Promise<void> {
     ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
     ...(errors.length ? { errors } : {}),
     ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
-    ...(counts ? { counts } : {})
+    ...(counts ? { counts } : {}),
+    ...(snapshot ? { qualitySnapshot: snapshot } : {})
   });
 
   const url = `${workerBase}/github/run-summary`;
