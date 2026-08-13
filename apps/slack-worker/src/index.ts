@@ -120,6 +120,14 @@ function allowed(env: Env, teamId: string, channelId: string, userId: string): b
   return checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value));
 }
 
+function allowedHome(env: Env, teamId: string, userId: string): boolean {
+  const checks: Array<[Set<string>, string]> = [
+    [csv(env.SLACK_ALLOWED_TEAM_IDS), teamId],
+    [csv(env.SLACK_ALLOWED_USER_IDS), userId]
+  ];
+  return checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value));
+}
+
 const storeService = (env: Env, overrides: WorkerDependencies): ControlStore =>
   overrides.store ?? new D1ControlStore(env.DB);
 
@@ -216,6 +224,10 @@ async function slackEvents(
   }
   const event = record(payload.event);
   if (event?.type === 'app_home_opened' && typeof event.user === 'string') {
+    const teamId = typeof payload.team_id === 'string' ? payload.team_id : '';
+    if (!allowedHome(env, teamId, event.user)) {
+      return new Response('Ignored', { status: 200 });
+    }
     if (slack.publishHome) {
       const items = homeItemsFromCorrelations(await store.listWorkForUser(event.user));
       await slack.publishHome(event.user, renderAppHome(items));

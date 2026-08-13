@@ -1164,4 +1164,35 @@ describe('Slack control worker', () => {
       'sauce-demo · explore-project · dispatched'
     );
   });
+
+  it('does not publish App Home for users outside the allowlist', async () => {
+    const published: unknown[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(),
+        publishHome: async (_userId, view) => {
+          published.push(view);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const homeOpened = {
+      type: 'event_callback',
+      team_id: 'T1',
+      event_id: 'EvHomeDenied',
+      event: { type: 'app_home_opened', user: 'U2', tab: 'home' }
+    };
+    const env = {
+      ...baseEnv([]),
+      SLACK_ALLOWED_TEAM_IDS: 'T1',
+      SLACK_ALLOWED_CHANNEL_IDS: 'C1',
+      SLACK_ALLOWED_USER_IDS: 'U1'
+    };
+
+    expect((await worker.fetch(await slackEvent(homeOpened), env)).status).toBe(200);
+    expect(published).toHaveLength(0);
+  });
 });
