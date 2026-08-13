@@ -29,6 +29,18 @@ const generatedMarkdown = (body: string): string => {
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
 };
 
+const appendMarkdown = (existing: string, section: string): string => {
+  const separator =
+    existing.length === 0
+      ? ''
+      : existing.endsWith('\n\n')
+        ? ''
+        : existing.endsWith('\n')
+          ? '\n'
+          : '\n\n';
+  return `${existing}${separator}${section.trim()}\n`;
+};
+
 const positiveInteger = (value: unknown, fallback: number, maximum: number): number => {
   const parsed = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
   return typeof parsed === 'number' && Number.isInteger(parsed) && parsed > 0
@@ -84,15 +96,16 @@ export async function executeExplorationStep(
     const explorationPath = join(projectRoot, 'observations/exploration.md');
     mkdirSync(dirname(explorationPath), { recursive: true });
     const existing = existsSync(explorationPath) ? readFileSync(explorationPath, 'utf8') : '';
-    const sessionOffset = existing.indexOf('## Session Log');
-    const priorSessions = sessionOffset >= 0 ? existing.slice(sessionOffset).trim() : '';
-    const charter = `# Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.`;
-    writeFileSync(explorationPath, `${charter}${priorSessions ? `\n\n${priorSessions}` : ''}\n`);
+    const charter = `## Exploration Charter\n\nFocus: ${focus}\n\nMethod: bounded black-box exploration through the restricted browser facade.`;
+    writeFileSync(explorationPath, appendMarkdown(existing, charter));
     return { status: 'succeeded' as const, outputs };
   }
   if (step.id === 'report') {
     const exploration = readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8');
-    const questions = readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8');
+    const questionsPath = join(projectRoot, 'sources/questions.md');
+    const questions = existsSync(questionsPath)
+      ? readFileSync(questionsPath, 'utf8')
+      : '# Questions\n\nNo reviewer-authored questions recorded.\n';
     const reportPath = join(projectRoot, 'derived/reports/exploration.md');
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, renderExplorationReport(exploration, questions));
@@ -122,13 +135,13 @@ export async function executeExplorationStep(
   const explorationPath = join(projectRoot, 'observations/exploration.md');
   const questionsPath = join(projectRoot, 'sources/questions.md');
   const existingExploration = existsSync(explorationPath)
-    ? readFileSync(explorationPath, 'utf8').trim()
+    ? readFileSync(explorationPath, 'utf8')
     : '# Exploration Log';
   const existingQuestions = existsSync(questionsPath)
     ? readFileSync(questionsPath, 'utf8').trim()
     : '# Open Questions';
   const observationId = nextGovernedId(existingExploration, 'OBS-EXP');
-  const questionId = nextGovernedId(existingQuestions, 'Q-EXP');
+  const questionId = nextGovernedId(`${existingExploration}\n${existingQuestions}`, 'Q-EXP');
   const sessionId = `session-${observationId.toLowerCase()}`;
   const sessionReference = `observations/evidence/exploration/${sessionId}.json`;
   const session: {
@@ -175,32 +188,25 @@ export async function executeExplorationStep(
     mkdirSync(dirname(explorationPath), { recursive: true });
     writeFileSync(
       explorationPath,
-      [
+      appendMarkdown(
         existingExploration,
-        '',
-        '## Session Log',
-        '',
-        `Focus: ${focus}. Accessible nodes observed: ${accessibleNodes}.${truncationReason ? ` Session truncated: ${truncationReason}.` : ''}`,
-        '',
-        '| ID | Observation | Status | Evidence | Observed at | Session |',
-        '| --- | --- | --- | --- | --- | --- |',
-        `| ${observationId} | Browser facade captured ${session.snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${session.navigation ? ` at \`${session.navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
-        ''
-      ].join('\n')
-    );
-    mkdirSync(dirname(questionsPath), { recursive: true });
-    writeFileSync(
-      questionsPath,
-      [
-        existingQuestions,
-        '',
-        '## Exploration Questions',
-        '',
-        '| ID | Question | Status | Blocking | Evidence |',
-        '| --- | --- | --- | --- | --- |',
-        `| ${questionId} | What expected behavior should be validated for the ${focus} focus? | open | no | \`${sessionReference}\` |`,
-        ''
-      ].join('\n')
+        [
+          '## Session Log',
+          '',
+          `Focus: ${focus}. Accessible nodes observed: ${accessibleNodes}.${truncationReason ? ` Session truncated: ${truncationReason}.` : ''}`,
+          '',
+          '| ID | Observation | Status | Evidence | Observed at | Session |',
+          '| --- | --- | --- | --- | --- | --- |',
+          `| ${observationId} | Browser facade captured ${session.snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${session.navigation ? ` at \`${session.navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
+          '',
+          '## Open Questions',
+          '',
+          '| ID | Question | Status | Blocking | Evidence |',
+          '| --- | --- | --- | --- | --- |',
+          `| ${questionId} | What expected behavior should be validated for the ${focus} focus? | open | no | \`${sessionReference}\` |`,
+          ''
+        ].join('\n')
+      )
     );
     return {
       status: 'succeeded' as const,
