@@ -27,6 +27,7 @@ interface PlaywrightScenario {
   assertions: Array<
     | { kind: 'visible'; role: string; name: string }
     | { kind: 'text'; testId: string; value: string }
+    | { kind: 'roleText'; role: string; value: string }
     | { kind: 'visual'; name: string }
     | { kind: 'evidenceScreenshot'; name: string }
   >;
@@ -151,6 +152,10 @@ export async function executeTestGenerationStep(
         } else if (assertion.kind === 'text') {
           lines.push(
             `  await expect(page.getByTestId(${quoted(assertion.testId)})).toHaveText(${quoted(assertion.value)});`
+          );
+        } else if (assertion.kind === 'roleText') {
+          lines.push(
+            `  await expect(page.getByRole(${quoted(assertion.role)})).toHaveText(${quoted(assertion.value)});`
           );
         } else if (assertion.kind === 'visual') {
           lines.push(`  await expect(page).toHaveScreenshot(${quoted(assertion.name)});`);

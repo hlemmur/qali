@@ -1,4 +1,4 @@
-<!-- qali:generated owner=qali sha256=ca9a7c24185a12988149b900fbd7dfa14e5c23159614e38d46f3900541878f01 -->
+<!-- qali:generated owner=qali sha256=369850809c7506cb9bef8b5918d2908d8e9faaada47b99f57c9509934182ed49 -->
 
 # Demo smoke and visual scenario
 
@@ -45,7 +45,9 @@
     { "kind": "fill", "label": "Password", "value": "wrong" },
     { "kind": "click", "role": "button", "name": "Sign in" }
   ],
-  "assertions": [{ "kind": "visible", "role": "alert", "name": "Email or password is incorrect." }]
+  "assertions": [
+    { "kind": "roleText", "role": "alert", "value": "Email or password is incorrect." }
+  ]
 }
 ```
 

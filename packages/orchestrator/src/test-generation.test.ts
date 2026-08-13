@@ -143,7 +143,8 @@ describe('deterministic test generation', () => {
           ],
           assertions: [
             { kind: 'visible', role: 'heading', name: 'Good morning, Alex Morgan' },
-            { kind: 'text', testId: 'balance', value: '$12,480.50' }
+            { kind: 'text', testId: 'balance', value: '$12,480.50' },
+            { kind: 'roleText', role: 'alert', value: 'Signed in' }
           ]
         }),
         '```'
@@ -172,6 +173,7 @@ describe('deterministic test generation', () => {
     expect(generated).toContain("page.getByLabel('Email').fill('alex@example.test')");
     expect(generated).toContain("page.getByRole('heading', { name: 'Good morning, Alex Morgan' })");
     expect(generated).toContain(').toBeVisible()');
+    expect(generated).toContain("page.getByRole('alert')).toHaveText('Signed in')");
   });
 
   it('uses visual assertions for baselines and labels evidence-only screenshots separately', async () => {

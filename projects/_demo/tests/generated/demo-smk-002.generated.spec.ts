@@ -7,5 +7,5 @@ test('DEMO-SMK-002 generated scenario', async ({ page }) => {
   await page.getByLabel('Email').fill('intruder@example.test');
   await page.getByLabel('Password').fill('wrong');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('alert', { name: 'Email or password is incorrect.' })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveText('Email or password is incorrect.');
 });
