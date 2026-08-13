@@ -54,7 +54,7 @@ Do not move long-running execution into the Worker. Do not give the Actions exec
 | `packages/playwright/`     | Deterministic test execution and report parsing                                                |
 | `packages/knowledge/`      | Project pack validation, ownership, provenance, generated markers                              |
 | `packages/publication/`    | Semantic diff classification, policy, GitHub publication adapter                               |
-| `packages/reporting/`      | Slack Block Kit summaries and Markdown/JSON reports                                            |
+| `packages/reporting/`      | Slack Block Kit summaries plus hosted HTML reports (Markdown/JSON remain machine truth)        |
 | `workflows/`               | Versioned workflow graph and step contracts                                                    |
 | `harness/profiles.json`    | Exact skills, policies, tools, outputs, mutations, validators for each step                    |
 | `skills/runtime/`          | Reviewed, pinned, licensed runtime instructions                                                |

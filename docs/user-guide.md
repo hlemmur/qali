@@ -69,7 +69,8 @@ The result card leads with the information developers usually need:
 - Terminal status
 - Passed, failed, skipped, and total test counts when a test suite ran
 - A short failure summary
-- A link to the GitHub Actions run
+- **Open report** for a hosted HTML recap (signed link; no unzipping Markdown)
+- GitHub as a fallback for the Actions run
 
 Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**.
 

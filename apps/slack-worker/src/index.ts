@@ -28,6 +28,7 @@ import {
   initialWorkPhase
 } from './acknowledgement.js';
 import { homeItemsFromCorrelations, renderAppHome } from './home.js';
+import { uploadHostedReport, serveHostedReport } from './hosted-reports.js';
 import {
   formatQualityQueryAnswer,
   mergeQualitySnapshot,
@@ -572,6 +573,7 @@ async function githubRunSummary(
     runId: runId ?? correlation.runId ?? correlation.requestId,
     status: typeof payload.status === 'string' ? payload.status : correlation.status,
     ...(typeof payload.htmlUrl === 'string' ? { htmlUrl: payload.htmlUrl } : {}),
+    ...(typeof payload.reportUrl === 'string' ? { reportUrl: payload.reportUrl } : {}),
     ...(typeof payload.intent === 'string'
       ? { intent: payload.intent }
       : meta.intent
@@ -619,6 +621,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
       const { pathname } = new URL(request.url);
       const now = (overrides.now ?? (() => new Date()))();
       const store = storeService(env, overrides);
+      if (request.method === 'GET' && pathname.startsWith('/reports/')) {
+        return serveHostedReport(request, env, now);
+      }
       if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
       if (pathname === '/slack/events') {
         return slackEvents(request, env, store, slackService(env, overrides), now);
@@ -629,6 +634,9 @@ export function createWorker(overrides: WorkerDependencies = {}) {
       }
       if (pathname === '/github/run-summary') {
         return githubRunSummary(request, env, store, slackService(env, overrides), now);
+      }
+      if (pathname === '/github/report') {
+        return uploadHostedReport(request, env, store, now);
       }
       return new Response('Not Found', { status: 404 });
     },

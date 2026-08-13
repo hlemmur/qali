@@ -25,6 +25,7 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
         }
       : {}),
     ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {}),
+    ...(summary.reportUrl ? { reportUrl: summary.reportUrl } : {}),
     ...(summary.stages ? { stages: summary.stages } : {})
   };
   const expandValue = JSON.stringify({
@@ -57,6 +58,7 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
     },
     {
       ...(summary.htmlUrl ? { detailsUrl: summary.htmlUrl } : {}),
+      ...(summary.reportUrl ? { reportUrl: summary.reportUrl } : {}),
       expandValue,
       rerunValue: controlValue,
       triageValue: controlValue,

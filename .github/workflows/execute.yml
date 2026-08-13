@@ -149,6 +149,7 @@ jobs:
             .qali/slack-summary.json
             .qali/quality-snapshot.json
             .qali/agent-mode.json
+            .qali/report.html
 
   publish-generated-changes:
     if: github.event_name == 'workflow_dispatch' && inputs.intent != 'query-project' && needs.validate-and-execute.result == 'success'
