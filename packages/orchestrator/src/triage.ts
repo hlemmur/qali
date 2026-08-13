@@ -39,6 +39,7 @@ export interface TriageRegressionValidator {
     candidatePath: string;
     title: string;
     fingerprint: string;
+    expectedFailure: FailureFingerprintEntry;
     signal?: AbortSignal;
   }): Promise<
     | { status: 'red'; evidence: string[] }
@@ -88,15 +89,19 @@ export class PlaywrightTriageRegressionValidator implements TriageRegressionVali
         evidence: [reportPath, ...summary.evidence]
       };
     }
-    const observedFingerprint = fingerprintFailureReport({
-      projectId: request.projectId,
-      sourceRunId: 'regression-validation',
-      report
-    }).fingerprint;
-    if (observedFingerprint !== request.fingerprint) {
+    const observedFailures =
+      (report as { suites?: ReportSuite[] }).suites?.flatMap(collectFailures) ?? [];
+    const matchesSelectedFailure = observedFailures.some(
+      (failure) =>
+        failure.title === request.expectedFailure.title &&
+        failure.projectName === request.expectedFailure.projectName &&
+        failure.file === request.expectedFailure.file &&
+        failure.error === request.expectedFailure.error
+    );
+    if (!matchesSelectedFailure) {
       return {
         status: 'not-red',
-        error: 'observed regression failure does not match the source fingerprint',
+        error: 'observed regression failure does not match the selected source failure',
         evidence: [reportPath, ...summary.evidence]
       };
     }
@@ -362,6 +367,7 @@ export async function executeTriageStep(
       candidatePath: draft.candidatePath,
       title: draft.title,
       fingerprint: fingerprint.fingerprint,
+      expectedFailure: matchedFailure,
       ...(signal ? { signal } : {})
     });
     if (observation.status !== 'red') {

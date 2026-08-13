@@ -250,6 +250,7 @@ describe('failure triage', () => {
         ),
         title: 'CHK-001 checkout rejects an expired card',
         fingerprint: fingerprint.fingerprint,
+        expectedFailure: fingerprint.failures[0],
         signal
       }
     ]);
@@ -397,13 +398,14 @@ describe('failure triage', () => {
       projectId: 'shop',
       sourceRunId: 'run-1',
       report: failureReport('Expected decline banner', 40)
-    }).fingerprint;
+    });
     const result = await validator.observeRed({
       workspace,
       projectId: 'shop',
       candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
       title: 'CHK-001 checkout rejects an expired card',
-      fingerprint: expectedFingerprint,
+      fingerprint: expectedFingerprint.fingerprint,
+      expectedFailure: expectedFingerprint.failures[0]!,
       signal
     });
 
@@ -412,6 +414,61 @@ describe('failure triage', () => {
       evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
     });
     expect(receivedSignal).toBe(signal);
+  });
+
+  it('accepts a selected failure reproduced from a source run with multiple failures', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-multiple-failures-'));
+    const sourceReport = failureReport('Expected decline banner', 40);
+    sourceReport.suites[0]!.specs.push({
+      title: 'CHK-002 checkout rejects an invalid postal code',
+      file: 'tests/postal-code.spec.ts',
+      tests: [
+        {
+          projectName: 'functional-chromium',
+          status: 'unexpected',
+          results: [
+            {
+              status: 'failed',
+              duration: 20,
+              errors: [{ message: 'Expected postal code validation' }]
+            }
+          ]
+        }
+      ]
+    });
+    const sourceFingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: sourceReport
+    });
+    const selectedFailure = sourceFingerprint.failures.find(
+      ({ title }) => title === 'CHK-001 checkout rejects an expired card'
+    )!;
+    const runner: PlaywrightRunner = {
+      async run(request) {
+        mkdirSync(dirname(request.reportPath), { recursive: true });
+        writeFileSync(
+          request.reportPath,
+          JSON.stringify(failureReport('Expected decline banner', 40))
+        );
+        return { status: 'failed', exitCode: 1 };
+      }
+    };
+    const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
+
+    const result = await validator.observeRed({
+      workspace,
+      projectId: 'shop',
+      candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
+      title: selectedFailure.title,
+      fingerprint: sourceFingerprint.fingerprint,
+      expectedFailure: selectedFailure
+    });
+
+    expect(result).toEqual({
+      status: 'red',
+      evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
+    });
   });
 
   it('rejects red evidence whose observed failure identity differs from the fingerprint', async () => {
@@ -428,19 +485,20 @@ describe('failure triage', () => {
       projectId: 'shop',
       sourceRunId: 'run-1',
       report: failureReport('Expected decline banner', 40)
-    }).fingerprint;
+    });
 
     const result = await validator.observeRed({
       workspace,
       projectId: 'shop',
       candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
       title: 'CHK-001 checkout rejects an expired card',
-      fingerprint: expectedFingerprint
+      fingerprint: expectedFingerprint.fingerprint,
+      expectedFailure: expectedFingerprint.failures[0]!
     });
 
     expect(result).toMatchObject({
       status: 'not-red',
-      error: 'observed regression failure does not match the source fingerprint'
+      error: 'observed regression failure does not match the selected source failure'
     });
   });
 
@@ -475,13 +533,19 @@ describe('failure triage', () => {
       }
     };
     const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
+    const expectedFingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: failureReport('Expected decline banner', 40)
+    });
 
     const result = await validator.observeRed({
       workspace,
       projectId: 'shop',
       candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
       title: 'CHK-001 checkout rejects an expired card',
-      fingerprint: 'a'.repeat(64)
+      fingerprint: expectedFingerprint.fingerprint,
+      expectedFailure: expectedFingerprint.failures[0]!
     });
 
     expect(result).toMatchObject({
