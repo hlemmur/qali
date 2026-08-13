@@ -110,7 +110,6 @@ describe('failure triage', () => {
       join(process.cwd(), 'workflows'),
       join(process.cwd(), 'harness/profiles.json')
     ).find(({ id }) => id === 'triage-and-reproduce')!;
-
     const result = await executeTriageStep(
       workspace,
       workflow.steps.find(({ id }) => id === 'fingerprint')!,
@@ -231,12 +230,14 @@ describe('failure triage', () => {
     const candidate = readFileSync(join(workspace, draft.candidatePath), 'utf8');
     expect(candidate).toContain("import '../checkout.spec.js'");
     expect(candidate).toContain(fingerprint.fingerprint);
+    const signal = new AbortController().signal;
 
     const validationResult = await executeTriageStep(
       workspace,
       workflow.steps.find(({ id }) => id === 'validate-red')!,
       command,
-      validator
+      validator,
+      signal
     );
 
     expect(validationResult.status).toBe('succeeded');
@@ -248,7 +249,8 @@ describe('failure triage', () => {
           /^projects\/shop\/tests\/regressions\/[a-f0-9]{12}\.spec\.ts$/
         ),
         title: 'CHK-001 checkout rejects an expired card',
-        fingerprint: fingerprint.fingerprint
+        fingerprint: fingerprint.fingerprint,
+        signal
       }
     ]);
     const reproduction = JSON.parse(
@@ -376,8 +378,11 @@ describe('failure triage', () => {
 
   it('accepts a regression candidate as red only with fresh Playwright failure evidence', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-validator-'));
+    const signal = new AbortController().signal;
+    let receivedSignal: AbortSignal | undefined;
     const runner: PlaywrightRunner = {
       async run(request) {
+        receivedSignal = request.signal;
         mkdirSync(dirname(request.reportPath), { recursive: true });
         writeFileSync(
           request.reportPath,
@@ -398,13 +403,15 @@ describe('failure triage', () => {
       projectId: 'shop',
       candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
       title: 'CHK-001 checkout rejects an expired card',
-      fingerprint: expectedFingerprint
+      fingerprint: expectedFingerprint,
+      signal
     });
 
     expect(result).toEqual({
       status: 'red',
       evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
     });
+    expect(receivedSignal).toBe(signal);
   });
 
   it('rejects red evidence whose observed failure identity differs from the fingerprint', async () => {

@@ -422,7 +422,8 @@ class RoutedStepExecutor implements StepExecutor {
                 this.targetBaseUrl,
                 this.webServer
               )
-            : undefined
+            : undefined,
+          context.signal
         );
       }
       if (

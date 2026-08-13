@@ -39,6 +39,7 @@ export interface TriageRegressionValidator {
     candidatePath: string;
     title: string;
     fingerprint: string;
+    signal?: AbortSignal;
   }): Promise<
     | { status: 'red'; evidence: string[] }
     | { status: 'not-red'; error: string; evidence?: string[] }
@@ -68,6 +69,7 @@ export class PlaywrightTriageRegressionValidator implements TriageRegressionVali
       targetBaseUrl: this.targetBaseUrl,
       reportPath,
       testPaths: [request.candidatePath],
+      ...(request.signal ? { signal: request.signal } : {}),
       ...(suite.grep ? { grep: suite.grep } : {}),
       ...(this.webServer ? { webServer: this.webServer } : {})
     });
@@ -200,7 +202,8 @@ export async function executeTriageStep(
   workspace: string,
   step: WorkflowStep,
   command: NormalizedCommand,
-  regressionValidator?: TriageRegressionValidator
+  regressionValidator?: TriageRegressionValidator,
+  signal?: AbortSignal
 ): Promise<StepExecutionResult> {
   if (command.intent !== 'triage-failure') {
     return { status: 'blocked', reason: 'unsupported deterministic triage step' };
@@ -358,7 +361,8 @@ export async function executeTriageStep(
       projectId: command.project.id,
       candidatePath: draft.candidatePath,
       title: draft.title,
-      fingerprint: fingerprint.fingerprint
+      fingerprint: fingerprint.fingerprint,
+      ...(signal ? { signal } : {})
     });
     if (observation.status !== 'red') {
       return { status: 'failed', error: observation.error };
