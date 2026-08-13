@@ -23,6 +23,7 @@ interface SuiteFingerprint {
   contentHash: string;
   selectorNeutralFingerprint: string;
   oracleFingerprint: string;
+  selectors: Array<{ method: string; value: string }>;
 }
 
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -53,6 +54,14 @@ function selectorNeutralSource(source: string): string {
   );
 }
 
+function selectors(source: string): Array<{ method: string; value: string }> {
+  return [
+    ...source.matchAll(
+      /\b(locator|getByRole|getByLabel|getByTestId|getByText)\(\s*(['"`])((?:\\.|(?!\2)[\s\S])*?)\2/g
+    )
+  ].map((match) => ({ method: match[1]!, value: match[3]! }));
+}
+
 function fingerprints(workspace: string, projectRoot: string): SuiteFingerprint[] {
   return testFiles(join(workspace, projectRoot, 'tests'))
     .map((path) => {
@@ -67,7 +76,8 @@ function fingerprints(workspace: string, projectRoot: string): SuiteFingerprint[
         path: relative(workspace, path).replaceAll('\\', '/'),
         contentHash: hash(source),
         selectorNeutralFingerprint: hash(neutral),
-        oracleFingerprint: hash(oracle)
+        oracleFingerprint: hash(oracle),
+        selectors: selectors(source)
       };
     })
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -261,18 +271,35 @@ export async function executeSuiteMaintenanceStep(
     const selectorNeutralFingerprintUnchanged =
       Boolean(original && repaired) &&
       original?.selectorNeutralFingerprint === repaired?.selectorNeutralFingerprint;
+    const selectorChanges =
+      original && repaired && original.selectors.length === repaired.selectors.length
+        ? original.selectors.flatMap((selector, index) => {
+            const replacement = repaired.selectors[index];
+            return replacement?.method === selector.method && replacement.value === selector.value
+              ? []
+              : [{ before: selector, after: replacement }];
+          })
+        : [];
+    const selectorChangeMatchesRequest =
+      selectorChanges.length === 1 &&
+      selectorChanges[0]?.before.method === repair.locatorMethod &&
+      selectorChanges[0]?.before.value === repair.from &&
+      selectorChanges[0]?.after?.method === repair.locatorMethod &&
+      selectorChanges[0]?.after?.value === repair.to;
     const accepted =
       changedFiles.length === 1 &&
       changedFiles[0] === targetPath &&
       oracleFingerprintUnchanged &&
-      selectorNeutralFingerprintUnchanged;
+      selectorNeutralFingerprintUnchanged &&
+      selectorChangeMatchesRequest;
     const validation = {
       version: 1,
       projectId: command.project.id,
       status: accepted ? 'accepted' : 'rejected',
       changedFiles,
       oracleFingerprintUnchanged,
-      selectorNeutralFingerprintUnchanged
+      selectorNeutralFingerprintUnchanged,
+      selectorChangeMatchesRequest
     };
     const validationPath = join(
       projectRoot,

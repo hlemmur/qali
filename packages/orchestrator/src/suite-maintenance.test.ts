@@ -254,4 +254,70 @@ describe('suite maintenance', () => {
       )
     ).toMatchObject({ status: 'accepted', oracleFingerprintUnchanged: true });
   });
+
+  it('rejects a repair that changes more selectors than the approved replacement', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-suite-extra-selector-'));
+    const projectRoot = join(workspace, command.project.root);
+    const testPath = join(projectRoot, 'tests/checkout.spec.ts');
+    mkdirSync(join(projectRoot, 'tests'), { recursive: true });
+    writeFileSync(
+      testPath,
+      [
+        "import { expect, test } from '@playwright/test';",
+        "test('checkout submits an order', async ({ page }) => {",
+        "  await page.getByText('Cart').click();",
+        "  await page.locator('#submit').click();",
+        "  await expect(page.getByText('Receipt')).toBeVisible();",
+        '});',
+        ''
+      ].join('\n')
+    );
+    writeRun(workspace, 'run-1');
+    writeRun(workspace, 'run-2');
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('snapshot', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/baseline.json'
+        }
+      ]),
+      repairCommand
+    );
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('diagnose', [
+        {
+          artifact: 'reports',
+          path: 'projects/{projectId}/derived/reports/reliability-diagnosis.json'
+        }
+      ]),
+      repairCommand
+    );
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('repair-selectors', [{ artifact: 'tests', path: 'projects/{projectId}/tests' }]),
+      repairCommand
+    );
+    writeFileSync(
+      testPath,
+      readFileSync(testPath, 'utf8').replace("getByText('Cart')", "getByText('Basket')")
+    );
+
+    const validation = await executeSuiteMaintenanceStep(
+      workspace,
+      step('validate-repair', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/validation.json'
+        }
+      ]),
+      repairCommand
+    );
+
+    expect(validation).toEqual({
+      status: 'failed',
+      error: 'suite repair changed behavior outside one selector'
+    });
+  });
 });
