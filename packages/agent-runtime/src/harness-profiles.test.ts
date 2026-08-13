@@ -38,7 +38,9 @@ const expectedIds = [
   'reliability-diagnosis',
   'selector-repair',
   'host-suite-maintenance-guard',
-  'human-reporting'
+  'human-reporting',
+  'host-quality-aggregation',
+  'host-quality-render'
 ];
 
 const temporaryDirectories: string[] = [];

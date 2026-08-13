@@ -1,37 +1,69 @@
 version: 1
 id: quality-pulse
 title: Quality pulse
-description: Render a concise quality pulse from deterministic evidence and open decisions.
+description: Aggregate quality facts deterministically, then render a concise human presentation.
 executable: true
 triggers:
   - type: command
     intent: quality-pulse
   - type: schedule
-    cron: '0 9 * * 1'
+    cron: '17 6 * * *'
 preconditions: [project-exists]
 steps:
-  - id: report
-    role: reporter
-    harnessProfileId: human-reporting
+  - id: aggregate
+    role: quality-analyst
+    harnessProfileId: host-quality-aggregation
     needs: []
     inputs:
-      - artifact: project-context
-        path: projects/{projectId}/sources/project-context.md
       - artifact: questions
         path: projects/{projectId}/sources/questions.md
       - artifact: decisions
         path: projects/{projectId}/sources/decisions.md
-      - artifact: known-issues
-        path: projects/{projectId}/observations/known-issues.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
       - artifact: evidence
         path: projects/{projectId}/observations/evidence
-      - artifact: jobs
-        path: projects/{projectId}/derived/jobs
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
+      - artifact: tests
+        path: projects/{projectId}/tests
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/quality-pulse/facts.json
+    requiredTools: [file-read, file-write]
+    mutations: [append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000
+  - id: present
+    role: reporter
+    harnessProfileId: human-reporting
+    needs: [aggregate]
+    inputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/quality-pulse/facts.json
     outputs:
       - artifact: reports
-        path: projects/{projectId}/derived/reports/quality-pulse.md
+        path: projects/{projectId}/derived/reports/quality-pulse-presentation.json
     requiredTools: [file-read, file-write, report-renderer]
     mutations: [render-derived-report, format-document]
     policyGates: []
     retries: 0
     timeoutMs: 180000
+  - id: render
+    role: quality-analyst
+    harnessProfileId: host-quality-render
+    needs: [present]
+    inputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/quality-pulse/facts.json
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/quality-pulse-presentation.json
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/quality-pulse.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000

@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './execution.js';
 import { executeQualityPulseStep } from './quality-pulse.js';
+import { loadWorkflowDirectory } from './workflows.js';
 
 const command: NormalizedCommand = {
   intent: 'quality-pulse',
@@ -161,5 +169,42 @@ describe('quality pulse', () => {
     expect(report).toContain('- Coverage: 4/5 approved scenarios automated (80%)');
     expect(report).toContain('- Open decisions: 2 (1 questions, 1 proposed decisions)');
     expect(report).toContain('observations/evidence/test-runs/run-1.json');
+  });
+
+  it('uses one production-orchestrator workflow for command and scheduled Mock Mode pulses', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-e2e-'));
+    write(workspace, 'sources/project-context.md', '# Shop\n');
+    write(workspace, 'sources/questions.md', '# Questions\n');
+    write(workspace, 'sources/decisions.md', '# Decisions\n');
+    write(workspace, 'observations/known-issues.md', '# Known issues\n');
+    write(workspace, 'observations/evidence/test-runs/run.json', JSON.stringify({ suites: [] }));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'quality-pulse')!;
+
+    expect(workflow.triggers).toContainEqual({ type: 'command', intent: 'quality-pulse' });
+    expect(workflow.triggers).toContainEqual({ type: 'schedule', cron: '17 6 * * *' });
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (workflowStep, workflowCommand) =>
+          executeQualityPulseStep(workspace, workflowStep, workflowCommand)
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'f'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts.map(({ stepId }) => stepId)).toEqual(['aggregate', 'present', 'render']);
+    expect(
+      readFileSync(
+        join(workspace, command.project.root, 'derived/reports/quality-pulse.md'),
+        'utf8'
+      )
+    ).toContain('- Tests: 0 total, 0 passed, 0 failed, 0 skipped');
   });
 });

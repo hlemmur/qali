@@ -101,14 +101,19 @@ jobs:
           mkdir -p .qali
           git diff --binary > .qali/generated.patch
           npm run publish:prepare
-      - name: Run scheduled demo smoke scaffold
+      - name: Run scheduled quality pulse through the production orchestrator
         if: github.event_name == 'schedule'
-        run: npm run demo:test
+        env:
+          QALI_SCHEDULE_REQUEST_ID: scheduled-quality-pulse-${{ github.run_id }}
+        run: |
+          COMMAND_JSON="$(node --import tsx scripts/scheduled-quality-pulse.ts)"
+          export COMMAND_JSON
+          npm run execute
       - name: Write job summary
         if: always()
         env:
-          SUMMARY_REQUEST_ID: ${{ inputs.request_id || 'scheduled-demo-smoke' }}
-          SUMMARY_INTENT: ${{ inputs.intent || 'run-test-suite' }}
+          SUMMARY_REQUEST_ID: ${{ inputs.request_id || format('scheduled-quality-pulse-{0}', github.run_id) }}
+          SUMMARY_INTENT: ${{ inputs.intent || 'quality-pulse' }}
           SUMMARY_PROJECT: ${{ inputs.project_json || '{"id":"_demo"}' }}
         run: |
           {
