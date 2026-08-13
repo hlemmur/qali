@@ -97,6 +97,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           QALI_REQUEST_ID: ${{ inputs.request_id }}
+          PROJECT_JSON: ${{ inputs.project_json }}
         run: |
           mkdir -p .qali
           git diff --binary > .qali/generated.patch

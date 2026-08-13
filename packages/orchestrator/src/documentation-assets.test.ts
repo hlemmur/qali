@@ -114,6 +114,10 @@ describe('product documentation assets', () => {
     expect(workflow).toMatch(/permissions:\s*\n\s+contents: read/);
     expect(workflow).toContain('publish-generated-changes:');
     expect(workflow).toContain('QALI_PUBLISH_GITHUB_TOKEN');
+    const publicationPreparation = workflow
+      .split('- name: Prepare controlled publication bundle')[1]
+      ?.split('- name: Run scheduled quality pulse')[0];
+    expect(publicationPreparation).toContain('PROJECT_JSON: ${{ inputs.project_json }}');
     expect(workflow).not.toMatch(/git push\s+(?:origin\s+)?main/);
   });
 

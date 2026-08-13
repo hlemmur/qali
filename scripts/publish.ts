@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
-import { ControlledPublisher, type PublicationRequest } from '../packages/publication/src/index.js';
+import { SemanticPublicationManifestSchema } from '../packages/contracts/src/index.js';
+import { ControlledPublisher } from '../packages/publication/src/index.js';
 import { GitHubRestPublicationAdapter } from '../packages/publication/src/github.js';
 
 const argument = (name: string): string | undefined => {
@@ -22,7 +23,9 @@ if (!token || !owner || !repo) {
   );
 }
 
-const request = JSON.parse(readFileSync(manifestPath, 'utf8')) as PublicationRequest;
+const request = SemanticPublicationManifestSchema.parse(
+  JSON.parse(readFileSync(manifestPath, 'utf8'))
+);
 const publisher = new ControlledPublisher(
   new GitHubRestPublicationAdapter({
     token,

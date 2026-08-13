@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GitHubRestPublicationAdapter } from './github.js';
 
 describe('least-privilege GitHub publication adapter', () => {
-  it('writes only to a Qali branch, opens a PR, and enables squash auto-merge', async () => {
+  it('writes only to a Qali branch and opens a review-only PR without auto-merge', async () => {
     const requests: Array<{ url: string; method: string; body?: unknown }> = [];
     const fetcher: typeof fetch = async (input, init) => {
       const url = String(input);
@@ -24,8 +24,6 @@ describe('least-privilege GitHub publication adapter', () => {
           html_url: 'https://github.test/acme/qali/pull/9'
         });
       }
-      if (url.endsWith('/graphql'))
-        return Response.json({ data: { enablePullRequestAutoMerge: {} } });
       return Response.json({});
     };
     const adapter = new GitHubRestPublicationAdapter({
@@ -40,17 +38,17 @@ describe('least-privilege GitHub publication adapter', () => {
     await adapter.commit('qali/req-1', 'Publish updates', [
       {
         path: 'projects/demo/derived/reports/run.md',
-        mutation: 'render-derived-report',
-        content: 'report'
+        classification: 'derived-artifact',
+        before: null,
+        after: { content: 'report', sha256: 'a'.repeat(64) }
       }
     ]);
-    const pull = await adapter.createPullRequest({
+    await adapter.createPullRequest({
       branch: 'qali/req-1',
       baseBranch: 'main',
       title: 'Qali updates',
       body: 'checks passed'
     });
-    await adapter.enableAutoMerge(pull.nodeId);
 
     expect(requests).toContainEqual(
       expect.objectContaining({
@@ -68,8 +66,6 @@ describe('least-privilege GitHub publication adapter', () => {
     expect(
       requests.some(({ url, method }) => url.includes('/git/refs/heads/main') && method === 'PATCH')
     ).toBe(false);
-    expect(requests.at(-1)?.body).toMatchObject({
-      variables: { pullRequestId: 'PR_node', mergeMethod: 'SQUASH' }
-    });
+    expect(requests.some(({ url }) => url.endsWith('/graphql'))).toBe(false);
   });
 });
