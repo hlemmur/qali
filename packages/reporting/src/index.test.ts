@@ -56,6 +56,32 @@ describe('compact run reporting', () => {
     expect(JSON.stringify(payload.blocks)).not.toContain('triage_failures');
   });
 
+  it('adds an Open report link button when a hosted report URL is present', () => {
+    const payload = renderSlackRunSummary(result, {
+      reportUrl:
+        'https://qali-slack-control.example.workers.dev/reports/sauce-demo/demo-run.html?exp=1&sig=abc',
+      detailsUrl: 'https://example.test/runs/demo-run'
+    });
+    const actions = payload.blocks.find((block) => block.type === 'actions') as {
+      elements: Array<Record<string, unknown>>;
+    };
+    expect(actions.elements[0]).toEqual(
+      expect.objectContaining({
+        action_id: 'open_report',
+        url: 'https://qali-slack-control.example.workers.dev/reports/sauce-demo/demo-run.html?exp=1&sig=abc',
+        text: expect.objectContaining({ text: 'Open report' })
+      })
+    );
+    expect(actions.elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: 'open_run_url',
+          text: expect.objectContaining({ text: 'GitHub' })
+        })
+      ])
+    );
+  });
+
   it('hides expand/rerun/triage while a run is still in progress', () => {
     const payload = renderSlackRunSummary(
       { runId: 'running-1', status: 'in_progress' },

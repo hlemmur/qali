@@ -1,3 +1,17 @@
+import { displayRunStatus, isTerminalRunStatus } from './run-status.js';
+
+export { displayRunStatus, isTerminalRunStatus };
+export { renderHtmlReport } from './html-report.js';
+export {
+  HTML_REPORT_MAX_CHARS,
+  REPORT_ACCESS_TTL_SECONDS,
+  isHostedHtmlReport,
+  parseReportKey,
+  reportObjectKey,
+  signReportAccess,
+  verifyReportAccess
+} from './report-access.js';
+
 export interface RunCounts {
   total: number;
   passed: number;
@@ -28,6 +42,7 @@ export interface RunSummary {
 
 export interface RunSummaryActions {
   detailsUrl?: string;
+  reportUrl?: string;
   rerunValue?: string;
   triageValue?: string;
   expandValue?: string;
@@ -41,23 +56,6 @@ export interface SlackBlockPayload {
 
 const hasCounts = (summary: RunSummary): summary is RunSummary & RunCounts =>
   [summary.total, summary.passed, summary.failed, summary.skipped].every(Number.isInteger);
-
-export function displayRunStatus(summary: Pick<RunSummary, 'status' | 'conclusion'>): string {
-  const raw = (summary.conclusion ?? summary.status).toLowerCase();
-  if (raw === 'success' || raw === 'passed') return 'passed';
-  if (raw === 'failure' || raw === 'failed') return 'failed';
-  if (raw === 'blocked') return 'blocked';
-  if (raw === 'cancelled' || raw === 'canceled') return 'cancelled';
-  if (raw === 'timed_out') return 'timed out';
-  return summary.conclusion ?? summary.status;
-}
-
-/** True when the run has finished (success, failure, cancelled, etc.). */
-export function isTerminalRunStatus(summary: Pick<RunSummary, 'status' | 'conclusion'>): boolean {
-  if (summary.conclusion) return true;
-  const status = summary.status.toLowerCase();
-  return !['queued', 'waiting', 'requested', 'pending', 'in_progress', 'running'].includes(status);
-}
 
 function stageLine(stages: NonNullable<RunSummary['stages']>): string | undefined {
   const bits = [
@@ -118,6 +116,15 @@ export function renderSlackRunSummary(
   const terminal = isTerminalRunStatus(summary);
   const failed = hasCounts(summary) && summary.failed > 0;
   const elements: Array<Record<string, unknown>> = [];
+
+  if (actions.reportUrl) {
+    elements.push({
+      type: 'button',
+      action_id: 'open_report',
+      text: { type: 'plain_text', text: 'Open report' },
+      url: actions.reportUrl
+    });
+  }
 
   if (actions.detailsUrl) {
     elements.push({
