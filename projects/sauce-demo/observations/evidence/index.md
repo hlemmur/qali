@@ -4,4 +4,4 @@
 
 | ID      | Kind        | Path | Supports | Status  | Captured at | Environment |
 | ------- | ----------- | ---- | -------- | ------- | ----------- | ----------- |
-| EVD-001 | placeholder | —    | —        | unknown | 2026-08-13    | —           |
+| EVD-001 | placeholder | —    | —        | unknown | 2026-08-13  | —           |

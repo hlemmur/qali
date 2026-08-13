@@ -4,4 +4,4 @@
 
 | ID      | Observation                        | Status  | Evidence | Observed at | Session |
 | ------- | ---------------------------------- | ------- | -------- | ----------- | ------- |
-| OBS-001 | No exploration has been performed. | unknown | —        | 2026-08-13    | —       |
+| OBS-001 | No exploration has been performed. | unknown | —        | 2026-08-13  | —       |

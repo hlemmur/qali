@@ -5,9 +5,7 @@ import { buildScheduledCommand } from './scheduled-command.js';
 describe('scheduled command', () => {
   it('resolves the enabled quality pulse through trusted project metadata', () => {
     const registry = JSON.parse(readFileSync('projects/registry.json', 'utf8'));
-    const profile = JSON.parse(
-      readFileSync('projects/sauce-demo/execution-profile.json', 'utf8')
-    );
+    const profile = JSON.parse(readFileSync('projects/sauce-demo/execution-profile.json', 'utf8'));
 
     expect(
       buildScheduledCommand({
@@ -35,9 +33,7 @@ describe('scheduled command', () => {
 
   it('rejects a workflow without an enabled project schedule', () => {
     const registry = JSON.parse(readFileSync('projects/registry.json', 'utf8'));
-    const profile = JSON.parse(
-      readFileSync('projects/sauce-demo/execution-profile.json', 'utf8')
-    );
+    const profile = JSON.parse(readFileSync('projects/sauce-demo/execution-profile.json', 'utf8'));
 
     expect(() =>
       buildScheduledCommand({
