@@ -121,4 +121,47 @@ describe('failure triage', () => {
     );
     expect(artifact).toMatchObject({ sourceRunId: 'run-1', failureCount: 1 });
   });
+
+  it('builds Mock Mode explanation only from the materialized fingerprint', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-explain-'));
+    const command: NormalizedCommand = {
+      intent: 'triage-failure',
+      project: { id: 'shop', root: 'projects/shop', environmentLabel: 'mock' },
+      requestedBy: 'U1',
+      externalRole: 'qa-lead-admin',
+      receivedAt: '2026-08-13T00:00:00.000Z',
+      parameters: { sourceRunId: 'run-1' }
+    };
+    const fingerprintPath = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/reproductions/fingerprint.json'
+    );
+    mkdirSync(dirname(fingerprintPath), { recursive: true });
+    const fingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: failureReport('Expected decline banner', 40)
+    });
+    writeFileSync(fingerprintPath, JSON.stringify(fingerprint));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'triage-and-reproduce')!;
+
+    const result = await executeTriageStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'explain')!,
+      command
+    );
+
+    expect(result.status).toBe('succeeded');
+    const explanation = readFileSync(
+      join(workspace, command.project.root, 'derived/reports/triage-explanation.md'),
+      'utf8'
+    );
+    expect(explanation).toContain(fingerprint.fingerprint);
+    expect(explanation).toContain('Source run: `run-1`');
+    expect(explanation).toContain('Mock Mode');
+  });
 });

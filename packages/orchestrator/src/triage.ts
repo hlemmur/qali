@@ -113,12 +113,55 @@ export async function executeTriageStep(
   step: WorkflowStep,
   command: NormalizedCommand
 ): Promise<StepExecutionResult> {
-  if (command.intent !== 'triage-failure' || step.id !== 'fingerprint') {
+  if (command.intent !== 'triage-failure') {
     return { status: 'blocked', reason: 'unsupported deterministic triage step' };
   }
   const sourceRunId =
     typeof command.parameters.sourceRunId === 'string' ? command.parameters.sourceRunId.trim() : '';
   if (!sourceRunId) return { status: 'blocked', reason: 'triage requires a source run id' };
+
+  const outputs = step.outputs.map(({ artifact, path }) => ({
+    artifact,
+    path: path.replaceAll('{projectId}', command.project.id)
+  }));
+  const fingerprintPath = join(
+    workspace,
+    command.project.root,
+    'observations/evidence/reproductions/fingerprint.json'
+  );
+  if (step.id === 'explain') {
+    if (!existsSync(fingerprintPath)) {
+      return { status: 'failed', error: 'failure fingerprint is missing' };
+    }
+    const fingerprint = JSON.parse(readFileSync(fingerprintPath, 'utf8')) as FailureFingerprint;
+    const outputPath = join(workspace, outputs[0]!.path);
+    const body = [
+      '# Triage explanation',
+      '',
+      'Deterministic Mock Mode explanation derived after fingerprinting.',
+      '',
+      `Fingerprint: \`${fingerprint.fingerprint}\``,
+      `Source run: \`${fingerprint.sourceRunId}\``,
+      `Failed tests: ${fingerprint.failureCount}`,
+      '',
+      ...fingerprint.failures.flatMap((failure) => [
+        `## ${failure.title}`,
+        '',
+        `Observed error: ${failure.error}`,
+        `Source test: \`${failure.file}\``,
+        ''
+      ])
+    ].join('\n');
+    const normalized = `\n\n${body.trim()}\n`;
+    const hash = createHash('sha256').update(normalized).digest('hex');
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`);
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id !== 'fingerprint') {
+    return { status: 'blocked', reason: 'unsupported deterministic triage step' };
+  }
 
   const reportPath = join(
     workspace,
@@ -133,10 +176,6 @@ export async function executeTriageStep(
     sourceRunId,
     report: JSON.parse(readFileSync(reportPath, 'utf8'))
   });
-  const outputs = step.outputs.map(({ artifact, path }) => ({
-    artifact,
-    path: path.replaceAll('{projectId}', command.project.id)
-  }));
   const artifactPath = join(workspace, outputs[0]!.path);
   mkdirSync(dirname(artifactPath), { recursive: true });
   writeFileSync(artifactPath, `${JSON.stringify(fingerprint, null, 2)}\n`);
