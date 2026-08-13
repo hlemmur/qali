@@ -78,7 +78,7 @@ describe('deterministic test generation', () => {
 
     expect(result.status).toBe('succeeded');
     const coverage = readFileSync(join(projectRoot, 'derived/scenarios/coverage-map.md'), 'utf8');
-    expect(coverage).toContain('| SCN-001 | REQ-001 | confirmed |');
+    expect(coverage).toMatch(/\| SCN-001\s+\| REQ-001\s+\| confirmed\s+\|/);
     expect(coverage).not.toContain('SCN-002');
   });
 
@@ -114,8 +114,8 @@ describe('deterministic test generation', () => {
       command
     );
 
-    expect(readFileSync(join(projectRoot, 'derived/scenarios/coverage-map.md'), 'utf8')).toContain(
-      '| SCN-001 | REQ-001 | confirmed |'
+    expect(readFileSync(join(projectRoot, 'derived/scenarios/coverage-map.md'), 'utf8')).toMatch(
+      /\| SCN-001\s+\| REQ-001\s+\| confirmed\s+\|/
     );
   });
 

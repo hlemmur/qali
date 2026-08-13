@@ -204,13 +204,16 @@ export async function executeTestGenerationStep(
   writeFileSync(
     coveragePath,
     generatedMarkdown(
-      [
-        '# Approved scenario coverage',
-        '',
-        '| Scenario | Requirement | Requirement status |',
-        '| --- | --- | --- |',
-        ...rows
-      ].join('\n')
+      await format(
+        [
+          '# Approved scenario coverage',
+          '',
+          '| Scenario | Requirement | Requirement status |',
+          '| --- | --- | --- |',
+          ...rows
+        ].join('\n'),
+        { parser: 'markdown', proseWrap: 'preserve' }
+      )
     )
   );
   return { status: 'succeeded' as const, outputs };
