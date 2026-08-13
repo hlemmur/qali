@@ -49,6 +49,10 @@ steps:
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json
     outputs:
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/knowledge-maintenance/reconciliation.json
     requiredTools: []

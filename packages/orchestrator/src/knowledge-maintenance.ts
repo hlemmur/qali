@@ -68,6 +68,9 @@ export async function executeKnowledgeMaintenanceStep(
     }
     const change = parseProposal(proposal.change);
     const ledgerPath = join(projectRoot, 'sources/reference/knowledge.json');
+    const questionsPath = join(projectRoot, 'sources/questions.md');
+    mkdirSync(dirname(questionsPath), { recursive: true });
+    if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Questions\n');
     const ledger = existsSync(ledgerPath)
       ? (JSON.parse(readFileSync(ledgerPath, 'utf8')) as {
           version: 1;
@@ -94,9 +97,6 @@ export async function executeKnowledgeMaintenanceStep(
         source: change.source
       });
       writeFileSync(contradictionsPath, `${JSON.stringify(contradictions, null, 2)}\n`);
-      const questionsPath = join(projectRoot, 'sources/questions.md');
-      mkdirSync(dirname(questionsPath), { recursive: true });
-      if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Questions\n');
       const question = `Resolve contradictory evidence for ${change.factId}`;
       if (!readFileSync(questionsPath, 'utf8').includes(question)) {
         appendFileSync(
@@ -179,9 +179,6 @@ export async function executeKnowledgeMaintenanceStep(
       !promotion.allowed &&
       existing?.status !== 'confirmed';
     if (awaitingAuthority) {
-      const questionsPath = join(projectRoot, 'sources/questions.md');
-      mkdirSync(dirname(questionsPath), { recursive: true });
-      if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Questions\n');
       const question = `Who can confirm ${change.factId} as expected behavior?`;
       if (!readFileSync(questionsPath, 'utf8').includes(question)) {
         appendFileSync(

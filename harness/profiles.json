@@ -167,7 +167,7 @@
         "core/policies/authority-and-autonomy.md"
       ],
       "templatePaths": ["core/templates/bug-report.md"],
-      "writableOutputDirectories": ["outputs/evidence"],
+      "writableOutputDirectories": ["outputs/sources", "outputs/questions", "outputs/evidence"],
       "tools": [],
       "mutations": ["append-evidence"],
       "validators": ["failure-fingerprint-schema"]
