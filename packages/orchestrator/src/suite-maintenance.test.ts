@@ -193,9 +193,69 @@ describe('suite maintenance', () => {
     expect(evidence).toMatchObject({
       status: 'accepted',
       changedFiles: ['projects/shop/tests/checkout.spec.ts'],
+      repeatedFailureEvidenceBacked: true,
       oracleFingerprintUnchanged: true,
       selectorNeutralFingerprintUnchanged: true
     });
+  });
+
+  it('rejects a fingerprint-equivalent repair without repeated failure evidence', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-suite-unproven-repair-'));
+    const projectRoot = join(workspace, command.project.root);
+    const testPath = join(projectRoot, 'tests/checkout.spec.ts');
+    mkdirSync(join(projectRoot, 'tests'), { recursive: true });
+    writeFileSync(
+      testPath,
+      [
+        "import { expect, test } from '@playwright/test';",
+        "test('checkout submits an order', async ({ page }) => {",
+        "  await page.locator('#submit').click();",
+        "  await expect(page.getByText('Receipt')).toBeVisible();",
+        '});',
+        ''
+      ].join('\n')
+    );
+    await executeSuiteMaintenanceStep(
+      workspace,
+      step('snapshot', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/baseline.json'
+        }
+      ]),
+      repairCommand
+    );
+    writeFileSync(
+      testPath,
+      readFileSync(testPath, 'utf8').replace(
+        "locator('#submit')",
+        'locator(\'[data-testid="submit-order"]\')'
+      )
+    );
+
+    const validation = await executeSuiteMaintenanceStep(
+      workspace,
+      step('validate-repair', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/suite-maintenance/validation.json'
+        }
+      ]),
+      repairCommand
+    );
+
+    expect(validation).toEqual({
+      status: 'failed',
+      error: 'suite repair is not backed by repeated failures'
+    });
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(projectRoot, 'observations/evidence/suite-maintenance/validation.json'),
+          'utf8'
+        )
+      )
+    ).toMatchObject({ status: 'rejected', repeatedFailureEvidenceBacked: false });
   });
 
   it('runs guarded suite maintenance through the production orchestrator in Mock Mode', async () => {

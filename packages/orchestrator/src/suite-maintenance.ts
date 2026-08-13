@@ -26,6 +26,15 @@ interface SuiteFingerprint {
   selectors: Array<{ method: string; value: string }>;
 }
 
+interface ReliabilityFinding {
+  testPath: string;
+  title: string;
+  classification: 'selector-drift';
+  failedRuns: number;
+  evidence: string[];
+  errors: string[];
+}
+
 const expand = (value: string, command: NormalizedCommand): string =>
   value.replaceAll('{projectId}', command.project.id);
 
@@ -146,6 +155,36 @@ function collectFailures(node: unknown, evidence: string, projectId: string): Fa
       )
     )
   ];
+}
+
+function repeatedSelectorFindings(projectRoot: string, projectId: string): ReliabilityFinding[] {
+  const evidenceRoot = join(projectRoot, 'observations/evidence/test-runs');
+  const failures = jsonFiles(evidenceRoot).flatMap((path) => {
+    const evidence = relative(projectRoot, path).replaceAll('\\', '/');
+    return collectFailures(JSON.parse(readFileSync(path, 'utf8')), evidence, projectId);
+  });
+  const grouped = new Map<string, FailureObservation[]>();
+  for (const failure of failures) {
+    const key = `${failure.testPath}\u0000${failure.title}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), failure]);
+  }
+  return [...grouped.values()]
+    .map((items) => {
+      const selectorFailures = items.filter(({ error }) =>
+        /\b(?:locator|getByRole|getByLabel|getByTestId|selector|waiting for element)\b/i.test(error)
+      );
+      const evidence = [...new Set(selectorFailures.map((item) => item.evidence))].sort();
+      return {
+        testPath: items[0]!.testPath,
+        title: items[0]!.title,
+        classification: 'selector-drift' as const,
+        failedRuns: evidence.length,
+        evidence,
+        errors: [...new Set(selectorFailures.map((item) => item.error))]
+      };
+    })
+    .filter(({ failedRuns }) => failedRuns >= 2)
+    .sort((left, right) => left.testPath.localeCompare(right.testPath));
 }
 
 function generatedMarkdown(body: string): string {
@@ -286,9 +325,16 @@ export async function executeSuiteMaintenanceStep(
       selectorChanges[0]?.before.value === repair.from &&
       selectorChanges[0]?.after?.method === repair.locatorMethod &&
       selectorChanges[0]?.after?.value === repair.to;
+    const repeatedFailureEvidenceBacked = repeatedSelectorFindings(
+      projectRoot,
+      command.project.id
+    ).some(
+      (finding) => finding.testPath === targetPath && finding.classification === 'selector-drift'
+    );
     const accepted =
       changedFiles.length === 1 &&
       changedFiles[0] === targetPath &&
+      repeatedFailureEvidenceBacked &&
       oracleFingerprintUnchanged &&
       selectorNeutralFingerprintUnchanged &&
       selectorChangeMatchesRequest;
@@ -297,6 +343,7 @@ export async function executeSuiteMaintenanceStep(
       projectId: command.project.id,
       status: accepted ? 'accepted' : 'rejected',
       changedFiles,
+      repeatedFailureEvidenceBacked,
       oracleFingerprintUnchanged,
       selectorNeutralFingerprintUnchanged,
       selectorChangeMatchesRequest
@@ -309,35 +356,14 @@ export async function executeSuiteMaintenanceStep(
     writeFileSync(validationPath, `${JSON.stringify(validation, null, 2)}\n`);
     return accepted
       ? { status: 'succeeded', outputs }
-      : { status: 'failed', error: 'suite repair changed behavior outside one selector' };
+      : {
+          status: 'failed',
+          error: repeatedFailureEvidenceBacked
+            ? 'suite repair changed behavior outside one selector'
+            : 'suite repair is not backed by repeated failures'
+        };
   }
-  const evidenceRoot = join(projectRoot, 'observations/evidence/test-runs');
-  const failures = jsonFiles(evidenceRoot).flatMap((path) => {
-    const evidence = relative(projectRoot, path).replaceAll('\\', '/');
-    return collectFailures(JSON.parse(readFileSync(path, 'utf8')), evidence, command.project.id);
-  });
-  const grouped = new Map<string, FailureObservation[]>();
-  for (const failure of failures) {
-    const key = `${failure.testPath}\u0000${failure.title}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), failure]);
-  }
-  const findings = [...grouped.values()]
-    .map((items) => {
-      const selectorFailures = items.filter(({ error }) =>
-        /\b(?:locator|getByRole|getByLabel|getByTestId|selector|waiting for element)\b/i.test(error)
-      );
-      const evidence = [...new Set(selectorFailures.map((item) => item.evidence))].sort();
-      return {
-        testPath: items[0]!.testPath,
-        title: items[0]!.title,
-        classification: 'selector-drift' as const,
-        failedRuns: new Set(selectorFailures.map((item) => item.evidence)).size,
-        evidence,
-        errors: [...new Set(selectorFailures.map((item) => item.error))]
-      };
-    })
-    .filter(({ failedRuns }) => failedRuns >= 2)
-    .sort((left, right) => left.testPath.localeCompare(right.testPath));
+  const findings = repeatedSelectorFindings(projectRoot, command.project.id);
   const diagnosis = {
     version: 1,
     projectId: command.project.id,
