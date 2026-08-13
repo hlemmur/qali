@@ -104,4 +104,62 @@ describe('quality pulse', () => {
       'tests/checkout.spec.ts'
     ]);
   });
+
+  it('keeps presentation text separate while the host renders immutable facts', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-presentation-'));
+    write(
+      workspace,
+      'observations/evidence/quality-pulse/facts.json',
+      `${JSON.stringify({
+        version: 1,
+        projectId: 'shop',
+        generatedAt: command.receivedAt,
+        factsHash: 'a'.repeat(64),
+        runs: { count: 2, total: 8, passed: 7, failed: 1, skipped: 0, durationMs: 4200 },
+        risks: { total: 3, open: 2 },
+        failures: { count: 1 },
+        coverage: { approvedScenarios: 5, automatedScenarios: 4, percent: 80 },
+        openDecisions: { questions: 1, proposedDecisions: 1, total: 2 },
+        sources: ['observations/evidence/test-runs/run-1.json']
+      })}\n`
+    );
+
+    await executeQualityPulseStep(
+      workspace,
+      {
+        id: 'present',
+        outputs: [
+          {
+            artifact: 'reports',
+            path: 'projects/{projectId}/derived/reports/quality-pulse-presentation.json'
+          }
+        ]
+      } as WorkflowStep,
+      command
+    );
+    const result = await executeQualityPulseStep(
+      workspace,
+      {
+        id: 'render',
+        outputs: [
+          {
+            artifact: 'reports',
+            path: 'projects/{projectId}/derived/reports/quality-pulse.md'
+          }
+        ]
+      } as WorkflowStep,
+      command
+    );
+
+    expect(result.status).toBe('succeeded');
+    const report = readFileSync(
+      join(workspace, command.project.root, 'derived/reports/quality-pulse.md'),
+      'utf8'
+    );
+    expect(report).toContain('## Run health');
+    expect(report).toContain('- Tests: 8 total, 7 passed, 1 failed, 0 skipped');
+    expect(report).toContain('- Coverage: 4/5 approved scenarios automated (80%)');
+    expect(report).toContain('- Open decisions: 2 (1 questions, 1 proposed decisions)');
+    expect(report).toContain('observations/evidence/test-runs/run-1.json');
+  });
 });

@@ -47,15 +47,126 @@ function generatedJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function generatedMarkdown(body: string): string {
+  const normalized = `\n\n${body.trim()}\n`;
+  const digest = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${digest} -->${normalized}`;
+}
+
+const presentation = {
+  title: 'Quality pulse',
+  sections: {
+    runs: 'Run health',
+    risks: 'Risk posture',
+    coverage: 'Coverage',
+    decisions: 'Open decisions',
+    sources: 'Evidence sources'
+  }
+};
+
+function parsePresentation(input: unknown): typeof presentation {
+  if (!input || typeof input !== 'object') throw new Error('quality pulse presentation is invalid');
+  const value = input as { title?: unknown; sections?: Record<string, unknown> };
+  const keys = ['runs', 'risks', 'coverage', 'decisions', 'sources'] as const;
+  if (
+    typeof value.title !== 'string' ||
+    !value.sections ||
+    keys.some(
+      (key) =>
+        typeof value.sections?.[key] !== 'string' ||
+        !String(value.sections[key]).trim() ||
+        String(value.sections[key]).length > 80 ||
+        /[\d\r\n]/.test(String(value.sections[key]))
+    ) ||
+    value.title.length > 80 ||
+    /[\d\r\n]/.test(value.title)
+  ) {
+    throw new Error('quality pulse presentation is invalid');
+  }
+  return value as typeof presentation;
+}
+
 export async function executeQualityPulseStep(
   workspace: string,
   step: WorkflowStep,
   command: NormalizedCommand
 ): Promise<StepExecutionResult> {
-  if (command.intent !== 'quality-pulse' || step.id !== 'aggregate') {
+  if (command.intent !== 'quality-pulse' || !['aggregate', 'present', 'render'].includes(step.id)) {
     return { status: 'blocked', reason: 'unsupported deterministic quality-pulse step' };
   }
   const projectRoot = join(workspace, command.project.root);
+  const outputs = step.outputs.map(({ artifact, path }) => ({
+    artifact,
+    path: expand(path, command)
+  }));
+  const factsPath = join(projectRoot, 'observations/evidence/quality-pulse/facts.json');
+  const presentationPath = join(projectRoot, 'derived/reports/quality-pulse-presentation.json');
+  if (step.id === 'present') {
+    for (const output of outputs) {
+      const path = join(workspace, output.path);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, generatedJson(presentation));
+    }
+    return { status: 'succeeded', outputs };
+  }
+  if (step.id === 'render') {
+    if (!existsSync(factsPath) || !existsSync(presentationPath)) {
+      return { status: 'failed', error: 'quality pulse facts or presentation is missing' };
+    }
+    const facts = JSON.parse(readFileSync(factsPath, 'utf8')) as {
+      runs: {
+        count: number;
+        total: number;
+        passed: number;
+        failed: number;
+        skipped: number;
+        durationMs: number;
+      };
+      risks: { total: number; open: number };
+      failures: { count: number };
+      coverage: { approvedScenarios: number; automatedScenarios: number; percent: number };
+      openDecisions: { questions: number; proposedDecisions: number; total: number };
+      sources: string[];
+    };
+    let labels: typeof presentation;
+    try {
+      labels = parsePresentation(JSON.parse(readFileSync(presentationPath, 'utf8')));
+    } catch (error) {
+      return { status: 'failed', error: error instanceof Error ? error.message : String(error) };
+    }
+    const body = [
+      `# ${labels.title}`,
+      '',
+      `## ${labels.sections.runs}`,
+      '',
+      `- Runs: ${facts.runs.count}`,
+      `- Tests: ${facts.runs.total} total, ${facts.runs.passed} passed, ${facts.runs.failed} failed, ${facts.runs.skipped} skipped`,
+      `- Duration: ${facts.runs.durationMs} ms`,
+      '',
+      `## ${labels.sections.risks}`,
+      '',
+      `- Risks: ${facts.risks.total} total, ${facts.risks.open} open`,
+      `- Observed failures: ${facts.failures.count}`,
+      '',
+      `## ${labels.sections.coverage}`,
+      '',
+      `- Coverage: ${facts.coverage.automatedScenarios}/${facts.coverage.approvedScenarios} approved scenarios automated (${facts.coverage.percent}%)`,
+      '',
+      `## ${labels.sections.decisions}`,
+      '',
+      `- Open decisions: ${facts.openDecisions.total} (${facts.openDecisions.questions} questions, ${facts.openDecisions.proposedDecisions} proposed decisions)`,
+      '',
+      `## ${labels.sections.sources}`,
+      '',
+      ...facts.sources.map((path) => `- \`${path}\``)
+    ].join('\n');
+    for (const output of outputs) {
+      const path = join(workspace, output.path);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, generatedMarkdown(body));
+    }
+    return { status: 'succeeded', outputs };
+  }
   const runFiles = files(projectRoot, 'observations/evidence/test-runs', '.json');
   const runSummaries = runFiles.map(({ contents }) =>
     parsePlaywrightJsonReport(JSON.parse(contents))
@@ -136,10 +247,6 @@ export async function executeQualityPulseStep(
     },
     sources
   };
-  const outputs = step.outputs.map(({ artifact, path }) => ({
-    artifact,
-    path: expand(path, command)
-  }));
   for (const output of outputs) {
     const path = join(workspace, output.path);
     mkdirSync(dirname(path), { recursive: true });
