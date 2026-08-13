@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import type { StepExecutionResult } from './execution.js';
 
 export interface FailureFingerprintEntry {
   title: string;
@@ -102,4 +106,39 @@ export function fingerprintFailureReport(input: {
     failureCount: failures.length,
     failures
   };
+}
+
+export async function executeTriageStep(
+  workspace: string,
+  step: WorkflowStep,
+  command: NormalizedCommand
+): Promise<StepExecutionResult> {
+  if (command.intent !== 'triage-failure' || step.id !== 'fingerprint') {
+    return { status: 'blocked', reason: 'unsupported deterministic triage step' };
+  }
+  const sourceRunId =
+    typeof command.parameters.sourceRunId === 'string' ? command.parameters.sourceRunId.trim() : '';
+  if (!sourceRunId) return { status: 'blocked', reason: 'triage requires a source run id' };
+
+  const reportPath = join(
+    workspace,
+    command.project.root,
+    'observations/evidence/test-runs/results.json'
+  );
+  if (!existsSync(reportPath)) {
+    return { status: 'failed', error: 'source Playwright report is missing' };
+  }
+  const fingerprint = fingerprintFailureReport({
+    projectId: command.project.id,
+    sourceRunId,
+    report: JSON.parse(readFileSync(reportPath, 'utf8'))
+  });
+  const outputs = step.outputs.map(({ artifact, path }) => ({
+    artifact,
+    path: path.replaceAll('{projectId}', command.project.id)
+  }));
+  const artifactPath = join(workspace, outputs[0]!.path);
+  mkdirSync(dirname(artifactPath), { recursive: true });
+  writeFileSync(artifactPath, `${JSON.stringify(fingerprint, null, 2)}\n`);
+  return { status: 'succeeded', outputs };
 }

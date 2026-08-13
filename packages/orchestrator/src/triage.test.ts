@@ -1,5 +1,10 @@
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import type { NormalizedCommand } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { fingerprintFailureReport } from './triage.js';
+import { executeTriageStep, fingerprintFailureReport } from './triage.js';
+import { loadWorkflowDirectory } from './workflows.js';
 
 const failureReport = (error: string, duration: number) => ({
   suites: [
@@ -69,5 +74,51 @@ describe('failure triage', () => {
         }
       ]
     });
+  });
+
+  it('materializes the source run fingerprint before any explanation step', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-fingerprint-'));
+    const command: NormalizedCommand = {
+      intent: 'triage-failure',
+      project: { id: 'shop', root: 'projects/shop', environmentLabel: 'mock' },
+      requestedBy: 'U1',
+      externalRole: 'qa-lead-admin',
+      receivedAt: '2026-08-13T00:00:00.000Z',
+      parameters: { sourceRunId: 'run-1' }
+    };
+    const resultsPath = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/test-runs/results.json'
+    );
+    mkdirSync(dirname(resultsPath), { recursive: true });
+    writeFileSync(resultsPath, JSON.stringify(failureReport('Expected decline banner', 40)));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'triage-and-reproduce')!;
+
+    const result = await executeTriageStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'fingerprint')!,
+      command
+    );
+
+    expect(result).toEqual({
+      status: 'succeeded',
+      outputs: [
+        {
+          artifact: 'evidence',
+          path: 'projects/shop/observations/evidence/reproductions/fingerprint.json'
+        }
+      ]
+    });
+    const artifact = JSON.parse(
+      readFileSync(
+        join(workspace, 'projects/shop/observations/evidence/reproductions/fingerprint.json'),
+        'utf8'
+      )
+    );
+    expect(artifact).toMatchObject({ sourceRunId: 'run-1', failureCount: 1 });
   });
 });
