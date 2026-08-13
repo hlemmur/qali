@@ -81,6 +81,16 @@ export function summarizePlaywrightRun(
   };
 }
 
+export function resolvePlaywrightSuite(value: unknown): { label: string; grep?: string } {
+  if (typeof value !== 'string') return { label: 'all' };
+  const label = value
+    .replace(/[\r\n]/g, ' ')
+    .trim()
+    .slice(0, 120);
+  if (!label || label.toLowerCase() === 'all') return { label: 'all' };
+  return { label, grep: label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') };
+}
+
 export const PlaywrightTestGenerationRequestSchema = z
   .object({
     projectId: z.string().regex(/^_?[a-z0-9][a-z0-9-]*$/),

@@ -6,10 +6,21 @@ import {
   SpawnPlaywrightRunner,
   summarizePlaywrightRun,
   parsePlaywrightJsonReport,
+  resolvePlaywrightSuite,
   type PlaywrightSpawn
 } from './index.js';
 
 describe('Playwright adapter', () => {
+  it('normalizes project suite selection without allowing regex injection', () => {
+    expect(resolvePlaywrightSuite(undefined)).toEqual({ label: 'all' });
+    expect(resolvePlaywrightSuite('all')).toEqual({ label: 'all' });
+    expect(resolvePlaywrightSuite('checkout.*')).toEqual({
+      label: 'checkout.*',
+      grep: 'checkout\\.\\*'
+    });
+    expect(resolvePlaywrightSuite('  ')).toEqual({ label: 'all' });
+  });
+
   it('parses report status and failure evidence', () => {
     const report = parsePlaywrightJsonReport({
       suites: [

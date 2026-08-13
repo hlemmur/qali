@@ -48,6 +48,7 @@ import {
 import {
   SpawnPlaywrightRunner,
   parsePlaywrightJsonReport,
+  resolvePlaywrightSuite,
   summarizePlaywrightRun,
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
@@ -111,7 +112,7 @@ function writePlaywrightSlackSummary(
     status: summary.status ?? (summary.failed === 0 ? 'passed' : 'failed'),
     intent: command.intent,
     projectId: command.project.id,
-    suiteLabel: 'smoke',
+    suiteLabel: resolvePlaywrightSuite(command.parameters.suite).label,
     total: summary.total,
     passed: summary.passed,
     failed: summary.failed,
@@ -338,7 +339,7 @@ class RoutedStepExecutor implements StepExecutor {
         status: observedStatus ?? (summary.failed === 0 ? 'passed' : 'failed'),
         intent: command.intent,
         projectId: command.project.id,
-        suiteLabel: 'smoke'
+        suiteLabel: resolvePlaywrightSuite(command.parameters.suite).label
       };
       const report = renderRunReport(runSummary);
       writeFileSync(
@@ -405,11 +406,13 @@ class RoutedStepExecutor implements StepExecutor {
       }
       const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
       mkdirSync(evidenceDir, { recursive: true });
+      const suite = resolvePlaywrightSuite(command.parameters.suite);
       const run = await this.playwright.run({
         workspace,
         projectId: command.project.id,
         targetBaseUrl: this.targetBaseUrl,
         reportPath: join(evidenceDir, 'results.json'),
+        ...(suite.grep ? { grep: suite.grep } : {}),
         signal: context.signal,
         ...(this.webServer ? { webServer: this.webServer } : {})
       });
