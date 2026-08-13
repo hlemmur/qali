@@ -264,6 +264,61 @@ describe('failure triage', () => {
     });
   });
 
+  it('rejects a regression draft that is not the fingerprint-derived candidate', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-unrelated-candidate-'));
+    const command: NormalizedCommand = {
+      intent: 'triage-failure',
+      project: { id: 'shop', root: 'projects/shop', environmentLabel: 'mock' },
+      requestedBy: 'U1',
+      externalRole: 'qa-lead-admin',
+      receivedAt: '2026-08-13T00:00:00.000Z',
+      parameters: { sourceRunId: 'run-1' }
+    };
+    const projectRoot = join(workspace, command.project.root);
+    const fingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: failureReport('Expected decline banner', 40)
+    });
+    const evidenceDirectory = join(projectRoot, 'observations/evidence/reproductions');
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(join(evidenceDirectory, 'fingerprint.json'), JSON.stringify(fingerprint));
+    writeFileSync(
+      join(evidenceDirectory, 'draft.json'),
+      JSON.stringify({
+        fingerprint: fingerprint.fingerprint,
+        sourceRunId: fingerprint.sourceRunId,
+        candidatePath: 'projects/shop/tests/unrelated-always-failing.spec.ts',
+        sourceTest: 'tests/checkout.spec.ts',
+        title: fingerprint.failures[0]!.title
+      })
+    );
+    let observed = false;
+    const validator: TriageRegressionValidator = {
+      async observeRed() {
+        observed = true;
+        return { status: 'red', evidence: ['unrelated.json'] };
+      }
+    };
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'triage-and-reproduce')!;
+
+    const result = await executeTriageStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'validate-red')!,
+      command,
+      validator
+    );
+
+    expect(result).toEqual({
+      status: 'failed',
+      error: 'regression candidate does not match the fingerprint'
+    });
+    expect(observed).toBe(false);
+  });
+
   it('runs fingerprint, explanation, red reproduction, and reporting through the production orchestrator', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-e2e-'));
     const command: NormalizedCommand = {
@@ -333,6 +388,87 @@ describe('failure triage', () => {
     };
     const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
 
+    const expectedFingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: failureReport('Expected decline banner', 40)
+    }).fingerprint;
+    const result = await validator.observeRed({
+      workspace,
+      projectId: 'shop',
+      candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
+      title: 'CHK-001 checkout rejects an expired card',
+      fingerprint: expectedFingerprint
+    });
+
+    expect(result).toEqual({
+      status: 'red',
+      evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
+    });
+  });
+
+  it('rejects red evidence whose observed failure identity differs from the fingerprint', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-mismatched-red-'));
+    const runner: PlaywrightRunner = {
+      async run(request) {
+        mkdirSync(dirname(request.reportPath), { recursive: true });
+        writeFileSync(request.reportPath, JSON.stringify(failureReport('Different failure', 40)));
+        return { status: 'failed', exitCode: 1 };
+      }
+    };
+    const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
+    const expectedFingerprint = fingerprintFailureReport({
+      projectId: 'shop',
+      sourceRunId: 'run-1',
+      report: failureReport('Expected decline banner', 40)
+    }).fingerprint;
+
+    const result = await validator.observeRed({
+      workspace,
+      projectId: 'shop',
+      candidatePath: 'projects/shop/tests/regressions/failure.spec.ts',
+      title: 'CHK-001 checkout rejects an expired card',
+      fingerprint: expectedFingerprint
+    });
+
+    expect(result).toMatchObject({
+      status: 'not-red',
+      error: 'observed regression failure does not match the source fingerprint'
+    });
+  });
+
+  it('rejects a regression candidate that passes instead of reproducing red', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-triage-green-candidate-'));
+    const runner: PlaywrightRunner = {
+      async run(request) {
+        mkdirSync(dirname(request.reportPath), { recursive: true });
+        writeFileSync(
+          request.reportPath,
+          JSON.stringify({
+            suites: [
+              {
+                specs: [
+                  {
+                    title: 'CHK-001 checkout rejects an expired card',
+                    file: 'tests/checkout.spec.ts',
+                    tests: [
+                      {
+                        projectName: 'functional-chromium',
+                        status: 'expected',
+                        results: [{ status: 'passed', duration: 40 }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          })
+        );
+        return { status: 'passed', exitCode: 0 };
+      }
+    };
+    const validator = new PlaywrightTriageRegressionValidator(runner, 'http://127.0.0.1:4173');
+
     const result = await validator.observeRed({
       workspace,
       projectId: 'shop',
@@ -341,9 +477,9 @@ describe('failure triage', () => {
       fingerprint: 'a'.repeat(64)
     });
 
-    expect(result).toEqual({
-      status: 'red',
-      evidence: [expect.stringMatching(/observations\/evidence\/reproductions\/red-results\.json$/)]
+    expect(result).toMatchObject({
+      status: 'not-red',
+      error: 'regression candidate did not reproduce a failing test'
     });
   });
 });

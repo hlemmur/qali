@@ -77,11 +77,24 @@ export class PlaywrightTriageRegressionValidator implements TriageRegressionVali
         error: run.stderr ?? 'Playwright produced no regression failure report'
       };
     }
-    const summary = summarizePlaywrightRun(JSON.parse(readFileSync(reportPath, 'utf8')), run);
+    const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+    const summary = summarizePlaywrightRun(report, run);
     if (run.status !== 'failed' || summary.failed === 0) {
       return {
         status: 'not-red',
         error: 'regression candidate did not reproduce a failing test',
+        evidence: [reportPath, ...summary.evidence]
+      };
+    }
+    const observedFingerprint = fingerprintFailureReport({
+      projectId: request.projectId,
+      sourceRunId: 'regression-validation',
+      report
+    }).fingerprint;
+    if (observedFingerprint !== request.fingerprint) {
+      return {
+        status: 'not-red',
+        error: 'observed regression failure does not match the source fingerprint',
         evidence: [reportPath, ...summary.evidence]
       };
     }
@@ -326,6 +339,17 @@ export async function executeTriageStep(
       draft.fingerprint !== fingerprint.fingerprint ||
       draft.sourceRunId !== fingerprint.sourceRunId
     ) {
+      return { status: 'failed', error: 'regression candidate does not match the fingerprint' };
+    }
+    const expectedCandidatePath = join(
+      command.project.root,
+      'tests/regressions',
+      `${fingerprint.fingerprint.slice(0, 12)}.spec.ts`
+    );
+    const matchedFailure = fingerprint.failures.find(
+      (failure) => failure.title === draft.title && failure.file === draft.sourceTest
+    );
+    if (draft.candidatePath !== expectedCandidatePath || !matchedFailure) {
       return { status: 'failed', error: 'regression candidate does not match the fingerprint' };
     }
 
