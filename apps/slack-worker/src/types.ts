@@ -5,7 +5,7 @@ import type {
   QualitySnapshot,
   SlackCorrelationContext
 } from '@qali/contracts';
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
 
 export interface QueueSender {
   send(message: InboundWork): Promise<void>;
@@ -25,6 +25,7 @@ export interface Env {
   DB: D1Database;
   INBOUND_QUEUE: QueueSender;
   AI?: WorkersAi;
+  REPORTS?: R2Bucket;
   SLACK_SIGNING_SECRET: string;
   SLACK_BOT_TOKEN: string;
   SLACK_BOT_USER_ID?: string;
@@ -150,6 +151,7 @@ export interface SlackRunSummary {
   projectId?: string;
   suiteLabel?: string;
   htmlUrl?: string;
+  reportUrl?: string;
   durationMs?: number;
   evidence?: string[];
   errors?: string[];

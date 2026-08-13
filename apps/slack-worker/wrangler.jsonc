@@ -30,5 +30,11 @@
   },
   "ai": {
     "binding": "AI"
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "REPORTS",
+      "bucket_name": "qali-reports"
+    }
+  ]
 }
