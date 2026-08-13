@@ -678,7 +678,10 @@ describe('Slack control worker', () => {
     const store = new MemoryStore();
     const notices: string[] = [];
     const classify = vi.fn(async (work: InboundWork) => heuristicClassify(work));
-    const github: GitHubPort = { dispatch: vi.fn(async () => ({ runId: '9' })) };
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '9' })),
+      provisionProjectEnvironment: vi.fn(async () => undefined)
+    };
     const worker = createWorker({
       store,
       classifier: { classify },
@@ -703,6 +706,12 @@ describe('Slack control worker', () => {
     );
 
     expect(classify.mock.calls[0]?.[0].text).not.toContain('secret_sauce');
+    expect(github.provisionProjectEnvironment).toHaveBeenCalledWith({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com'],
+      credentialsJson: '{"password":"secret_sauce"}'
+    });
     expect(github.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'onboard-project',

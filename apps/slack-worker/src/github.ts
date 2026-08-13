@@ -1,6 +1,6 @@
 import { NormalizedCommandSchema, type NormalizedCommand } from '@qali/contracts';
 import { boundFetch } from './fetch.js';
-import type { DispatchResult, GitHubPort } from './types.js';
+import type { DispatchResult, GitHubPort, ProjectEnvironmentProvision } from './types.js';
 
 const encoder = new TextEncoder();
 
@@ -113,10 +113,25 @@ export interface GitHubAppConfig {
   apiUrl: string;
 }
 
+export type EnvironmentSecretEncryptor = (
+  plaintext: string,
+  publicKeyBase64: string
+) => string | Promise<string>;
+
+const githubHeaders = (token: string): Record<string, string> => ({
+  accept: 'application/vnd.github+json',
+  authorization: `Bearer ${token}`,
+  'user-agent': 'qali-slack-control',
+  'x-github-api-version': '2022-11-28'
+});
+
 export class GitHubAppClient implements GitHubPort {
   constructor(
     private readonly config: GitHubAppConfig,
-    private readonly request: typeof fetch = boundFetch
+    private readonly request: typeof fetch = boundFetch,
+    private readonly encryptSecret: EnvironmentSecretEncryptor = async () => {
+      throw new Error('GitHub environment secret encryption is not configured');
+    }
   ) {}
 
   private async installationToken(): Promise<string> {
@@ -139,6 +154,74 @@ export class GitHubAppClient implements GitHubPort {
     if (typeof data.token !== 'string')
       throw new Error('GitHub installation token response was invalid');
     return data.token;
+  }
+
+  private repoUrl(path: string): string {
+    return `${this.config.apiUrl}/repos/${encodeURIComponent(this.config.owner)}/${encodeURIComponent(this.config.repo)}${path}`;
+  }
+
+  private async githubJson(token: string, url: string, init: RequestInit = {}): Promise<Response> {
+    const response = await this.request(url, {
+      ...init,
+      headers: {
+        ...githubHeaders(token),
+        ...(init.body ? { 'content-type': 'application/json' } : {}),
+        ...(init.headers ?? {})
+      }
+    });
+    if (!response.ok) throw new Error(`GitHub request failed: ${response.status} ${url}`);
+    return response;
+  }
+
+  async provisionProjectEnvironment(input: ProjectEnvironmentProvision): Promise<void> {
+    const token = await this.installationToken();
+    const environment = encodeURIComponent(input.environment);
+    await this.githubJson(token, this.repoUrl(`/environments/${environment}`), {
+      method: 'PUT',
+      body: '{}'
+    });
+    const variables = [
+      { name: 'QALI_TARGET_BASE_URL', value: input.baseUrl },
+      { name: 'QALI_ALLOWED_ORIGINS_JSON', value: JSON.stringify(input.allowedOrigins) }
+    ];
+    for (const variable of variables) {
+      const created = await this.request(this.repoUrl(`/environments/${environment}/variables`), {
+        method: 'POST',
+        headers: { ...githubHeaders(token), 'content-type': 'application/json' },
+        body: JSON.stringify(variable)
+      });
+      if (created.status === 409) {
+        await this.githubJson(
+          token,
+          this.repoUrl(
+            `/environments/${environment}/variables/${encodeURIComponent(variable.name)}`
+          ),
+          { method: 'PATCH', body: JSON.stringify({ value: variable.value }) }
+        );
+        continue;
+      }
+      if (!created.ok) {
+        throw new Error(`GitHub request failed: ${created.status} ${created.url}`);
+      }
+    }
+    if (!input.credentialsJson) return;
+    const keyResponse = await this.githubJson(
+      token,
+      this.repoUrl(`/environments/${environment}/secrets/public-key`)
+    );
+    const keyData = (await keyResponse.json()) as { key?: unknown; key_id?: unknown };
+    if (typeof keyData.key !== 'string' || typeof keyData.key_id !== 'string') {
+      throw new Error('GitHub environment secret public key was invalid');
+    }
+    const encrypted_value = await this.encryptSecret(input.credentialsJson, keyData.key);
+    await this.githubJson(
+      token,
+      this.repoUrl(`/environments/${environment}/secrets/QALI_TEST_CREDENTIALS_JSON`),
+      {
+        method: 'PUT',
+        body: JSON.stringify({ encrypted_value, key_id: keyData.key_id })
+      }
+    );
   }
 
   async dispatch(command: NormalizedCommand, requestId: string): Promise<DispatchResult> {

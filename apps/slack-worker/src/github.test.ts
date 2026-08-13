@@ -107,3 +107,80 @@ describe('GitHub App workflow dispatch', () => {
     expect(() => createPrivateKey({ key: asPkcs8, format: 'der', type: 'pkcs8' })).not.toThrow();
   });
 });
+
+describe('GitHub App environment provisioning', () => {
+  it('creates the named environment, writes target variables, and encrypts credential secrets', async () => {
+    const keys = await crypto.subtle.generateKey(
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256'
+      },
+      true,
+      ['sign', 'verify']
+    );
+    const privateKey = pem(await crypto.subtle.exportKey('pkcs8', keys.privateKey));
+    const logged: unknown[] = [];
+    const error = vi.spyOn(console, 'error').mockImplementation((...args) => {
+      logged.push(args);
+    });
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({ key: 'cHVibGlj', key_id: 'key-1' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const encrypt = vi.fn(async () => 'ciphertext-for-test');
+    const client = new GitHubAppClient(
+      {
+        appId: '123',
+        privateKey,
+        installationId: '456',
+        owner: 'qali',
+        repo: 'control',
+        workflowFile: 'execute.yml',
+        ref: 'main',
+        apiUrl: 'https://api.github.test'
+      },
+      request,
+      encrypt
+    );
+
+    await client.provisionProjectEnvironment({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com'],
+      credentialsJson: '{"password":"secret_sauce"}'
+    });
+
+    const urls = request.mock.calls.map(([url]) => String(url));
+    expect(urls).toEqual([
+      'https://api.github.test/app/installations/456/access_tokens',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com/variables',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com/variables',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com/secrets/public-key',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com/secrets/QALI_TEST_CREDENTIALS_JSON'
+    ]);
+    expect(request.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT' });
+    expect(JSON.parse(String(request.mock.calls[2]?.[1]?.body))).toEqual({
+      name: 'QALI_TARGET_BASE_URL',
+      value: 'https://example.com/'
+    });
+    expect(JSON.parse(String(request.mock.calls[3]?.[1]?.body))).toEqual({
+      name: 'QALI_ALLOWED_ORIGINS_JSON',
+      value: '["https://example.com"]'
+    });
+    expect(encrypt).toHaveBeenCalledWith('{"password":"secret_sauce"}', 'cHVibGlj');
+    expect(JSON.parse(String(request.mock.calls[5]?.[1]?.body))).toEqual({
+      encrypted_value: 'ciphertext-for-test',
+      key_id: 'key-1'
+    });
+    expect(JSON.stringify(request.mock.calls)).not.toContain('secret_sauce');
+    expect(JSON.stringify(logged)).not.toContain('secret_sauce');
+    error.mockRestore();
+  });
+});

@@ -124,8 +124,16 @@ export interface DispatchResult {
   htmlUrl?: string;
 }
 
+export interface ProjectEnvironmentProvision {
+  environment: string;
+  baseUrl: string;
+  allowedOrigins: string[];
+  credentialsJson?: string;
+}
+
 export interface GitHubPort {
   dispatch(command: NormalizedCommand, requestId: string): Promise<DispatchResult>;
+  provisionProjectEnvironment?(input: ProjectEnvironmentProvision): Promise<void>;
 }
 
 export interface SlackPort {

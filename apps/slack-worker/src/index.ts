@@ -773,6 +773,23 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             );
           }
           dispatchAttempted = true;
+          if (
+            command.intent === 'onboard-project' &&
+            github.provisionProjectEnvironment &&
+            typeof command.parameters.targetUrl === 'string' &&
+            typeof command.parameters.origin === 'string'
+          ) {
+            const credentialsJson =
+              onboard.ok && onboard.credentials
+                ? JSON.stringify({ [onboard.credentials.name]: onboard.credentials.password })
+                : undefined;
+            await github.provisionProjectEnvironment({
+              environment: command.project.environment ?? `qali-${command.project.id}`,
+              baseUrl: command.parameters.targetUrl,
+              allowedOrigins: [command.parameters.origin],
+              ...(credentialsJson ? { credentialsJson } : {})
+            });
+          }
           const dispatched = await github.dispatch(command, message.body.requestId);
           dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
