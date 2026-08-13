@@ -4,6 +4,13 @@
 
 Playwright is the source of deterministic truth. AI agents explore, generate, and maintain tests — but never silently weaken assertions, skip failures, or promote unverified knowledge.
 
+## Start here
+
+- [User guide](docs/user-guide.md) — what Qali does, how teams use it, setup, outputs, and FAQ
+- [Developer and operator guide](docs/developer-guide.md) — architecture, harness, security, deployment, and troubleshooting
+- [Implementation and readiness status](docs/current-status.md) — what is complete, partial, blocked, and still awaiting live proof
+- [Slack agent UX review](docs/slack-agent-ux-review.md) — official Slack guidance and a prioritized interface roadmap
+
 ## What developers get
 
 - **Lazy Slack interface** — free-form requests like “explore login” or “run the dashboard suite”
@@ -16,7 +23,7 @@ Playwright is the source of deterministic truth. AI agents explore, generate, an
 ```
 Slack → Cloudflare Worker (intake, roles, dedupe, D1)
       → GitHub Actions (workflows, Playwright, agents)
-      → Controlled publication (Qali branch → PR → auto-merge)
+      → Controlled publication (Qali branch → ready review PR)
       → Slack callback (compact summary + links)
 ```
 
@@ -24,7 +31,7 @@ See [docs/architecture.md](docs/architecture.md) for the full control plane / ex
 
 ## Local quick start — `[MOCK MODE]`
 
-Live Slack, Cloudflare, GitHub, and Cursor execution **have not been deployed** from this repository yet. You can verify the full vertical slice locally with the self-contained demo project.
+The reviewed Slack, Cloudflare, GitHub Actions, and deterministic execution path has been deployed and exercised against the demo project. The self-contained local demo remains the fastest way to verify the vertical slice without external credentials. See the [readiness status](docs/current-status.md) before treating any individual workflow as live-verified.
 
 ```bash
 npm ci
@@ -46,12 +53,12 @@ npm run project:validate -- projects/_demo
 
 Each project follows **source → observation → derived** ownership:
 
-| Layer           | Purpose                                   | Who writes                       |
-| --------------- | ----------------------------------------- | -------------------------------- |
-| `sources/`      | Governed product facts, risks, decisions  | Qali by default; humans optional |
-| `observations/` | Explored behavior, evidence, failures     | Qali with provenance             |
-| `derived/`      | Scenarios, reports, tasks, workflow state | Qali only                        |
-| `tests/`        | Playwright specs from approved scenarios  | Qali only                        |
+| Layer           | Purpose                                   | Who writes                          |
+| --------------- | ----------------------------------------- | ----------------------------------- |
+| `sources/`      | Governed product facts, risks, decisions  | Humans/reviewers                    |
+| `observations/` | Explored behavior, evidence, failures     | Qali with provenance                |
+| `derived/`      | Scenarios, reports, tasks, workflow state | Qali through controlled publication |
+| `tests/`        | Playwright specs from approved scenarios  | Qali through controlled publication |
 
 See [docs/project-template.md](docs/project-template.md).
 
@@ -71,7 +78,7 @@ Machine-readable YAML under `workflows/` defines what Qali does for each intent:
 ## Production guardrails
 
 - **No preview URL** — Qali tests the configured environment (currently production-only for target projects). PR preview testing is not assumed.
-- **Controlled publication** — generated changes never push directly to `main`; they go through `qali/*` branches and auto-merge PRs when policy allows.
+- **Controlled publication** — generated changes never push directly to `main`; they go through `qali/*` branches and ready-for-review PRs.
 - **Unsafe mutations blocked** — assertion weakening, visual baseline updates, test deletes/skips, and authority changes require human publication.
 
 See [docs/autonomy-and-security.md](docs/autonomy-and-security.md) and [docs/setup-slack.md](docs/setup-slack.md).
