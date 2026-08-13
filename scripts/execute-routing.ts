@@ -4,6 +4,7 @@ export type AgentExecutionRoute =
   | 'deterministic-onboarding'
   | 'deterministic-exploration'
   | 'deterministic-test-generation'
+  | 'deterministic-triage'
   | 'deterministic-fallback'
   | 'cursor';
 
@@ -17,5 +18,6 @@ export function selectAgentExecutionRoute(
   if (mockMode && command.intent === 'generate-test-suite') {
     return 'deterministic-test-generation';
   }
+  if (mockMode && command.intent === 'triage-failure') return 'deterministic-triage';
   return cursorCliAvailable ? 'cursor' : 'deterministic-fallback';
 }

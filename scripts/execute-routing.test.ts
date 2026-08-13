@@ -30,6 +30,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('uses deterministic triage artifacts around the host red-state gate in Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('triage-failure'), true, true)).toBe(
+      'deterministic-triage'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });

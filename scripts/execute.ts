@@ -42,11 +42,13 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeOnboardingMockStep,
+  executeTriageStep,
   executeTestRunStep,
   executeTestGenerationStep,
   executeWorkflow,
   loadWorkflowDirectory,
   routeCommand,
+  PlaywrightTriageRegressionValidator,
   type PolicyEnforcer,
   type PreconditionChecker,
   type GeneratedTestValidator,
@@ -406,7 +408,28 @@ class RoutedStepExecutor implements StepExecutor {
     }
     const executionKind = harnessExecutionKind(baseHarnessProfile);
     if (executionKind === 'host') {
-      if (step.id !== 'execute' || step.role !== 'executor') {
+      if (
+        command.intent === 'triage-failure' &&
+        (step.id === 'fingerprint' || step.id === 'validate-red')
+      ) {
+        return executeTriageStep(
+          workspace,
+          step,
+          command,
+          step.id === 'validate-red'
+            ? new PlaywrightTriageRegressionValidator(
+                this.playwright,
+                this.targetBaseUrl,
+                this.webServer
+              )
+            : undefined
+        );
+      }
+      if (
+        command.intent !== 'run-test-suite' ||
+        step.id !== 'execute' ||
+        step.role !== 'executor'
+      ) {
         return {
           status: 'blocked',
           reason: `host harness profile violates execution contract: ${step.harnessProfileId}`
@@ -468,6 +491,9 @@ class RoutedStepExecutor implements StepExecutor {
         command,
         step.id === 'generate-tests' ? this.generatedTestValidator() : undefined
       );
+    }
+    if (agentExecutionRoute === 'deterministic-triage') {
+      return executeTriageStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
