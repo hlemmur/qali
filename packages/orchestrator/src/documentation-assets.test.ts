@@ -44,6 +44,8 @@ describe('product documentation assets', () => {
     expect(read('docs/user-guide.md')).not.toMatch(/Try Qali locally in Mock Mode/);
     expect(read('.env.example')).toContain('qali-sauce-demo');
     expect(read('.env.example')).toContain('https://www.saucedemo.com');
+    expect(read('.env.example')).toContain('QALI_TEST_DATA_JSON={"username":"standard_user"}');
+    expect(read('.env.example')).not.toContain('QALI_TEST_CREDENTIALS_JSON={"username"');
     expect(read('.env.example')).not.toContain('secret_sauce');
   });
 
