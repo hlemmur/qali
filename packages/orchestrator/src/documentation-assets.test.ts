@@ -148,6 +148,21 @@ describe('product documentation assets', () => {
     expect(notificationJob).toContain('PUBLISH_RESULT');
   });
 
+  it('skips Playwright, Cursor, repository check, and publication for query-project', () => {
+    const workflow = read('.github/workflows/execute.yml');
+    const playwright = workflow
+      .split('- run: npx playwright install --with-deps chromium')[1]
+      ?.split('- name: Install Cursor Agent CLI')[0];
+    expect(playwright).toContain("inputs.intent != 'query-project'");
+    expect(workflow).toContain(
+      "github.event_name == 'workflow_dispatch' && vars.CURSOR_MODEL != '' && inputs.intent != 'query-project'"
+    );
+    expect(workflow).toContain(
+      "github.event_name == 'workflow_dispatch' && inputs.intent != 'query-project' && needs.validate-and-execute.result == 'success'"
+    );
+    expect(workflow).toContain('.qali/quality-snapshot.json');
+  });
+
   it('uploads evidence only for the active project, not every projects/* tree', () => {
     const workflow = read('.github/workflows/execute.yml');
     const upload = workflow

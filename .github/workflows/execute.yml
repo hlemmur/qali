@@ -57,8 +57,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+        if: github.event_name != 'workflow_dispatch' || inputs.intent != 'query-project'
       - name: Install Cursor Agent CLI
-        if: github.event_name == 'workflow_dispatch' && vars.CURSOR_MODEL != ''
+        if: github.event_name == 'workflow_dispatch' && vars.CURSOR_MODEL != '' && inputs.intent != 'query-project'
         run: |
           curl https://cursor.com/install -fsS -o cursor-install.sh
           echo "$CURSOR_INSTALLER_SHA256  cursor-install.sh" | sha256sum --check
@@ -69,6 +70,7 @@ jobs:
           readlink -f "$(command -v agent)" | grep -F "/versions/$CURSOR_AGENT_VERSION/"
           agent --version
       - name: Validate repository and policy
+        if: github.event_name != 'workflow_dispatch' || inputs.intent != 'query-project'
         run: npm run check
       - name: Execute requested workflow
         if: github.event_name == 'workflow_dispatch'
@@ -86,7 +88,7 @@ jobs:
           fi
           npm run execute
       - name: Validate generated state
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.intent != 'query-project'
         env:
           PROJECT_JSON: ${{ inputs.project_json }}
         run: |
@@ -99,7 +101,7 @@ jobs:
           npm run build
           npm run project:validate -- --refresh "$PROJECT_ROOT"
       - name: Prepare controlled publication bundle
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.intent != 'query-project'
         env:
           QALI_REQUEST_ID: ${{ inputs.request_id }}
           PROJECT_JSON: ${{ inputs.project_json }}
@@ -145,10 +147,11 @@ jobs:
             .qali/generated.patch
             .qali/publication-request.json
             .qali/slack-summary.json
+            .qali/quality-snapshot.json
             .qali/agent-mode.json
 
   publish-generated-changes:
-    if: github.event_name == 'workflow_dispatch' && needs.validate-and-execute.result == 'success'
+    if: github.event_name == 'workflow_dispatch' && inputs.intent != 'query-project' && needs.validate-and-execute.result == 'success'
     needs: validate-and-execute
     environment: qali-publication
     runs-on: ubuntu-24.04
