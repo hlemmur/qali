@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import type { StepExecutionResult } from './execution.js';
 
@@ -18,6 +18,19 @@ export interface FailureFingerprint {
   projectId: string;
   failureCount: number;
   failures: FailureFingerprintEntry[];
+}
+
+export interface TriageRegressionValidator {
+  observeRed(request: {
+    workspace: string;
+    projectId: string;
+    candidatePath: string;
+    title: string;
+    fingerprint: string;
+  }): Promise<
+    | { status: 'red'; evidence: string[] }
+    | { status: 'not-red'; error: string; evidence?: string[] }
+  >;
 }
 
 interface ReportResult {
@@ -111,7 +124,8 @@ export function fingerprintFailureReport(input: {
 export async function executeTriageStep(
   workspace: string,
   step: WorkflowStep,
-  command: NormalizedCommand
+  command: NormalizedCommand,
+  regressionValidator?: TriageRegressionValidator
 ): Promise<StepExecutionResult> {
   if (command.intent !== 'triage-failure') {
     return { status: 'blocked', reason: 'unsupported deterministic triage step' };
@@ -156,6 +170,110 @@ export async function executeTriageStep(
     const hash = createHash('sha256').update(normalized).digest('hex');
     mkdirSync(dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`);
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'reproduce') {
+    if (!regressionValidator) {
+      return { status: 'failed', error: 'regression red-state validator is unavailable' };
+    }
+    if (!existsSync(fingerprintPath)) {
+      return { status: 'failed', error: 'failure fingerprint is missing' };
+    }
+    const fingerprint = JSON.parse(readFileSync(fingerprintPath, 'utf8')) as FailureFingerprint;
+    const failure = fingerprint.failures[0];
+    if (!failure) return { status: 'failed', error: 'failure fingerprint has no cases' };
+    const projectRoot = resolve(workspace, command.project.root);
+    const reportedFile = failure.file.replaceAll('\\', '/');
+    const prefixes = [`projects/${command.project.id}/`, `${command.project.id}/`];
+    const matchedPrefix = prefixes.find((prefix) => reportedFile.startsWith(prefix));
+    const projectRelativeFile = matchedPrefix
+      ? reportedFile.slice(matchedPrefix.length)
+      : reportedFile;
+    const sourceTestPath = resolve(projectRoot, projectRelativeFile);
+    if (
+      !sourceTestPath.startsWith(`${projectRoot}${sep}`) ||
+      !/\.spec\.ts$/.test(sourceTestPath) ||
+      !existsSync(sourceTestPath)
+    ) {
+      return { status: 'failed', error: `source test is unavailable: ${failure.file}` };
+    }
+
+    const candidatePath = join(
+      command.project.root,
+      'tests/regressions',
+      `${fingerprint.fingerprint.slice(0, 12)}.spec.ts`
+    );
+    const absoluteCandidatePath = join(workspace, candidatePath);
+    let sourceImport = relative(dirname(absoluteCandidatePath), sourceTestPath)
+      .replaceAll('\\', '/')
+      .replace(/\.ts$/, '.js');
+    if (!sourceImport.startsWith('.')) sourceImport = `./${sourceImport}`;
+    mkdirSync(dirname(absoluteCandidatePath), { recursive: true });
+    writeFileSync(
+      absoluteCandidatePath,
+      [
+        '// Generated regression candidate; imports the observed failing test without changing its oracle.',
+        `// Failure fingerprint: ${fingerprint.fingerprint}`,
+        `// Source run: ${fingerprint.sourceRunId}`,
+        `import '${sourceImport}';`,
+        ''
+      ].join('\n')
+    );
+
+    const observation = await regressionValidator.observeRed({
+      workspace,
+      projectId: command.project.id,
+      candidatePath,
+      title: failure.title,
+      fingerprint: fingerprint.fingerprint
+    });
+    if (observation.status !== 'red') {
+      return { status: 'failed', error: observation.error };
+    }
+
+    const evidenceDirectory = join(projectRoot, 'observations/evidence/reproductions');
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(
+      join(evidenceDirectory, 'reproduction.json'),
+      `${JSON.stringify(
+        {
+          version: 1,
+          fingerprint: fingerprint.fingerprint,
+          sourceRunId: fingerprint.sourceRunId,
+          candidatePath,
+          sourceTest: failure.file,
+          title: failure.title,
+          observedStatus: 'red',
+          evidence: observation.evidence
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    const knownIssuesPath = join(projectRoot, 'observations/known-issues.md');
+    mkdirSync(dirname(knownIssuesPath), { recursive: true });
+    if (!existsSync(knownIssuesPath)) writeFileSync(knownIssuesPath, '# Known Issues\n');
+    if (!readFileSync(knownIssuesPath, 'utf8').includes(fingerprint.fingerprint)) {
+      appendFileSync(
+        knownIssuesPath,
+        [
+          '',
+          `## BUG-${fingerprint.fingerprint.slice(0, 12)}: ${failure.title}`,
+          '',
+          '- Status: reproduced',
+          `- Fingerprint: \`${fingerprint.fingerprint}\``,
+          `- Source run: \`${fingerprint.sourceRunId}\``,
+          `- Regression candidate: \`${candidatePath}\``,
+          `- Red evidence: ${observation.evidence.map((path) => `\`${path}\``).join(', ')}`,
+          ''
+        ].join('\n')
+      );
+    }
+    const questionsPath = join(projectRoot, 'sources/questions.md');
+    mkdirSync(dirname(questionsPath), { recursive: true });
+    if (!existsSync(questionsPath)) writeFileSync(questionsPath, '# Open Questions\n');
     return { status: 'succeeded', outputs };
   }
 
