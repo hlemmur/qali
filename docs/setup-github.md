@@ -71,13 +71,16 @@ This app is the Worker’s remote control: it dispatches workflows and sends com
 
 Under **Repository permissions**:
 
-| Permission   | Access                        |
-| ------------ | ----------------------------- |
-| **Actions**  | Read and write                |
-| **Contents** | Read-only                     |
-| **Metadata** | Read-only (usually forced on) |
+| Permission      | Access                        |
+| --------------- | ----------------------------- |
+| **Actions**     | Read and write                |
+| **Contents**    | Read-only                     |
+| **Metadata**    | Read-only (usually forced on) |
+| **Environments**| Read and write                |
+| **Secrets**     | Read and write (environment secrets) |
+| **Variables**   | Read and write (environment variables) |
 
-Leave other permissions as No access.
+Leave other permissions as No access. Onboard from Slack can create `qali-<slug>` and write `QALI_TARGET_BASE_URL`, `QALI_ALLOWED_ORIGINS_JSON`, and `QALI_TEST_CREDENTIALS_JSON`. Do not change a live App's permissions from this repository; bump them in the GitHub App settings, then re-install if GitHub asks.
 
 ### 2.3 Subscribe to events
 

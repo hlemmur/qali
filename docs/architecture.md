@@ -31,7 +31,7 @@ flowchart LR
 ### Control plane (`apps/slack-worker`)
 
 - Verifies Slack and GitHub webhook signatures
-- Maps Slack users to **Developer** or **QA Lead/Admin** via `SLACK_QA_LEAD_USER_IDS`
+- Maps product-channel users to **Developer** and maps break-glass users in `#qali-ops` (`SLACK_OPS_CHANNEL_IDS` + `SLACK_QA_LEAD_USER_IDS`) to ops maintenance
 - Enforces allowlists (`SLACK_ALLOWED_USER_IDS`, team, channel)
 - Deduplicates and correlates requests in D1
 - Classifies free-form text into normalized intents (Workers AI in production; deterministic fake in tests)

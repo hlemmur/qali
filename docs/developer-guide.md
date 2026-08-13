@@ -102,8 +102,8 @@ The distinction prevents a common agent failure: observing unexpected behavior a
 
 External Slack roles decide which workflows can be requested:
 
-- `developer`
-- `qa-lead-admin`
+- `developer` — product channels
+- `qa-lead-admin` — internal break-glass role assigned only when a listed user speaks in `#qali-ops`
 
 Internal roles decide what a step may read, write, and do:
 
@@ -293,7 +293,7 @@ Implemented controls include:
 - Slack request deduplication
 - Per-user/project rate limits
 - Team/channel/user allowlists
-- QA Lead role mapping
+- `#qali-ops` channel plus `SLACK_OPS_CHANNEL_IDS` / break-glass `SLACK_QA_LEAD_USER_IDS`
 - Least-privilege GitHub Environments
 - Pinned GitHub Actions and Node runtime
 - Pinned Cursor installer checksum/version

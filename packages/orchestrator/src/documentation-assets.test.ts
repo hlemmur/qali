@@ -92,6 +92,7 @@ describe('product documentation assets', () => {
     const combined = requiredDocs.map(read).join('\n');
     for (const name of [
       'SLACK_QA_LEAD_USER_IDS',
+      'SLACK_OPS_CHANNEL_IDS',
       'SLACK_ALLOWED_USER_IDS',
       'QALI_PUBLISH_GITHUB_TOKEN',
       'GITHUB_APP_ID',
@@ -101,7 +102,8 @@ describe('product documentation assets', () => {
       expect(combined).toContain(name);
     }
     expect(combined).toMatch(/Developer/);
-    expect(combined).toMatch(/QA Lead\/Admin/);
+    expect(combined).toMatch(/#qali-ops/);
+    expect(combined).not.toMatch(/QA Lead\/Admin/);
     expect(read('docs/user-guide.md')).toMatch(/E2E QA teammate/i);
     expect(read('docs/user-guide.md')).not.toMatch(
       /Is Qali a replacement for Playwright or a QA engineer\?/
