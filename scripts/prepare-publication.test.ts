@@ -68,6 +68,7 @@ describe('publication preparation', () => {
       join(workspace, 'projects/shop/observations/evidence/run-42/trace.zip'),
       'raw trace'
     );
+    writeFileSync(join(workspace, 'projects/shop/derived/reports/run-42.log'), 'raw browser log');
     writeFileSync(join(workspace, 'projects/shop/derived/reports/report.md'), 'not generated');
 
     const manifest = preparePublicationManifest({

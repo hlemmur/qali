@@ -73,9 +73,7 @@ const RAW_EVIDENCE_PATTERN =
   /(?:^|\/)(?:cookies?|logs?|screenshots?|traces?|videos?)(?:\/|\.|$)|\.(?:har|log|mp4|png|trace|webm|zip)$/i;
 
 export function classifyPublicationPath(path: string): PublicationChangeClassification {
-  if (path.includes('/observations/evidence/') && RAW_EVIDENCE_PATTERN.test(path)) {
-    return 'raw-evidence';
-  }
+  if (RAW_EVIDENCE_PATTERN.test(path)) return 'raw-evidence';
   if (path.includes('/observations/')) return 'observation';
   if (path.includes('/tests/')) return 'test';
   if (path.includes('/sources/')) return 'governed-source';
