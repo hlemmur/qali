@@ -42,6 +42,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('uses deterministic guarded suite maintenance in Mock Mode', () => {
+    expect(selectAgentExecutionRoute(command('maintain-suite'), true, true)).toBe(
+      'deterministic-suite-maintenance'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });

@@ -42,6 +42,7 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeKnowledgeMaintenanceStep,
+  executeSuiteMaintenanceStep,
   executeOnboardingMockStep,
   executeTriageStep,
   executeTestRunStep,
@@ -409,6 +410,12 @@ class RoutedStepExecutor implements StepExecutor {
     }
     const executionKind = harnessExecutionKind(baseHarnessProfile);
     if (executionKind === 'host') {
+      if (
+        command.intent === 'maintain-suite' &&
+        (step.id === 'snapshot' || step.id === 'validate-repair')
+      ) {
+        return executeSuiteMaintenanceStep(workspace, step, command);
+      }
       if (command.intent === 'maintain-knowledge' && step.id === 'reconcile') {
         return executeKnowledgeMaintenanceStep(workspace, step, command);
       }
@@ -502,6 +509,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     if (agentExecutionRoute === 'deterministic-knowledge-maintenance') {
       return executeKnowledgeMaintenanceStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-suite-maintenance') {
+      return executeSuiteMaintenanceStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {

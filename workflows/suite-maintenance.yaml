@@ -10,10 +10,25 @@ triggers:
     event: suite-changed
 preconditions: [project-exists, execution-unblocked, approved-scenario-present, test-suite-present]
 steps:
+  - id: snapshot
+    role: suite-maintainer
+    harnessProfileId: host-suite-maintenance-guard
+    needs: []
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/suite-maintenance/baseline.json
+    requiredTools: [file-read, file-write]
+    mutations: [append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000
   - id: diagnose
     role: suite-maintainer
     harnessProfileId: reliability-diagnosis
-    needs: []
+    needs: [snapshot]
     inputs:
       - artifact: project-context
         path: projects/{projectId}/sources/project-context.md
@@ -25,7 +40,11 @@ steps:
         path: projects/{projectId}/tests
       - artifact: evidence
         path: projects/{projectId}/observations/evidence/test-runs
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/suite-maintenance/baseline.json
     outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/reliability-diagnosis.json
       - artifact: reports
         path: projects/{projectId}/derived/reports/reliability-diagnosis.md
     requiredTools: [file-read, file-write, report-renderer]
@@ -54,3 +73,20 @@ steps:
     policyGates: [execution, approved-scenario]
     retries: 1
     timeoutMs: 600000
+  - id: validate-repair
+    role: suite-maintainer
+    harnessProfileId: host-suite-maintenance-guard
+    needs: [repair-selectors]
+    inputs:
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/suite-maintenance/baseline.json
+    outputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/suite-maintenance/validation.json
+    requiredTools: [file-read, file-write]
+    mutations: [append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000

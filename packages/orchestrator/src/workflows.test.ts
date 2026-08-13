@@ -114,6 +114,8 @@ describe('workflow catalog', () => {
       'run-test-suite/report': 'human-reporting',
       'suite-maintenance/diagnose': 'reliability-diagnosis',
       'suite-maintenance/repair-selectors': 'selector-repair',
+      'suite-maintenance/snapshot': 'host-suite-maintenance-guard',
+      'suite-maintenance/validate-repair': 'host-suite-maintenance-guard',
       'triage-and-reproduce/fingerprint': 'host-failure-fingerprinting',
       'triage-and-reproduce/explain': 'failure-explanation',
       'triage-and-reproduce/reproduce': 'reproduction',

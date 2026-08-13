@@ -275,29 +275,34 @@ export function validateWorkflow(
     if (harnessProfile.kind === 'host') {
       const contract = {
         'host-test-execution': {
-          stepId: 'execute',
+          stepIds: ['execute'],
           role: 'executor',
           sensitiveTools: ['shell', 'playwright']
         },
         'host-failure-fingerprinting': {
-          stepId: 'fingerprint',
+          stepIds: ['fingerprint'],
           role: 'failure-analyst',
           sensitiveTools: []
         },
         'host-regression-validation': {
-          stepId: 'validate-red',
+          stepIds: ['validate-red'],
           role: 'failure-analyst',
           sensitiveTools: ['shell', 'playwright']
         },
         'host-knowledge-reconciliation': {
-          stepId: 'reconcile',
+          stepIds: ['reconcile'],
           role: 'knowledge-curator',
+          sensitiveTools: []
+        },
+        'host-suite-maintenance-guard': {
+          stepIds: ['snapshot', 'validate-repair'],
+          role: 'suite-maintainer',
           sensitiveTools: []
         }
       }[step.harnessProfileId];
       if (
         !contract ||
-        step.id !== contract.stepId ||
+        !contract.stepIds.includes(step.id) ||
         step.role !== contract.role ||
         JSON.stringify(sensitiveTools) !== JSON.stringify(contract.sensitiveTools)
       ) {

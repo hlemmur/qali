@@ -294,6 +294,22 @@
       "validators": ["typescript", "equivalent-repair"]
     },
     {
+      "id": "host-suite-maintenance-guard",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md",
+        "core/policies/test-authoring.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/evidence"],
+      "tools": [],
+      "mutations": ["append-evidence"],
+      "validators": ["suite-baseline-schema", "suite-repair-schema"]
+    },
+    {
       "id": "human-reporting",
       "skillIds": ["qa-report-humanizer"],
       "policyPaths": [

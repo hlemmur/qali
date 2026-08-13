@@ -37,6 +37,7 @@ const expectedIds = [
   'host-knowledge-reconciliation',
   'reliability-diagnosis',
   'selector-repair',
+  'host-suite-maintenance-guard',
   'human-reporting'
 ];
 
