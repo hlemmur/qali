@@ -65,4 +65,58 @@ describe('deterministic test generation', () => {
     expect(coverage).toContain('| SCN-001 | REQ-001 | confirmed |');
     expect(coverage).not.toContain('SCN-002');
   });
+
+  it('generates traceable Playwright code from an approved declarative scenario', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/sign-in.md'),
+      [
+        '# Approved scenarios',
+        '',
+        '## SCN-001: Seeded user signs in',
+        '',
+        '- Status: approved for automation',
+        '- Traceability: REQ-001',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/',
+          actions: [
+            { kind: 'fill', label: 'Email', value: 'alex@example.test' },
+            { kind: 'fill', label: 'Password', value: 'demo123' },
+            { kind: 'click', role: 'button', name: 'Sign in' }
+          ],
+          assertions: [
+            { kind: 'visible', role: 'heading', name: 'Good morning, Alex Morgan' },
+            { kind: 'text', testId: 'balance', value: '$12,480.50' }
+          ]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    const result = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command
+    );
+
+    expect(result.status).toBe('succeeded');
+    const generated = readFileSync(
+      join(projectRoot, 'tests/generated/scn-001.generated.spec.ts'),
+      'utf8'
+    );
+    expect(generated).toContain('// Approved scenario: SCN-001');
+    expect(generated).toContain('// Requirements: REQ-001');
+    expect(generated).toContain("page.getByLabel('Email').fill('alex@example.test')");
+    expect(generated).toContain(
+      "expect(page.getByRole('heading', { name: 'Good morning, Alex Morgan' })).toBeVisible()"
+    );
+  });
 });
