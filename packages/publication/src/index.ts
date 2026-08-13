@@ -12,6 +12,15 @@ const sha256 = (value: string): string => createHash('sha256').update(value).dig
 function oracleFingerprint(source: string): string {
   const file = ts.createSourceFile('publication.spec.ts', source, ts.ScriptTarget.Latest, true);
   const assertions: string[] = [];
+  const expectModifiers = (expression: ts.Expression): string[] | null => {
+    const modifiers: string[] = [];
+    let current = expression;
+    while (ts.isPropertyAccessExpression(current)) {
+      modifiers.unshift(current.name.text);
+      current = current.expression;
+    }
+    return ts.isIdentifier(current) && current.text === 'expect' ? modifiers : null;
+  };
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       const chain: string[] = [];
@@ -20,16 +29,15 @@ function oracleFingerprint(source: string): string {
         chain.unshift(expression.name.text);
         expression = expression.expression;
       }
-      if (
-        ts.isCallExpression(expression) &&
-        ts.isIdentifier(expression.expression) &&
-        expression.expression.text === 'expect'
-      ) {
+      const modifiers = ts.isCallExpression(expression)
+        ? expectModifiers(expression.expression)
+        : null;
+      if (ts.isCallExpression(expression) && modifiers) {
         const subject = expression.arguments
           .map((argument) => argument.getText(file).replace(/\s+/g, ' '))
           .join(',');
         const args = node.arguments.map((argument) => argument.getText(file).replace(/\s+/g, ' '));
-        assertions.push(`${subject}:${chain.join('.')}:${args.join(',')}`);
+        assertions.push(`${modifiers.join('.')}:${subject}:${chain.join('.')}:${args.join(',')}`);
       }
     }
     ts.forEachChild(node, visit);

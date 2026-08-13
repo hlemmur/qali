@@ -128,6 +128,29 @@ describe('semantic publication policy', () => {
     });
   });
 
+  it('fingerprints soft and polling Playwright assertions', () => {
+    for (const [before, after] of [
+      [
+        "test('soft', async ({ page }) => { await expect.soft(page.getByText('Paid')).toBeVisible(); });\n",
+        "test('soft', async ({ page }) => { await expect.soft(page.getByText('Pending')).toBeVisible(); });\n"
+      ],
+      [
+        "test('poll', async ({ page }) => { await expect.poll(() => page.title()).toBe('Paid'); });\n",
+        "test('poll', async ({ page }) => { await expect.poll(() => page.title()).toBe('Pending'); });\n"
+      ]
+    ] as const) {
+      const change = createSemanticPublicationChange({
+        path: 'projects/shop/tests/checkout.spec.ts',
+        before,
+        after
+      });
+      expect(assessSemanticPublication(semanticManifest([change]))).toMatchObject({
+        allowed: false,
+        reason: expect.stringMatching(/oracle/i)
+      });
+    }
+  });
+
   it('requires authority and provenance for governed-source changes', () => {
     const source = createSemanticPublicationChange({
       path: 'projects/shop/sources/reference/risks.md',
