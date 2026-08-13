@@ -132,6 +132,11 @@ function record(value: unknown): Record<string, unknown> {
 
 async function acceptWork(work: InboundWork, env: Env, store: ControlStore): Promise<Response> {
   if (!allowed(env, work.slack.teamId, work.slack.channelId, work.requestedBy)) {
+    await store.recordSecurityDenial({
+      occurredAt: work.receivedAt,
+      reasonCode: 'intake_allowlist',
+      requestKind: work.kind
+    });
     return new Response('Forbidden', { status: 403 });
   }
   if (await store.accept(work)) await env.INBOUND_QUEUE.send(work);
@@ -258,6 +263,11 @@ async function slackInteraction(
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
   const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
   if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
+    await store.recordSecurityDenial({
+      occurredAt: now.toISOString(),
+      reasonCode: 'privileged_action',
+      requestKind: 'action'
+    });
     return new Response('Forbidden', { status: 403 });
   }
   const work: InboundWork = {
@@ -539,6 +549,11 @@ export function createWorker(overrides: WorkerDependencies = {}) {
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {
             const reason = authorization.reason;
+            await store.recordSecurityDenial({
+              occurredAt: message.body.receivedAt,
+              reasonCode: 'command_authorization',
+              requestKind: message.body.kind
+            });
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,

@@ -23,6 +23,7 @@ class MemoryStore implements ControlStore {
   readonly callbacks = new Set<string>();
   readonly correlations = new Map<string, Correlation>();
   readonly runIndex = new Map<string, string>();
+  readonly denials: Array<{ reasonCode: string; requestKind: string }> = [];
 
   async accept(work: InboundWork): Promise<boolean> {
     if (this.accepted.has(work.identity)) return false;
@@ -45,6 +46,14 @@ class MemoryStore implements ControlStore {
     if (this.callbacks.has(identity)) return false;
     this.callbacks.add(identity);
     return true;
+  }
+
+  async recordSecurityDenial(input: {
+    occurredAt: string;
+    reasonCode: string;
+    requestKind: string;
+  }): Promise<void> {
+    this.denials.push({ reasonCode: input.reasonCode, requestKind: input.requestKind });
   }
 
   async claim(requestId: string): Promise<boolean> {
@@ -349,6 +358,8 @@ describe('Slack control worker', () => {
     denied.event.user = 'U2';
     denied.event_id = 'Ev2';
     expect((await worker.fetch(await slackEvent(denied), env)).status).toBe(403);
+    expect(store.denials).toEqual([{ reasonCode: 'intake_allowlist', requestKind: 'message' }]);
+    expect(JSON.stringify(store.denials)).not.toContain(denied.event.text);
 
     const bot = structuredClone(eventBody);
     (bot.event as typeof bot.event & { bot_id: string }).bot_id = 'B1';
@@ -391,8 +402,9 @@ describe('Slack control worker', () => {
 
   it('rejects privileged Developer actions before queueing', async () => {
     const queue: InboundWork[] = [];
+    const store = new MemoryStore();
     const worker = createWorker({
-      store: new MemoryStore(),
+      store,
       classifier: {} as IntentClassifier,
       github: {} as GitHubPort,
       slack: {} as SlackPort,
@@ -410,6 +422,7 @@ describe('Slack control worker', () => {
 
     expect((await worker.fetch(await slackAction(payload), baseEnv(queue))).status).toBe(403);
     expect(queue).toHaveLength(0);
+    expect(store.denials).toEqual([{ reasonCode: 'privileged_action', requestKind: 'action' }]);
   });
 
   it('normalizes and dispatches only in the queue consumer, once across retries', async () => {
@@ -475,6 +488,9 @@ describe('Slack control worker', () => {
     expect(message.ack).toHaveBeenCalled();
     expect(message.retry).not.toHaveBeenCalled();
     expect(store.correlations.get('Ev1')?.status).toBe('rejected');
+    expect(store.denials).toEqual([
+      { reasonCode: 'command_authorization', requestKind: 'message' }
+    ]);
   });
 
   it('posts a Slack failure notice and stops retrying when queue processing throws', async () => {

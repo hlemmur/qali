@@ -59,6 +59,19 @@ export class D1ControlStore implements ControlStore {
     return result.meta.changes === 1;
   }
 
+  async recordSecurityDenial(input: {
+    occurredAt: string;
+    reasonCode: string;
+    requestKind: string;
+  }): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO security_denials (occurred_at, reason_code, request_kind) VALUES (?, ?, ?)'
+      )
+      .bind(input.occurredAt, input.reasonCode, input.requestKind)
+      .run();
+  }
+
   async claim(requestId: string): Promise<boolean> {
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
     const result = await this.db

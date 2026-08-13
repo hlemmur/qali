@@ -79,6 +79,11 @@ export interface Correlation {
 export interface ControlStore {
   accept(work: InboundWork): Promise<boolean>;
   acceptCallback(identity: string, receivedAt: string): Promise<boolean>;
+  recordSecurityDenial(input: {
+    occurredAt: string;
+    reasonCode: string;
+    requestKind: string;
+  }): Promise<void>;
   claim(requestId: string): Promise<boolean>;
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;
