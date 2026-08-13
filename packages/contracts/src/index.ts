@@ -10,10 +10,83 @@ export const INTENTS = [
   'triage-failure',
   'maintain-knowledge',
   'maintain-suite',
-  'quality-pulse'
+  'quality-pulse',
+  'query-project'
 ] as const;
 export const IntentSchema = z.enum(INTENTS);
 export type Intent = z.infer<typeof IntentSchema>;
+
+export const QUERY_TOPICS = [
+  'status',
+  'coverage',
+  'schedule',
+  'history',
+  'expected',
+  'flows'
+] as const;
+export const QueryTopicSchema = z.enum(QUERY_TOPICS);
+export type QueryTopic = z.infer<typeof QueryTopicSchema>;
+
+const CountSchema = z.number().int().nonnegative();
+
+export const QualitySnapshotSchema = z
+  .object({
+    version: z.literal(1),
+    projectId: z.string().min(1),
+    updatedAt: z.iso.datetime(),
+    lastRun: z
+      .object({
+        intent: z.string().min(1),
+        requestId: z.string().min(1).optional(),
+        finishedAt: z.iso.datetime(),
+        status: z.string().min(1),
+        conclusion: z.string().min(1).optional(),
+        counts: z
+          .object({
+            total: CountSchema,
+            passed: CountSchema,
+            failed: CountSchema,
+            skipped: CountSchema
+          })
+          .strict()
+          .optional(),
+        stages: z
+          .object({
+            execution: z.string().min(1).optional(),
+            validation: z.string().min(1).optional(),
+            publication: z.string().min(1).optional()
+          })
+          .strict()
+          .optional()
+      })
+      .strict()
+      .optional(),
+    coverage: z
+      .object({
+        approvedScenarios: CountSchema,
+        automatedTests: CountSchema,
+        percent: z.number().finite().min(0).max(100)
+      })
+      .strict()
+      .optional(),
+    journeys: z.array(z.string().min(1)).optional(),
+    openQuestions: z.array(z.string().min(1)).optional(),
+    knownIssues: z.array(z.string().min(1)).optional(),
+    expectedResults: z.array(z.string().min(1)).optional(),
+    schedules: z
+      .array(
+        z
+          .object({
+            workflowId: z.string().min(1),
+            cron: z.string().min(1),
+            enabled: z.boolean()
+          })
+          .strict()
+      )
+      .optional()
+  })
+  .strict();
+export type QualitySnapshot = z.infer<typeof QualitySnapshotSchema>;
 
 export const EXTERNAL_ROLES = ['developer', 'qa-lead-admin'] as const;
 export const ExternalRoleSchema = z.enum(EXTERNAL_ROLES);
