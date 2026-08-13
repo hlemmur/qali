@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { preparePublicationManifest } from './prepare-publication.js';
+import { assessSemanticPublication } from '../packages/publication/src/index.js';
 
 const git = (workspace: string, ...args: string[]): string =>
   execFileSync('git', args, { cwd: workspace, encoding: 'utf8' });
@@ -87,5 +88,46 @@ describe('publication preparation', () => {
     expect(manifest.changes.map(({ path }) => path)).toEqual([
       'projects/shop/derived/reports/report.md'
     ]);
+  });
+
+  it('classifies retract of a generated spec as a publishable deletion', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-retract-'));
+    const specPath = 'projects/shop/tests/generated/foo.generated.spec.ts';
+    mkdirSync(join(workspace, 'projects/shop/tests/generated'), { recursive: true });
+    writeFileSync(
+      join(workspace, specPath),
+      "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n"
+    );
+    git(workspace, 'init');
+    git(workspace, 'config', 'user.name', 'Test');
+    git(workspace, 'config', 'user.email', 'test@example.test');
+    git(workspace, 'add', '.');
+    git(workspace, 'commit', '-m', 'baseline');
+    unlinkSync(join(workspace, specPath));
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-RETRACT',
+      projectRoot: 'projects/shop',
+      checks: [
+        {
+          command: process.execPath,
+          args: ['-e', "process.stdout.write('ok')"]
+        }
+      ]
+    });
+
+    expect(manifest.changes).toEqual([
+      expect.objectContaining({
+        path: specPath,
+        classification: 'test',
+        before: expect.objectContaining({
+          content:
+            "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n"
+        }),
+        after: null
+      })
+    ]);
+    expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
   });
 });

@@ -110,6 +110,13 @@ function isSafeProjectPath(path: string, projectRoot: string): boolean {
   return !segments.some((segment) => segment === '.' || segment === '..' || segment === '');
 }
 
+const RETRACTABLE_GENERATED_SPEC =
+  /^projects\/[^/]+\/tests\/generated\/[^/]+\.generated\.spec\.ts$/;
+
+export function isRetractableGeneratedSpec(path: string): boolean {
+  return isSafePath(path) && RETRACTABLE_GENERATED_SPEC.test(path);
+}
+
 export function assessSemanticPublication(
   value: SemanticPublicationManifest
 ): PublicationPolicyDecision {
@@ -138,8 +145,10 @@ export function assessSemanticPublication(
     if (change.after && sha256(change.after.content) !== change.after.sha256) {
       return { allowed: false, reason: `after hash mismatch: ${change.path}` };
     }
-    if (!change.after)
+    if (!change.after) {
+      if (isRetractableGeneratedSpec(change.path) && change.before) continue;
       return { allowed: false, reason: `deletions are not publishable: ${change.path}` };
+    }
     if (change.classification === 'raw-evidence') {
       return { allowed: false, reason: `raw browser evidence remains outside Git: ${change.path}` };
     }
@@ -268,18 +277,25 @@ const ALWAYS_REJECT = new Set<PublicationMutation>([
   'modify-source-code'
 ]);
 
-const isSafePath = (path: string): boolean =>
-  path.startsWith('projects/') &&
-  !path.startsWith('/') &&
-  !path.split('/').includes('..') &&
-  !path.includes('\\');
+function isSafePath(path: string): boolean {
+  return (
+    path.startsWith('projects/') &&
+    !path.startsWith('/') &&
+    !path.split('/').includes('..') &&
+    !path.includes('\\')
+  );
+}
 
 function assessChange(change: PublicationChange): PublicationPolicyDecision {
   if (!isSafePath(change.path)) {
     return { allowed: false, reason: `path is outside governed projects: ${change.path}` };
   }
-  if (change.deleted)
+  if (change.deleted) {
+    if (isRetractableGeneratedSpec(change.path) && change.mutation === 'delete-test') {
+      return { allowed: true };
+    }
     return { allowed: false, reason: `deletions are not publishable: ${change.path}` };
+  }
   if (ALWAYS_REJECT.has(change.mutation)) {
     return {
       allowed: false,

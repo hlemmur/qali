@@ -218,6 +218,42 @@ describe('semantic publication policy', () => {
     });
   });
 
+  it('allows retract of generated specs and rejects other deletions', () => {
+    const retract = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+      before: "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n",
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([retract]))).toEqual({ allowed: true });
+
+    const missingBefore = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+      before: null,
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([missingBefore]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/deletions are not publishable/i)
+    });
+
+    for (const path of [
+      'projects/shop/tests/login.spec.ts',
+      'projects/shop/tests/generated/foo.spec.ts',
+      'projects/shop/derived/reports/run.md',
+      'projects/shop/tests/__snapshots__/checkout.snap'
+    ]) {
+      const deleted = createSemanticPublicationChange({
+        path,
+        before: 'existing content',
+        after: null
+      });
+      expect(assessSemanticPublication(semanticManifest([deleted]))).toMatchObject({
+        allowed: false,
+        reason: expect.stringMatching(/deletions are not publishable/i)
+      });
+    }
+  });
+
   it('publishes derived artifacts only when their generated-content hash is valid', () => {
     const body = '\n\n# Coverage\n\nAll approved scenarios are traced.\n';
     const generated = `<!-- qali:generated owner=qali sha256=${createHash('sha256').update(body).digest('hex')} -->${body}`;
@@ -295,6 +331,31 @@ describe('generated-change publication policy', () => {
     expect(assessGeneratedChanges(request([{ path, mutation, content: 'unsafe' }]))).toMatchObject({
       allowed: false
     });
+  });
+
+  it('allows delete-test only for retractable generated specs', () => {
+    expect(
+      assessGeneratedChanges(
+        request([
+          {
+            path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+            mutation: 'delete-test',
+            deleted: true
+          }
+        ])
+      )
+    ).toEqual({ allowed: true });
+    expect(
+      assessGeneratedChanges(
+        request([
+          {
+            path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+            mutation: 'delete-test',
+            content: 'still present'
+          }
+        ])
+      )
+    ).toMatchObject({ allowed: false });
   });
 
   it('rejects deletion flags, source changes without authority, and failed checks', () => {
