@@ -11,6 +11,7 @@ export * from './exploration.js';
 export * from './test-generation.js';
 export * from './test-execution.js';
 export * from './triage.js';
+export * from './knowledge-maintenance.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 
