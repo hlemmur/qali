@@ -11,6 +11,7 @@ Live deploy has not been run from the authoring environment. This guide is the o
 | Worker     | `qali-slack-control`                     | HTTP endpoints for Slack + GitHub webhooks         |
 | D1         | `qali-control` → binding `DB`            | Dedup + request/run correlation                    |
 | Queue      | `qali-inbound` → binding `INBOUND_QUEUE` | Durable handoff from intake to classifier/dispatch |
+| R2         | `qali-reports` → binding `REPORTS`       | Hosted HTML run reports with signed URLs           |
 | Workers AI | binding `AI`                             | Free-form → normalized intent                      |
 
 Config source of truth: `apps/slack-worker/wrangler.jsonc`.
@@ -58,15 +59,17 @@ What the script does:
 1. `wrangler d1 create qali-control` (skipped if `database_id` is already set)
 2. Writes the returned UUID into `apps/slack-worker/wrangler.jsonc`
 3. `wrangler queues create qali-inbound` (ignores “already exists”)
-4. `wrangler d1 migrations apply qali-control --remote`
-5. Renders `apps/slack-worker/slack-app-manifest.local.json` from the generic template + `.env` Worker URL (skips if URL vars are missing)
+4. `wrangler r2 bucket create qali-reports` (ignores “already exists”)
+5. `wrangler d1 migrations apply qali-control --remote`
+6. Renders `apps/slack-worker/slack-app-manifest.local.json` from the generic template + `.env` Worker URL (skips if URL vars are missing)
 
 Manual equivalent if you prefer the dashboard:
 
 1. Workers & Pages → Create application → Worker → name `qali-slack-control`
 2. D1 → Create database `qali-control` → copy UUID into `wrangler.jsonc` `database_id`
 3. Queues → Create queue `qali-inbound`
-4. Ensure Workers AI is available on the account (default for most accounts)
+4. R2 → Create bucket `qali-reports`
+5. Ensure Workers AI is available on the account (default for most accounts)
 
 ## Secrets and vars
 
@@ -177,6 +180,7 @@ Unit tests for the Worker do **not** require Cloudflare — they run under Vites
 | Workers requests | Free tier usually enough for Slack traffic             |
 | Queues           | Low volume; watch free-tier message limits             |
 | D1               | Correlation rows; prune after ~90 days (manual in MVP) |
+| R2               | Hosted HTML reports; signed URLs expire after 14 days  |
 | Workers AI       | Intent classification; monitor free-tier tokens        |
 
 Artifact retention for GitHub Actions is separate (14 days in `execute.yml`).
@@ -187,6 +191,7 @@ Artifact retention for GitHub Actions is separate (14 days in `execute.yml`).
 | ------------------------------- | ----------------------------------------------------------------------- |
 | `database_id` still placeholder | Re-run `npm run control-plane:provision` or paste UUID from dashboard   |
 | Queue binding errors on deploy  | Confirm queue name is exactly `qali-inbound`                            |
+| R2 binding errors on deploy     | Create `qali-reports` (`npm run control-plane:provision`)               |
 | AI binding missing              | Workers AI enabled on account; `ai.binding` present in `wrangler.jsonc` |
 | Slack URL verification fails    | Worker must be deployed and returning 200 to Slack challenge            |
 | Secrets not found at runtime    | Set via `wrangler secret put`, not only `.env` locally                  |

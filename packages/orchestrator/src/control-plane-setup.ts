@@ -2,6 +2,7 @@ export const CONTROL_PLANE_DEFAULTS = {
   workerName: 'qali-slack-control',
   d1DatabaseName: 'qali-control',
   queueName: 'qali-inbound',
+  reportsBucketName: 'qali-reports',
   placeholderDatabaseId: 'replace-with-production-database-id',
   placeholderWorkerBaseUrl: 'https://qali-slack-control.example.workers.dev'
 } as const;

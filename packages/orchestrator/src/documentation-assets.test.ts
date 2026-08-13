@@ -188,6 +188,17 @@ describe('product documentation assets', () => {
     expect(upload).not.toContain("|| '_demo'");
   });
 
+  it('hosts HTML reports on R2 and links them from Slack as Open report', () => {
+    const wrangler = read('apps/slack-worker/wrangler.jsonc');
+    expect(wrangler).toContain('qali-reports');
+    expect(wrangler).toContain('"binding": "REPORTS"');
+    expect(read('scripts/post-run-summary.ts')).toContain('/github/report');
+    expect(read('.github/workflows/execute.yml')).toContain('.qali/report.html');
+    expect(read('docs/user-guide.md')).toContain('Open report');
+    expect(read('docs/setup-cloudflare.md')).toContain('qali-reports');
+    expect(read('docs/setup-slack.md')).toContain('Open report');
+  });
+
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executeScript = read('scripts/execute.ts');

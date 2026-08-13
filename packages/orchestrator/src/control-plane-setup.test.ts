@@ -9,6 +9,10 @@ import {
 } from './control-plane-setup.js';
 
 describe('control plane setup helpers', () => {
+  it('names the hosted-report R2 bucket', () => {
+    expect(CONTROL_PLANE_DEFAULTS.reportsBucketName).toBe('qali-reports');
+  });
+
   it('renders a Slack app manifest with Worker event and interaction URLs', () => {
     const manifest = renderSlackAppManifest('https://qali-slack-control.example.workers.dev');
 

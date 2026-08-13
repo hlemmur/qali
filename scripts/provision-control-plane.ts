@@ -129,6 +129,23 @@ function ensureQueue(): void {
   }
 }
 
+function ensureReportsBucket(): void {
+  console.log(
+    `Creating R2 bucket ${CONTROL_PLANE_DEFAULTS.reportsBucketName} (no-op if it already exists)...`
+  );
+  try {
+    run('npx', ['wrangler', 'r2', 'bucket', 'create', CONTROL_PLANE_DEFAULTS.reportsBucketName]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stderr =
+      error instanceof Error && 'stderr' in error
+        ? String((error as { stderr?: string }).stderr ?? '')
+        : '';
+    if (!/already exists/i.test(message) && !/already exists/i.test(stderr)) throw error;
+    console.log('R2 bucket already exists.');
+  }
+}
+
 function applyMigrations(): void {
   console.log('Applying D1 migrations remotely...');
   run('npx', [
@@ -189,6 +206,7 @@ console.log(
 
 ensureD1();
 ensureQueue();
+ensureReportsBucket();
 if (!dryRun) applyMigrations();
 else console.log('[dry-run] skip remote migrations');
 

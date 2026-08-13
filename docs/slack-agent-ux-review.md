@@ -182,6 +182,7 @@ Qali should not copy Linear's issue model literally. Its equivalent durable obje
 4. Add confirmation previews for consequential governed changes.
 5. Fix app profile and onboarding copy so the AI role and deterministic Playwright boundary are unmistakable. **Implemented (unit-tested; not live-verified).** Slack app description names Playwright and evidence-backed results. User guide states Qali is the E2E QA teammate.
 6. Add App Home sections for needs-attention, running, and recent work. **Implemented (unit-tested; not live-verified).** Manifest enables the Home tab; `app_home_opened` publishes a personal control room. Re-upload the Slack manifest after merge.
+7. Host HTML reports instead of asking people to unzip Markdown. **Implemented (unit-tested; not live-verified).** Terminal cards get an **Open report** link to a signed Worker URL; GitHub remains the fallback.
 
 ### P1 — efficient daily use
 

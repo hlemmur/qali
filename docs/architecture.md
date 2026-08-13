@@ -48,16 +48,16 @@ Two jobs with isolated permissions:
 
 ### Packages
 
-| Package                | Role                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| `@qali/contracts`      | Zod schemas for intents, roles, workflows, Slack correlation |
-| `@qali/knowledge`      | Provenance, mutation classification, project scaffolding     |
-| `@qali/orchestrator`   | Workflow validation, routing, step execution                 |
-| `@qali/agent-runtime`  | Cursor CLI adapter (sandboxed)                               |
-| `@qali/browser-facade` | Restricted local MCP browser and secret-safe evidence        |
-| `@qali/playwright`     | Test runner and JSON report parsing                          |
-| `@qali/reporting`      | Slack Block Kit summaries and Markdown reports               |
-| `@qali/publication`    | Safe auto-commit policy and GitHub adapter                   |
+| Package                | Role                                                          |
+| ---------------------- | ------------------------------------------------------------- |
+| `@qali/contracts`      | Zod schemas for intents, roles, workflows, Slack correlation  |
+| `@qali/knowledge`      | Provenance, mutation classification, project scaffolding      |
+| `@qali/orchestrator`   | Workflow validation, routing, step execution                  |
+| `@qali/agent-runtime`  | Cursor CLI adapter (sandboxed)                                |
+| `@qali/browser-facade` | Restricted local MCP browser and secret-safe evidence         |
+| `@qali/playwright`     | Test runner and JSON report parsing                           |
+| `@qali/reporting`      | Slack Block Kit summaries, hosted HTML reports, Markdown/JSON |
+| `@qali/publication`    | Safe auto-commit policy and GitHub adapter                    |
 
 Agent judgment runs in a per-step [runtime harness](runtime-harness.md) assembled from reviewed skills and explicitly selected inputs. The staged workspace is read-only except for declared outputs; Cursor has no shell tool and receives only the restricted browser MCP when a profile requires interactive exploration.
 
