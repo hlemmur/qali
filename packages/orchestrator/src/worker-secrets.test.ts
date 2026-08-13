@@ -103,6 +103,7 @@ describe('GitHub Actions env sync helpers', () => {
       CURSOR_API_KEY: 'key-123',
       CURSOR_MODEL: 'composer-2.5',
       GITHUB_WEBHOOK_SECRET: 'hook-secret',
+      QALI_CALLBACK_SECRET: 'callback-secret',
       WORKER_BASE_URL: 'https://qali-slack-control.example.workers.dev',
       QALI_PUBLISH_GITHUB_TOKEN: 'ghp_publish',
       GITHUB_OWNER: 'hlemmur',
@@ -112,7 +113,7 @@ describe('GitHub Actions env sync helpers', () => {
     expect(decision.repo).toBe('hlemmur/qali');
     expect(decision.secrets).toEqual([
       { name: 'CURSOR_API_KEY', value: 'key-123' },
-      { name: 'QALI_CALLBACK_SECRET', value: 'hook-secret' },
+      { name: 'QALI_CALLBACK_SECRET', value: 'callback-secret' },
       { name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }
     ]);
     expect(decision.variables).toEqual([
@@ -123,6 +124,20 @@ describe('GitHub Actions env sync helpers', () => {
       }
     ]);
     expect(decision.skipped).toEqual([]);
+  });
+
+  it('never derives the Actions callback secret from the webhook secret', () => {
+    const decision = selectActionsConfigToSync({
+      GITHUB_WEBHOOK_SECRET: 'hook-secret',
+      GITHUB_OWNER: 'hlemmur',
+      GITHUB_REPO: 'qali'
+    });
+
+    expect(decision.secrets).not.toContainEqual({
+      name: 'QALI_CALLBACK_SECRET',
+      value: 'hook-secret'
+    });
+    expect(decision.skipped).toContain('QALI_CALLBACK_SECRET');
   });
 
   it('defaults CURSOR_MODEL to composer-2.5 when the API key is set and model is blank', () => {
