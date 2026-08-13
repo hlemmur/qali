@@ -31,6 +31,15 @@ interface PlaywrightScenario {
   >;
 }
 
+export interface GeneratedTestValidator {
+  validate(request: {
+    workspace: string;
+    projectId: string;
+    generatedPaths: string[];
+    scenarioIds: string[];
+  }): Promise<{ status: 'passed' } | { status: 'failed'; error: string }>;
+}
+
 const quoted = (value: string): string =>
   `'${value
     .replaceAll('\\', '\\\\')
@@ -84,7 +93,8 @@ function requirementStatuses(markdown: string): Map<string, string> {
 export async function executeTestGenerationStep(
   workspace: string,
   step: WorkflowStep,
-  command: NormalizedCommand
+  command: NormalizedCommand,
+  validator?: GeneratedTestValidator
 ) {
   const outputs = step.outputs.map(({ artifact, path }) => ({
     artifact,
@@ -98,6 +108,8 @@ export async function executeTestGenerationStep(
   if (step.id === 'generate-tests') {
     const generatedDirectory = join(projectRoot, 'tests/generated');
     mkdirSync(generatedDirectory, { recursive: true });
+    const generatedPaths: string[] = [];
+    const scenarioIds: string[] = [];
     for (const scenario of scenarios) {
       if (!scenario.playwright) continue;
       const lines = [
@@ -138,11 +150,21 @@ export async function executeTestGenerationStep(
         }
       }
       lines.push('});', '');
-      writeFileSync(
-        join(generatedDirectory, `${scenario.id.toLowerCase()}.generated.spec.ts`),
-        lines.join('\n')
-      );
+      const relativePath = `${command.project.root}/tests/generated/${scenario.id.toLowerCase()}.generated.spec.ts`;
+      writeFileSync(join(workspace, relativePath), lines.join('\n'));
+      generatedPaths.push(relativePath);
+      scenarioIds.push(scenario.id);
     }
+    if (!validator) {
+      return { status: 'blocked' as const, reason: 'generated test validator is unavailable' };
+    }
+    const validation = await validator.validate({
+      workspace,
+      projectId: command.project.id,
+      generatedPaths,
+      scenarioIds
+    });
+    if (validation.status === 'failed') return validation;
     return { status: 'succeeded' as const, outputs };
   }
   if (step.id !== 'design-coverage') {

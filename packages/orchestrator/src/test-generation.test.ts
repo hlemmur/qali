@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { executeTestGenerationStep } from './test-generation.js';
+import { executeTestGenerationStep, type GeneratedTestValidator } from './test-generation.js';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './index.js';
 import { loadWorkflowDirectory } from './workflows.js';
 
 const command: NormalizedCommand = {
@@ -14,6 +21,15 @@ const command: NormalizedCommand = {
   receivedAt: '2026-08-13T00:00:00.000Z',
   parameters: {}
 };
+
+class FakeGeneratedTestValidator implements GeneratedTestValidator {
+  requests: Parameters<GeneratedTestValidator['validate']>[0][] = [];
+  result: Awaited<ReturnType<GeneratedTestValidator['validate']>> = { status: 'passed' };
+  async validate(request: Parameters<GeneratedTestValidator['validate']>[0]) {
+    this.requests.push(request);
+    return this.result;
+  }
+}
 
 describe('deterministic test generation', () => {
   it('builds coverage only from approved scenarios with requirement traceability', async () => {
@@ -104,7 +120,8 @@ describe('deterministic test generation', () => {
     const result = await executeTestGenerationStep(
       workspace,
       workflow.steps.find(({ id }) => id === 'generate-tests')!,
-      command
+      command,
+      new FakeGeneratedTestValidator()
     );
 
     expect(result.status).toBe('succeeded');
@@ -152,7 +169,8 @@ describe('deterministic test generation', () => {
     await executeTestGenerationStep(
       workspace,
       workflow.steps.find(({ id }) => id === 'generate-tests')!,
-      { ...command, parameters: { visualTesting: true } }
+      { ...command, parameters: { visualTesting: true } },
+      new FakeGeneratedTestValidator()
     );
 
     const generated = readFileSync(
@@ -162,5 +180,106 @@ describe('deterministic test generation', () => {
     expect(generated).toContain("await expect(page).toHaveScreenshot('dashboard.png')");
     expect(generated).toContain('// Evidence-only screenshot; not a visual assertion.');
     expect(generated).toContain("testInfo.outputPath('dashboard-run-evidence.png')");
+  });
+
+  it('runs deterministic validation and targeted execution for generated scenarios', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/generated.md'),
+      [
+        '## SCN-007: Generated behavior',
+        '',
+        '- Status: approved for automation',
+        '- Traceability: REQ-007',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({ path: '/', actions: [], assertions: [] }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+    const validator = new FakeGeneratedTestValidator();
+
+    const result = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command,
+      validator
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(validator.requests).toEqual([
+      {
+        workspace,
+        projectId: 'sample',
+        generatedPaths: ['projects/sample/tests/generated/scn-007.generated.spec.ts'],
+        scenarioIds: ['SCN-007']
+      }
+    ]);
+
+    validator.result = { status: 'failed', error: 'targeted Playwright execution failed' };
+    const failed = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command,
+      validator
+    );
+    expect(failed).toEqual({ status: 'failed', error: 'targeted Playwright execution failed' });
+  });
+
+  it('runs both generation steps through the production orchestrator in Mock Mode', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| REQ-001 | Sign in | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'derived/scenarios/approved/sign-in.md'),
+      [
+        '## SCN-001: Sign in',
+        '- Status: approved for automation',
+        '- Traceability: REQ-001',
+        '```json qali-playwright',
+        JSON.stringify({ path: '/', actions: [], assertions: [] }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+    const validator = new FakeGeneratedTestValidator();
+
+    const result = await executeWorkflow(command, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (step) =>
+          executeTestGenerationStep(
+            workspace,
+            step,
+            command,
+            step.id === 'generate-tests' ? validator : undefined
+          )
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'a'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(readFileSync(join(projectRoot, 'derived/scenarios/coverage-map.md'), 'utf8')).toContain(
+      'SCN-001'
+    );
+    expect(validator.requests).toHaveLength(1);
   });
 });

@@ -35,11 +35,13 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeOnboardingMockStep,
+  executeTestGenerationStep,
   executeWorkflow,
   loadWorkflowDirectory,
   routeCommand,
   type PolicyEnforcer,
   type PreconditionChecker,
+  type GeneratedTestValidator,
   type StepExecutor,
   type WorkflowEventStore
 } from '../packages/orchestrator/src/index.js';
@@ -238,6 +240,57 @@ class RoutedStepExecutor implements StepExecutor {
     );
   }
 
+  private generatedTestValidator(): GeneratedTestValidator {
+    return {
+      validate: async ({ workspace: root, projectId, generatedPaths, scenarioIds }) => {
+        try {
+          execFileSync(
+            process.execPath,
+            [join(root, 'node_modules/prettier/bin/prettier.cjs'), '--check', ...generatedPaths],
+            { cwd: root, stdio: 'pipe' }
+          );
+          execFileSync(
+            process.execPath,
+            [join(root, 'node_modules/eslint/bin/eslint.js'), ...generatedPaths],
+            { cwd: root, stdio: 'pipe' }
+          );
+          execFileSync(
+            process.execPath,
+            [join(root, 'node_modules/typescript/bin/tsc'), '--noEmit'],
+            {
+              cwd: root,
+              stdio: 'pipe'
+            }
+          );
+        } catch (error) {
+          return {
+            status: 'failed' as const,
+            error: error instanceof Error ? error.message : 'generated test validation failed'
+          };
+        }
+        const evidenceDirectory = join(
+          root,
+          `projects/${projectId}/observations/evidence/test-generation`
+        );
+        mkdirSync(evidenceDirectory, { recursive: true });
+        const run = await this.playwright.run({
+          workspace: root,
+          projectId,
+          targetBaseUrl: this.targetBaseUrl,
+          reportPath: join(evidenceDirectory, 'targeted-results.json'),
+          grep: scenarioIds.join('|'),
+          ...(this.webServer ? { webServer: this.webServer } : {})
+        });
+        return run.status === 'passed'
+          ? ({ status: 'passed' as const } as const)
+          : ({
+              status: 'failed' as const,
+              error: run.stderr ?? `targeted Playwright execution exited ${run.exitCode}`
+            } as const);
+      }
+    };
+  }
+
   private async deterministicAgentStep(
     step: WorkflowStep,
     command: NormalizedCommand,
@@ -408,6 +461,14 @@ class RoutedStepExecutor implements StepExecutor {
       } finally {
         await driver.close();
       }
+    }
+    if (agentExecutionRoute === 'deterministic-test-generation') {
+      return executeTestGenerationStep(
+        workspace,
+        step,
+        command,
+        step.id === 'generate-tests' ? this.generatedTestValidator() : undefined
+      );
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
