@@ -12,6 +12,10 @@ const requiredDocs = [
   'docs/autonomy-and-security.md',
   'docs/project-template.md',
   'docs/roadmap.md',
+  'docs/user-guide.md',
+  'docs/developer-guide.md',
+  'docs/current-status.md',
+  'docs/slack-agent-ux-review.md',
   '.env.example'
 ];
 const read = (path: string): string => readFileSync(new URL(path, root), 'utf8');
@@ -30,7 +34,8 @@ describe('product documentation assets', () => {
       expect(readme).toContain(`npm run ${command}`);
     }
     expect(readme).toContain('[MOCK MODE]');
-    expect(readme).toMatch(/not (?:been )?deployed/i);
+    expect(readme).toMatch(/has been deployed and exercised/i);
+    expect(readme).toContain('[readiness status](docs/current-status.md)');
     expect(readme).toMatch(/no preview URL/i);
   });
 
