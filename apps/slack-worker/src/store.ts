@@ -49,6 +49,78 @@ export class D1ControlStore implements ControlStore {
     return (result?.meta.changes ?? 0) === 1;
   }
 
+  async acceptCallback(identity: string, receivedAt: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'INSERT INTO callback_deduplication (identity, received_at) VALUES (?, ?) ON CONFLICT(identity) DO NOTHING'
+      )
+      .bind(identity, receivedAt)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async recordSecurityDenial(input: {
+    occurredAt: string;
+    reasonCode: string;
+    requestKind: string;
+  }): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO security_denials (occurred_at, reason_code, request_kind) VALUES (?, ?, ?)'
+      )
+      .bind(input.occurredAt, input.reasonCode, input.requestKind)
+      .run();
+  }
+
+  async consumeRateLimit(input: {
+    scope: string;
+    subjectHash: string;
+    eventId: string;
+    occurredAt: string;
+    windowStart: string;
+    limit: number;
+  }): Promise<'accepted' | 'duplicate' | 'limited'> {
+    const duplicate = await this.db
+      .prepare('SELECT event_id FROM rate_limit_events WHERE event_id = ?')
+      .bind(input.eventId)
+      .first();
+    if (duplicate) return 'duplicate';
+    const count = await this.db
+      .prepare(
+        'SELECT COUNT(*) AS total FROM rate_limit_events WHERE scope = ? AND subject_hash = ? AND occurred_at >= ?'
+      )
+      .bind(input.scope, input.subjectHash, input.windowStart)
+      .first<{ total: number }>();
+    if ((count?.total ?? 0) >= input.limit) return 'limited';
+    await this.db
+      .prepare(
+        'INSERT INTO rate_limit_events (event_id, scope, subject_hash, occurred_at) VALUES (?, ?, ?, ?)'
+      )
+      .bind(input.eventId, input.scope, input.subjectHash, input.occurredAt)
+      .run();
+    return 'accepted';
+  }
+
+  async purgeExpired(input: { controlBefore: string; securityBefore: string }): Promise<number> {
+    const statements = [
+      this.db
+        .prepare('DELETE FROM inbound_deduplication WHERE received_at < ?')
+        .bind(input.controlBefore),
+      this.db.prepare('DELETE FROM correlations WHERE updated_at < ?').bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM callback_deduplication WHERE received_at < ?')
+        .bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM rate_limit_events WHERE occurred_at < ?')
+        .bind(input.controlBefore),
+      this.db
+        .prepare('DELETE FROM security_denials WHERE occurred_at < ?')
+        .bind(input.securityBefore)
+    ];
+    const results = await this.db.batch(statements);
+    return results.reduce((total, result) => total + (result.meta.changes ?? 0), 0);
+  }
+
   async claim(requestId: string): Promise<boolean> {
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
     const result = await this.db

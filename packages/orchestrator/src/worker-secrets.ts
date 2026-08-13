@@ -4,6 +4,7 @@ export const WORKER_SECRET_KEYS = {
   slack: ['SLACK_SIGNING_SECRET', 'SLACK_BOT_TOKEN', 'SLACK_BOT_USER_ID'] as const,
   github: [
     'GITHUB_WEBHOOK_SECRET',
+    'QALI_CALLBACK_SECRET',
     'GITHUB_APP_ID',
     'GITHUB_APP_PRIVATE_KEY',
     'GITHUB_INSTALLATION_ID',
@@ -52,6 +53,17 @@ export function selectProjectEnvironmentConfigToSync(
       requireValue('QALI_TEST_DATA_JSON')
     ],
     secrets: [requireValue('QALI_TEST_CREDENTIALS_JSON')]
+  };
+}
+
+export function selectPublicationEnvironmentConfigToSync(
+  env: Record<string, string>
+): ProjectEnvironmentConfigToSync {
+  const token = env.QALI_PUBLISH_GITHUB_TOKEN?.trim() ?? '';
+  return {
+    environment: 'qali-publication',
+    secrets: token ? [{ name: 'QALI_PUBLISH_GITHUB_TOKEN', value: token }] : [],
+    variables: []
   };
 }
 
@@ -178,8 +190,7 @@ export function selectActionsConfigToSync(
   }
 
   if (includeAllActions) {
-    pushMapped(secrets, skipped, env, 'GITHUB_WEBHOOK_SECRET', 'QALI_CALLBACK_SECRET');
-    pushMapped(secrets, skipped, env, 'QALI_PUBLISH_GITHUB_TOKEN', 'QALI_PUBLISH_GITHUB_TOKEN');
+    pushMapped(secrets, skipped, env, 'QALI_CALLBACK_SECRET', 'QALI_CALLBACK_SECRET');
     pushMapped(variables, skipped, env, 'WORKER_BASE_URL', 'QALI_WORKER_BASE_URL');
   }
 

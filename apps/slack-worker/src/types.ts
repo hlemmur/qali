@@ -33,6 +33,12 @@ export interface Env {
   SLACK_QA_LEAD_USER_IDS?: string;
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
+  QALI_CALLBACK_SECRET: string;
+  QALI_REDACTION_PATTERNS_JSON?: string;
+  QALI_SENSITIVE_VALUES_JSON?: string;
+  QALI_USER_RATE_LIMIT_PER_MINUTE?: string;
+  QALI_CONTROL_RETENTION_DAYS?: string;
+  QALI_SECURITY_RETENTION_DAYS?: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_INSTALLATION_ID: string;
@@ -75,6 +81,21 @@ export interface Correlation {
 
 export interface ControlStore {
   accept(work: InboundWork): Promise<boolean>;
+  acceptCallback(identity: string, receivedAt: string): Promise<boolean>;
+  recordSecurityDenial(input: {
+    occurredAt: string;
+    reasonCode: string;
+    requestKind: string;
+  }): Promise<void>;
+  consumeRateLimit(input: {
+    scope: string;
+    subjectHash: string;
+    eventId: string;
+    occurredAt: string;
+    windowStart: string;
+    limit: number;
+  }): Promise<'accepted' | 'duplicate' | 'limited'>;
+  purgeExpired(input: { controlBefore: string; securityBefore: string }): Promise<number>;
   claim(requestId: string): Promise<boolean>;
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;

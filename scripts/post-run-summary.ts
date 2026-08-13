@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Posts a compact run summary to the Qali control-plane Worker after Actions finishes.
- * Uses the same HMAC secret as GitHub webhooks (GITHUB_WEBHOOK_SECRET / QALI_CALLBACK_SECRET).
+ * Uses a dedicated Actions callback secret that is separate from GitHub webhooks.
  */
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -49,6 +49,20 @@ function sign(secret: string, body: string): string {
   return `sha256=${digest}`;
 }
 
+export function callbackAuthenticationHeaders(
+  secret: string,
+  body: string,
+  nowSeconds: number,
+  nonce: string
+): Record<string, string> {
+  const timestamp = String(nowSeconds);
+  return {
+    'x-qali-timestamp': timestamp,
+    'x-qali-nonce': nonce,
+    'x-qali-signature': sign(secret, `${timestamp}.${nonce}.${body}`)
+  };
+}
+
 /** Prefer Actions job outcome over an earlier in-workflow Slack summary. */
 export function resolveSlackRunStatus(jobStatus: string, reportStatus: unknown): string {
   if (jobStatus === 'failure' || jobStatus === 'cancelled') return 'failed';
@@ -63,7 +77,7 @@ export async function postRunSummary(): Promise<void> {
     process.env.WORKER_BASE_URL ??
     ''
   ).replace(/\/$/, '');
-  const secret = process.env.QALI_CALLBACK_SECRET ?? process.env.GITHUB_WEBHOOK_SECRET;
+  const secret = process.env.QALI_CALLBACK_SECRET;
   if (!workerBase || !secret) {
     console.log('Skipping Slack run-summary callback (QALI_WORKER_BASE_URL / secret not set).');
     return;
@@ -113,11 +127,15 @@ export async function postRunSummary(): Promise<void> {
   });
 
   const url = `${workerBase}/github/run-summary`;
+  const nonce =
+    process.env.GITHUB_RUN_ID && process.env.GITHUB_RUN_ATTEMPT
+      ? `${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT}`
+      : randomUUID();
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-hub-signature-256': sign(secret, body)
+      ...callbackAuthenticationHeaders(secret, body, Math.floor(Date.now() / 1000), nonce)
     },
     body
   });

@@ -5,6 +5,7 @@ import {
   parseDotEnv,
   parseEnvSyncGroups,
   selectActionsConfigToSync,
+  selectPublicationEnvironmentConfigToSync,
   selectProjectEnvironmentConfigToSync,
   selectSecretsToSync
 } from './worker-secrets.js';
@@ -103,6 +104,7 @@ describe('GitHub Actions env sync helpers', () => {
       CURSOR_API_KEY: 'key-123',
       CURSOR_MODEL: 'composer-2.5',
       GITHUB_WEBHOOK_SECRET: 'hook-secret',
+      QALI_CALLBACK_SECRET: 'callback-secret',
       WORKER_BASE_URL: 'https://qali-slack-control.example.workers.dev',
       QALI_PUBLISH_GITHUB_TOKEN: 'ghp_publish',
       GITHUB_OWNER: 'hlemmur',
@@ -112,8 +114,7 @@ describe('GitHub Actions env sync helpers', () => {
     expect(decision.repo).toBe('hlemmur/qali');
     expect(decision.secrets).toEqual([
       { name: 'CURSOR_API_KEY', value: 'key-123' },
-      { name: 'QALI_CALLBACK_SECRET', value: 'hook-secret' },
-      { name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }
+      { name: 'QALI_CALLBACK_SECRET', value: 'callback-secret' }
     ]);
     expect(decision.variables).toEqual([
       { name: 'CURSOR_MODEL', value: 'composer-2.5' },
@@ -123,6 +124,32 @@ describe('GitHub Actions env sync helpers', () => {
       }
     ]);
     expect(decision.skipped).toEqual([]);
+  });
+
+  it('scopes the publication token to its dedicated GitHub Environment', () => {
+    expect(
+      selectPublicationEnvironmentConfigToSync({
+        QALI_PUBLISH_GITHUB_TOKEN: 'ghp_publish'
+      })
+    ).toEqual({
+      environment: 'qali-publication',
+      secrets: [{ name: 'QALI_PUBLISH_GITHUB_TOKEN', value: 'ghp_publish' }],
+      variables: []
+    });
+  });
+
+  it('never derives the Actions callback secret from the webhook secret', () => {
+    const decision = selectActionsConfigToSync({
+      GITHUB_WEBHOOK_SECRET: 'hook-secret',
+      GITHUB_OWNER: 'hlemmur',
+      GITHUB_REPO: 'qali'
+    });
+
+    expect(decision.secrets).not.toContainEqual({
+      name: 'QALI_CALLBACK_SECRET',
+      value: 'hook-secret'
+    });
+    expect(decision.skipped).toContain('QALI_CALLBACK_SECRET');
   });
 
   it('defaults CURSOR_MODEL to composer-2.5 when the API key is set and model is blank', () => {

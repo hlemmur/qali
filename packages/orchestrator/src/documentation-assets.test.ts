@@ -113,6 +113,7 @@ describe('product documentation assets', () => {
     const workflow = read('.github/workflows/execute.yml');
     expect(workflow).toMatch(/permissions:\s*\n\s+contents: read/);
     expect(workflow).toContain('publish-generated-changes:');
+    expect(workflow).toMatch(/publish-generated-changes:[\s\S]*?environment: qali-publication/);
     expect(workflow).toContain('QALI_PUBLISH_GITHUB_TOKEN');
     const publicationPreparation = workflow
       .split('- name: Prepare controlled publication bundle')[1]
@@ -127,5 +128,20 @@ describe('product documentation assets', () => {
 
     expect(workflow).not.toContain('QALI_QUALIFICATION_MODE');
     expect(executeScript).not.toContain('process.env.QALI_QUALIFICATION_MODE');
+  });
+
+  it('pins workflow actions, runtime versions, and the verified Cursor installer', () => {
+    const workflow = read('.github/workflows/execute.yml');
+
+    expect(workflow).not.toMatch(/uses:\s+actions\/[\w-]+@v\d+/);
+    expect(workflow).toContain('actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5');
+    expect(workflow).toContain('actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5');
+    expect(workflow).toContain('node-version: 22.18.0');
+    expect(workflow).toContain('CURSOR_AGENT_VERSION: 2026.08.11-e8db854');
+    expect(workflow).toContain(
+      'CURSOR_INSTALLER_SHA256: b1af27b9556c5f1c58d166742dbb33425ebd90a4bbd7e5453d66b920bf1f9f6b'
+    );
+    expect(workflow).toContain('sha256sum --check');
+    expect(workflow).toContain('retention-days: 14');
   });
 });

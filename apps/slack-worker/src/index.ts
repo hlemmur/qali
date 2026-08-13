@@ -2,9 +2,10 @@ import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifi
 import { handleSlackAction, LINK_ONLY_ACTIONS } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
-import { verifySignedRequest } from './security.js';
+import { verifyCallbackRequest, verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
+import { createControlPlaneRedactor } from './privacy.js';
 import {
   DEFAULT_EXECUTION_PROFILES,
   DEFAULT_PROJECT_REGISTRY,
@@ -50,6 +51,49 @@ const csv = (value?: string): Set<string> =>
       .map((entry) => entry.trim())
       .filter(Boolean)
   );
+
+function stringArray(value: string | undefined, label: string): string[] {
+  if (!value) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${label} must be valid JSON`, { cause: error });
+  }
+  if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== 'string')) {
+    throw new Error(`${label} must be a JSON string array`);
+  }
+  return parsed;
+}
+
+function redactorService(env: Env): (value: string) => string {
+  return createControlPlaneRedactor({
+    sensitiveValues: [
+      env.SLACK_SIGNING_SECRET,
+      env.SLACK_BOT_TOKEN,
+      env.GITHUB_WEBHOOK_SECRET,
+      env.QALI_CALLBACK_SECRET,
+      env.GITHUB_APP_PRIVATE_KEY,
+      ...stringArray(env.QALI_SENSITIVE_VALUES_JSON, 'QALI_SENSITIVE_VALUES_JSON')
+    ],
+    configuredPatterns: stringArray(
+      env.QALI_REDACTION_PATTERNS_JSON,
+      'QALI_REDACTION_PATTERNS_JSON'
+    )
+  });
+}
+
+async function subjectHash(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error('Rate limit must be positive');
+  return parsed;
+}
 
 const transientQueueFailure = (detail: string): boolean =>
   /\b(?:408|425|429|500|502|503|504)\b|network|timed?\s*out|temporar|rate.?limit|econn/i.test(
@@ -100,7 +144,29 @@ function record(value: unknown): Record<string, unknown> {
 
 async function acceptWork(work: InboundWork, env: Env, store: ControlStore): Promise<Response> {
   if (!allowed(env, work.slack.teamId, work.slack.channelId, work.requestedBy)) {
+    await store.recordSecurityDenial({
+      occurredAt: work.receivedAt,
+      reasonCode: 'intake_allowlist',
+      requestKind: work.kind
+    });
     return new Response('Forbidden', { status: 403 });
+  }
+  const occurredAt = new Date(work.receivedAt);
+  const rate = await store.consumeRateLimit({
+    scope: 'user',
+    subjectHash: await subjectHash(`${work.slack.teamId}:${work.requestedBy}`),
+    eventId: `user:${work.identity}`,
+    occurredAt: occurredAt.toISOString(),
+    windowStart: new Date(occurredAt.getTime() - 60_000).toISOString(),
+    limit: positiveInteger(env.QALI_USER_RATE_LIMIT_PER_MINUTE, 60)
+  });
+  if (rate === 'limited') {
+    await store.recordSecurityDenial({
+      occurredAt: work.receivedAt,
+      reasonCode: 'rate_limit_user',
+      requestKind: work.kind
+    });
+    return new Response('Too Many Requests', { status: 429 });
   }
   if (await store.accept(work)) await env.INBOUND_QUEUE.send(work);
   return json(200, { ok: true });
@@ -226,6 +292,11 @@ async function slackInteraction(
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
   const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
   if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
+    await store.recordSecurityDenial({
+      occurredAt: now.toISOString(),
+      reasonCode: 'privileged_action',
+      requestKind: 'action'
+    });
     return new Response('Forbidden', { status: 403 });
   }
   const work: InboundWork = {
@@ -361,19 +432,24 @@ async function githubRunSummary(
   request: Request,
   env: Env,
   store: ControlStore,
-  slack: SlackPort
+  slack: SlackPort,
+  now: Date
 ): Promise<Response> {
   const raw = await request.text();
-  if (
-    !(await verifySignedRequest({
-      secret: env.GITHUB_WEBHOOK_SECRET,
-      body: raw,
-      signature: request.headers.get('x-hub-signature-256'),
-      nowSeconds: Math.floor(Date.now() / 1000),
-      prefix: 'sha256='
-    }))
-  ) {
+  const redact = redactorService(env);
+  const authentication = await verifyCallbackRequest({
+    secret: env.QALI_CALLBACK_SECRET,
+    body: raw,
+    signature: request.headers.get('x-qali-signature'),
+    timestamp: request.headers.get('x-qali-timestamp'),
+    nonce: request.headers.get('x-qali-nonce'),
+    nowSeconds: Math.floor(now.getTime() / 1000)
+  });
+  if (!authentication.valid) {
     return new Response('Unauthorized', { status: 401 });
+  }
+  if (!(await store.acceptCallback(authentication.identity, now.toISOString()))) {
+    return json(200, { ok: true, skipped: 'replay' });
   }
   let payload: Record<string, unknown>;
   try {
@@ -395,10 +471,14 @@ async function githubRunSummary(
     typeof counts.skipped === 'number';
   const meta = commandMeta(correlation);
   const errors = Array.isArray(payload.errors)
-    ? payload.errors.filter((entry): entry is string => typeof entry === 'string')
+    ? payload.errors
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => redact(entry))
     : undefined;
   const evidence = Array.isArray(payload.evidence)
-    ? payload.evidence.filter((entry): entry is string => typeof entry === 'string')
+    ? payload.evidence
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => redact(entry))
     : undefined;
   const summary: SlackRunSummary = {
     runId: runId ?? correlation.runId ?? correlation.requestId,
@@ -434,6 +514,17 @@ async function githubRunSummary(
 
 export function createWorker(overrides: WorkerDependencies = {}) {
   return {
+    async scheduled(_controller: unknown, env: Env): Promise<void> {
+      const now = (overrides.now ?? (() => new Date()))();
+      const dayMs = 24 * 60 * 60 * 1_000;
+      const controlDays = positiveInteger(env.QALI_CONTROL_RETENTION_DAYS, 30);
+      const securityDays = positiveInteger(env.QALI_SECURITY_RETENTION_DAYS, 14);
+      await storeService(env, overrides).purgeExpired({
+        controlBefore: new Date(now.getTime() - controlDays * dayMs).toISOString(),
+        securityBefore: new Date(now.getTime() - securityDays * dayMs).toISOString()
+      });
+    },
+
     async fetch(request: Request, env: Env): Promise<Response> {
       const { pathname } = new URL(request.url);
       const now = (overrides.now ?? (() => new Date()))();
@@ -445,7 +536,7 @@ export function createWorker(overrides: WorkerDependencies = {}) {
         return githubWebhook(request, env, store, slackService(env, overrides), now);
       }
       if (pathname === '/github/run-summary') {
-        return githubRunSummary(request, env, store, slackService(env, overrides));
+        return githubRunSummary(request, env, store, slackService(env, overrides), now);
       }
       return new Response('Not Found', { status: 404 });
     },
@@ -495,9 +586,43 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
             overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
           );
+          const executionProfiles = overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
+          const executionProfile = executionProfiles.find(
+            (profile) => profile.id === command.project.executionProfileId
+          );
+          const occurredAt = new Date(message.body.receivedAt);
+          const projectRate = await store.consumeRateLimit({
+            scope: 'project',
+            subjectHash: await subjectHash(command.project.id),
+            eventId: `project:${message.body.requestId}`,
+            occurredAt: occurredAt.toISOString(),
+            windowStart: new Date(occurredAt.getTime() - 60_000).toISOString(),
+            limit: executionProfile?.rate.maxActionsPerMinute ?? 60
+          });
+          if (projectRate === 'limited') {
+            const reason = 'Project rate limit exceeded';
+            await store.recordSecurityDenial({
+              occurredAt: message.body.receivedAt,
+              reasonCode: 'rate_limit_project',
+              requestKind: message.body.kind
+            });
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: `Qali rejected this request: ${reason}`
+            });
+            await store.markCompleted(message.body.requestId, 'rejected', undefined, reason);
+            message.ack();
+            continue;
+          }
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {
             const reason = authorization.reason;
+            await store.recordSecurityDenial({
+              occurredAt: message.body.receivedAt,
+              reasonCode: 'command_authorization',
+              requestKind: message.body.kind
+            });
             await slack.postThreadNotice({
               channelId: message.body.slack.channelId,
               threadTs: message.body.slack.threadTs,
