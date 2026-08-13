@@ -2,7 +2,8 @@ import type {
   ClassifiedIntent,
   NormalizedCommand,
   ProjectExecutionProfile,
-  ProjectRegistry
+  ProjectRegistry,
+  QualitySnapshot
 } from '@qali/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { signHmacForTest } from './security.js';
@@ -26,6 +27,7 @@ class MemoryStore implements ControlStore {
   readonly denials: Array<{ reasonCode: string; requestKind: string }> = [];
   readonly rateEvents = new Map<string, string[]>();
   readonly retentionRuns: Array<{ controlBefore: string; securityBefore: string }> = [];
+  readonly snapshots = new Map<string, QualitySnapshot>();
 
   async accept(work: InboundWork): Promise<boolean> {
     if (this.accepted.has(work.identity)) return false;
@@ -129,6 +131,14 @@ class MemoryStore implements ControlStore {
     if (responseTs) row.responseTs = responseTs;
     if (lastError) row.lastError = lastError;
   }
+
+  async getQualitySnapshot(projectId: string) {
+    return this.snapshots.get(projectId) ?? null;
+  }
+
+  async upsertQualitySnapshot(snapshot: QualitySnapshot) {
+    this.snapshots.set(snapshot.projectId, snapshot);
+  }
 }
 
 const command = (work: InboundWork): ClassifiedIntent => {
@@ -180,7 +190,8 @@ const testProjectRegistry: ProjectRegistry = {
         'triage-failure',
         'maintain-knowledge',
         'maintain-suite',
-        'quality-pulse'
+        'quality-pulse',
+        'query-project'
       ],
       schedules: [],
       activeExecutionProfile: 'demo-mock'
@@ -637,7 +648,6 @@ describe('Slack control worker', () => {
     expect(notices.some((notice) => notice.text.includes('Workers AI classification failed'))).toBe(
       true
     );
-    expect(notices.some((notice) => notice.text.includes('Working on it'))).toBe(true);
   });
 
   it('retries transient queue failures without marking the request complete', async () => {
@@ -889,5 +899,171 @@ describe('Slack control worker', () => {
     expect(JSON.stringify(vi.mocked(slack.postResult).mock.calls[0]?.[1])).not.toMatch(
       /callback-token|employee-1234|customer-42/
     );
+  });
+
+  it('answers quality questions from the D1 snapshot without dispatching GitHub or Playwright', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    store.snapshots.set('_demo', {
+      version: 1,
+      projectId: '_demo',
+      updatedAt: '2026-08-13T12:00:00.000Z',
+      lastRun: {
+        intent: 'run-test-suite',
+        finishedAt: '2026-08-13T11:00:00.000Z',
+        status: 'passed',
+        counts: { total: 2, passed: 2, failed: 0, skipped: 0 }
+      }
+    });
+    const notices: string[] = [];
+    const github: GitHubPort = { dispatch: vi.fn(async () => ({ runId: '99' })) };
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async () => ({
+          intent: 'query-project',
+          projectId: '_demo',
+          focus: { topic: 'history' }
+        })
+      },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input.text);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const question = structuredClone(eventBody);
+    question.event.text = '<@BOT> when was the latest full regression?';
+    await worker.fetch(await slackEvent(question), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(notices.some((text) => text.includes('Working on it'))).toBe(false);
+    expect(notices.join('\n')).toContain('2026-08-13T11:00:00.000Z');
+    expect(store.correlations.get('Ev1')?.status).toBe('answered');
+  });
+
+  it('dispatches a host-only query when no snapshot exists', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const notices: string[] = [];
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '77', htmlUrl: 'https://github.test/runs/77' }))
+    };
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async () => ({
+          intent: 'query-project',
+          projectId: '_demo',
+          focus: { topic: 'status' }
+        })
+      },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input.text);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'query-project' }),
+      'Ev1'
+    );
+    expect(notices).toContain('Looking that up…');
+    expect(notices.some((text) => text.startsWith('Started:'))).toBe(false);
+  });
+
+  it('stores a quality snapshot from a completed run summary', async () => {
+    const store = new MemoryStore();
+    await store.accept({
+      identity: 'event:Ev1',
+      requestId: 'Ev1',
+      kind: 'message',
+      text: 'run',
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: '2023-11-14T22:13:20.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+    });
+    await store.markDispatched(
+      'Ev1',
+      resolvedCommand({
+        identity: 'event:Ev1',
+        requestId: 'Ev1',
+        kind: 'message',
+        text: 'run',
+        requestedBy: 'U1',
+        externalRole: 'developer',
+        receivedAt: '2023-11-14T22:13:20.000Z',
+        slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+      }),
+      '42'
+    );
+    const slack: SlackPort = {
+      postResult: vi.fn(async () => '2.2'),
+      updateResult: vi.fn(async () => undefined),
+      postThreadNotice: vi.fn(async () => undefined)
+    };
+    const worker = createWorker({
+      store,
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = JSON.stringify({
+      requestId: 'Ev1',
+      projectId: '_demo',
+      intent: 'run-test-suite',
+      status: 'passed',
+      counts: { total: 2, passed: 2, failed: 0, skipped: 0 }
+    });
+    const timestamp = '1700000000';
+    const nonce = 'run-42-attempt-2';
+    const signature = await signHmacForTest(
+      'callback-secret',
+      `${timestamp}.${nonce}.${body}`,
+      'sha256='
+    );
+
+    expect(
+      (
+        await worker.fetch(
+          new Request('https://worker.test/github/run-summary', {
+            method: 'POST',
+            headers: {
+              'x-qali-timestamp': timestamp,
+              'x-qali-nonce': nonce,
+              'x-qali-signature': signature
+            },
+            body
+          }),
+          baseEnv([])
+        )
+      ).status
+    ).toBe(200);
+    expect(store.snapshots.get('_demo')?.lastRun?.counts).toEqual({
+      total: 2,
+      passed: 2,
+      failed: 0,
+      skipped: 0
+    });
   });
 });

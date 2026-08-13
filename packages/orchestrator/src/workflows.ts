@@ -329,6 +329,11 @@ export function validateWorkflow(
           stepIds: ['render'],
           role: 'quality-analyst',
           sensitiveTools: []
+        },
+        'host-quality-query': {
+          stepIds: ['snapshot'],
+          role: 'quality-analyst',
+          sensitiveTools: []
         }
       }[step.harnessProfileId];
       if (

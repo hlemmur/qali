@@ -21,18 +21,19 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 
 ### Teammate rebuild (in progress)
 
-| Slice                                                | Evidence level            | Notes                                                                 |
-| ---------------------------------------------------- | ------------------------- | --------------------------------------------------------------------- |
-| Stage-aware Slack cards and user-facing failure copy | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                |
-| Active-project artifact upload glob                  | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                     |
-| Slack app / FAQ copy (Playwright + E2E teammate)     | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified |
+| Slice                                                | Evidence level            | Notes                                                                           |
+| ---------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------- |
+| Stage-aware Slack cards and user-facing failure copy | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                          |
+| Active-project artifact upload glob                  | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                               |
+| Slack app / FAQ copy (Playwright + E2E teammate)     | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified           |
+| `query-project` + D1 quality snapshot                | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified |
 
 ## Readiness vocabulary
 
 | Level             | Definition                                                                                                                       | Current interpretation                                                          |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | **Implemented**   | Code, contracts, and policies exist                                                                                              | All 16 hardening slices implemented                                             |
-| **Mock-tested**   | Deterministic behavior passed through explicit Mock Mode and production orchestrator paths                                       | All eight workflows have automated coverage; reviewed gate has 309 tests        |
+| **Mock-tested**   | Deterministic behavior passed through explicit Mock Mode and production orchestrator paths                                       | Workflows have automated coverage on reviewed main                              |
 | **Qualified**     | Exact CLI/model/harness/permission/evaluation identity has a passed, active, unexpired registry record                           | **Not achieved**; `qualification/registry.json` has zero records                |
 | **Live-verified** | A unique correlation proves Slack, D1, GitHub, harness, artifacts, validation, publication, and terminal status for the scenario | Partial; onboarding and exploration plus several safety behaviors have evidence |
 

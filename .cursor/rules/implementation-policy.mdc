@@ -1,0 +1,41 @@
+---
+description: Isolated-branch TDD delivery for Qali — never merge your own PR
+alwaysApply: true
+---
+
+# Qali implementation policy
+
+This rule applies to authoring and defect-fix sessions in `hlemmur/qali`.
+
+## Branching
+
+- Use `main` only for read-only live verification of already-reviewed commits.
+- Put every feature and defect on a new isolated `codex/<slice>` branch from `origin/main`.
+- Do not commit implementation work directly to `main`.
+
+## TDD and PR shape
+
+For defects and new behavior:
+
+1. Failing test first.
+2. Smallest fix that makes it pass.
+3. Full gates (`npm run check`, plus harness/control-plane dry-run when the slice touches them).
+4. Ready PR. Do not mark draft unless blocked on a human decision.
+
+## Never
+
+- Expose secrets in logs, diffs, PR bodies, Slack, or command output.
+- Review, approve, or merge your own PR.
+- Merge any PR from an authoring session (including “human merge only” text in the PR body).
+- Hide or relabel failures to make a run look green.
+- Promote **implemented** or **mock-tested** work to **qualified** or **live-verified**.
+
+## After the PR is open
+
+Poll for an independent reviewer’s comments or a merge. Then:
+
+- Address review comments on the same branch and push.
+- After merge, start the next slice from updated `origin/main`.
+- Optional live verification on `main` is read-only.
+
+Independent review/merge is owned by the PR-review automation, not the authoring agent.

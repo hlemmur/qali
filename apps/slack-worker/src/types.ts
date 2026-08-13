@@ -2,6 +2,7 @@ import type {
   ClassifiedIntent,
   ExternalRole,
   NormalizedCommand,
+  QualitySnapshot,
   SlackCorrelationContext
 } from '@qali/contracts';
 import type { D1Database } from '@cloudflare/workers-types';
@@ -107,6 +108,8 @@ export interface ControlStore {
     responseTs?: string,
     lastError?: string
   ): Promise<void>;
+  getQualitySnapshot(projectId: string): Promise<QualitySnapshot | null>;
+  upsertQualitySnapshot(snapshot: QualitySnapshot): Promise<void>;
 }
 
 export interface IntentClassifier {
@@ -155,4 +158,5 @@ export interface SlackRunSummary {
     failed: number;
     skipped: number;
   };
+  qualitySnapshot?: QualitySnapshot;
 }

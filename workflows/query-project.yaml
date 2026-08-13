@@ -1,0 +1,39 @@
+version: 1
+id: query-project
+title: Query project
+description: Read the project pack and emit a compact quality snapshot. No browser, Playwright, or Cursor.
+executable: true
+triggers:
+  - type: command
+    intent: query-project
+preconditions: [project-exists]
+steps:
+  - id: snapshot
+    role: quality-analyst
+    harnessProfileId: host-quality-query
+    needs: []
+    inputs:
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+      - artifact: decisions
+        path: projects/{projectId}/sources/decisions.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+      - artifact: known-issues
+        path: projects/{projectId}/observations/known-issues.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/approved
+      - artifact: tests
+        path: projects/{projectId}/tests
+      - artifact: reports
+        path: projects/{projectId}/derived/reports
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/quality-snapshot.json
+    requiredTools: [file-read, file-write]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000

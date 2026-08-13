@@ -21,7 +21,12 @@ import type {
   SlackPort,
   SlackRunSummary
 } from './types.js';
-import type { ProjectExecutionProfile, ProjectRegistry } from '@qali/contracts';
+import type { ProjectExecutionProfile, ProjectRegistry, QualitySnapshot } from '@qali/contracts';
+import {
+  formatQualityQueryAnswer,
+  mergeQualitySnapshot,
+  parseQualitySnapshot
+} from './quality-query.js';
 
 interface QueueMessage<T> {
   body: T;
@@ -335,6 +340,32 @@ function commandMeta(correlation: Correlation): { intent?: string; projectId?: s
   }
 }
 
+async function persistQualitySnapshot(
+  store: ControlStore,
+  correlation: Correlation,
+  summary: SlackRunSummary
+): Promise<QualitySnapshot | null> {
+  const projectId = summary.projectId ?? commandMeta(correlation).projectId;
+  if (!projectId) return null;
+  const existing = await store.getQualitySnapshot(projectId);
+  const lastRun = {
+    intent: summary.intent ?? commandMeta(correlation).intent ?? 'unknown',
+    requestId: correlation.requestId,
+    finishedAt: new Date().toISOString(),
+    status: summary.conclusion ?? summary.status,
+    ...(summary.counts ? { counts: summary.counts } : {}),
+    ...(summary.stages ? { stages: summary.stages } : {})
+  };
+  const snapshot = mergeQualitySnapshot(existing, {
+    ...(summary.qualitySnapshot ?? {}),
+    projectId,
+    updatedAt: summary.qualitySnapshot?.updatedAt ?? new Date().toISOString(),
+    lastRun: summary.qualitySnapshot?.lastRun ?? lastRun
+  });
+  await store.upsertQualitySnapshot(snapshot);
+  return snapshot;
+}
+
 async function applySlackSummary(input: {
   store: ControlStore;
   slack: SlackPort;
@@ -342,6 +373,27 @@ async function applySlackSummary(input: {
   summary: SlackRunSummary;
 }): Promise<Response> {
   const { store, slack, correlation, summary } = input;
+  const snapshot = await persistQualitySnapshot(store, correlation, summary);
+  const intent = summary.intent ?? commandMeta(correlation).intent;
+  if (intent === 'query-project' && snapshot) {
+    let focus: Record<string, unknown> = {};
+    if (correlation.commandJson) {
+      try {
+        focus =
+          (JSON.parse(correlation.commandJson) as { parameters?: Record<string, unknown> })
+            .parameters ?? {};
+      } catch {
+        /* keep empty focus */
+      }
+    }
+    await slack.postThreadNotice({
+      channelId: correlation.channelId,
+      threadTs: correlation.threadTs,
+      text: formatQualityQueryAnswer(snapshot, focus)
+    });
+    await store.markCompleted(correlation.requestId, 'answered');
+    return json(200, { ok: true });
+  }
   if (correlation.responseTs) {
     await slack.updateResult(correlation, correlation.responseTs, summary);
     await store.markCompleted(correlation.requestId, summary.conclusion ?? summary.status);
@@ -489,6 +541,7 @@ async function githubRunSummary(
     },
     undefined
   );
+  const qualitySnapshot = parseQualitySnapshot(payload.qualitySnapshot);
   const summary: SlackRunSummary = {
     runId: runId ?? correlation.runId ?? correlation.requestId,
     status: typeof payload.status === 'string' ? payload.status : correlation.status,
@@ -517,7 +570,8 @@ async function githubRunSummary(
           }
         }
       : {}),
-    ...(parsedStages ? { stages: parsedStages } : {})
+    ...(parsedStages ? { stages: parsedStages } : {}),
+    ...(qualitySnapshot ? { qualitySnapshot } : {})
   };
   return applySlackSummary({ store, slack, correlation, summary });
 }
@@ -577,18 +631,6 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
-          try {
-            await slack.postThreadNotice({
-              channelId: message.body.slack.channelId,
-              threadTs: message.body.slack.threadTs,
-              text: 'Working on it…'
-            });
-          } catch (ackError) {
-            console.error(
-              'qali.queue.ack_failed',
-              ackError instanceof Error ? ackError.message : String(ackError)
-            );
-          }
           const classification = await classifier.classify(message.body);
           const command = resolveTrustedCommand(
             classification,
@@ -642,17 +684,44 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
+          if (command.intent === 'query-project') {
+            const snapshot = await store.getQualitySnapshot(command.project.id);
+            if (snapshot) {
+              await slack.postThreadNotice({
+                channelId: message.body.slack.channelId,
+                threadTs: message.body.slack.threadTs,
+                text: formatQualityQueryAnswer(snapshot, command.parameters)
+              });
+              await store.markCompleted(message.body.requestId, 'answered');
+              message.ack();
+              continue;
+            }
+          }
+          try {
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: command.intent === 'query-project' ? 'Looking that up…' : 'Working on it…'
+            });
+          } catch (ackError) {
+            console.error(
+              'qali.queue.ack_failed',
+              ackError instanceof Error ? ackError.message : String(ackError)
+            );
+          }
           dispatchAttempted = true;
           const dispatched = await github.dispatch(command, message.body.requestId);
           dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);
-          await slack.postThreadNotice({
-            channelId: message.body.slack.channelId,
-            threadTs: message.body.slack.threadTs,
-            text: dispatched.htmlUrl
-              ? `Started: ${dispatched.htmlUrl}`
-              : `Started \`${command.intent}\`.`
-          });
+          if (command.intent !== 'query-project') {
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: dispatched.htmlUrl
+                ? `Started: ${dispatched.htmlUrl}`
+                : `Started \`${command.intent}\`.`
+            });
+          }
           message.ack();
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);

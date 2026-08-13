@@ -2,6 +2,12 @@
 
 Qali is a governed QA harness that authors and maintains project sources by default. Humans may edit sources and supply authority, but routine source authorship does not depend on a human editor. Deterministic test output and captured evidence outrank model judgment. Expected behavior must come from an accepted authoritative source or recorded decision; observation alone never defines it. Risk acceptance and external communication remain authority-gated.
 
+## Change delivery
+
+`main` is for read-only live verification of already-reviewed commits. New behavior and defects land on an isolated `codex/*` branch: failing test first, smallest fix, full gates, ready PR. A separate reviewer comments or squash-merges. The authoring agent never reviews, approves, or merges its own PR, never merges any PR, and never exposes secrets. After opening a PR it polls for merge or review comments, then continues with fixes or the next slice.
+
+Preserve Slack, D1, GitHub, artifact, harness, and publication evidence. Label work honestly as **implemented**, **mock-tested**, **qualified**, or **live-verified** — never promote a weaker level.
+
 ## Runtime loop
 
 1. Read project context, reference knowledge, risks, journeys, plan, and open items.

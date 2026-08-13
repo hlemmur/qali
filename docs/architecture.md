@@ -35,6 +35,7 @@ flowchart LR
 - Enforces allowlists (`SLACK_ALLOWED_USER_IDS`, team, channel)
 - Deduplicates and correlates requests in D1
 - Classifies free-form text into normalized intents (Workers AI in production; deterministic fake in tests)
+- Answers `query-project` questions from a D1 quality snapshot without GitHub Actions or Playwright
 - Rejects unauthorized commands **before** queue dispatch
 - Dispatches `execute.yml` through a least-privilege GitHub App
 
@@ -42,8 +43,8 @@ flowchart LR
 
 Two jobs with isolated permissions:
 
-1. **`validate-and-execute`** — `contents: read`. Runs `npm run check`, executes the requested workflow, validates project state, prepares a publication manifest and patch artifact.
-2. **`publish-generated-changes`** — runs only when `QALI_PUBLISH_GITHUB_TOKEN` is configured. Creates a `qali/*` branch, commit, PR, and enables auto-merge. Never pushes directly to `main`.
+1. **`validate-and-execute`** — `contents: read`. For work intents, runs `npm run check`, executes the requested workflow, validates project state, and prepares a publication manifest and patch artifact. `query-project` skips Playwright, Cursor, the repository check, and publication; it only reads the project pack and writes a quality snapshot.
+2. **`publish-generated-changes`** — runs only when `QALI_PUBLISH_GITHUB_TOKEN` is configured and the intent is not `query-project`. Creates a `qali/*` branch, commit, and ready PR. Never pushes directly to `main`. The authoring job never reviews, approves, or merges that PR.
 
 ### Packages
 

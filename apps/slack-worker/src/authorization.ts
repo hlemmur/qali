@@ -7,7 +7,8 @@ const DEVELOPER_INTENTS = new Set<NormalizedCommand['intent']>([
   'generate-test-suite',
   'run-test-suite',
   'triage-failure',
-  'quality-pulse'
+  'quality-pulse',
+  'query-project'
 ]);
 
 const GOVERNANCE_KEY = /(?:autonomy|policy|authority|approval|expected.?behavior|baseline)/i;

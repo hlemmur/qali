@@ -27,7 +27,8 @@ describe('external role authorization', () => {
     'generate-test-suite',
     'run-test-suite',
     'triage-failure',
-    'quality-pulse'
+    'quality-pulse',
+    'query-project'
   ] as const)('allows a Developer to request %s', (intent) => {
     expect(authorizeCommand(command(intent))).toEqual({ allowed: true });
   });

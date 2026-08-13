@@ -93,7 +93,7 @@ Without GitHub wiring, the Worker still accepts and queues work; dispatch will f
 
 Qali posts:
 
-1. **Acknowledgement** — “Working on it…” with request id
+1. **Acknowledgement** — “Working on it…” for work, or a direct answer for quality questions
 2. **Summary** — pass/fail counts, duration, `[MOCK MODE]` badge when applicable
 3. **Actions** — “Show details”, “Rerun”, “Triage failure” (role-gated)
 

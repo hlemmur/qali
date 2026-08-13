@@ -43,6 +43,7 @@ import {
   executeExplorationStep,
   executeKnowledgeMaintenanceStep,
   executeQualityPulseStep,
+  executeQueryProjectStep,
   executeSuiteMaintenanceStep,
   executeOnboardingMockStep,
   executeTriageStep,
@@ -415,6 +416,9 @@ class RoutedStepExecutor implements StepExecutor {
       if (command.intent === 'quality-pulse' && (step.id === 'aggregate' || step.id === 'render')) {
         return executeQualityPulseStep(workspace, step, command);
       }
+      if (command.intent === 'query-project' && step.id === 'snapshot') {
+        return executeQueryProjectStep(workspace, step, command);
+      }
       if (
         command.intent === 'maintain-suite' &&
         (step.id === 'snapshot' || step.id === 'validate-repair')
@@ -523,6 +527,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     if (agentExecutionRoute === 'deterministic-quality-pulse') {
       return executeQualityPulseStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-query-project') {
+      return executeQueryProjectStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {

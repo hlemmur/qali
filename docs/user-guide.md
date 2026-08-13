@@ -8,6 +8,10 @@ You do not need to learn Qali's internal agents, skills, workflow files, or comm
 
 > `@Qali generate a smoke suite for shop-web`
 
+> `@Qali what's our current quality status?`
+
+> `@Qali when was the latest full regression?`
+
 > `@Qali run the smoke suite on shop-web`
 
 > `@Qali triage the latest failures on shop-web`
@@ -39,12 +43,16 @@ Mention Qali in an allowed project channel or send it a direct message. Include 
 - `@Qali run the smoke suite on payments-web`
 - `@Qali triage the latest payments-web failures`
 - `@Qali show the quality pulse for payments-web`
+- `@Qali what's our current quality status?`
+- `@Qali when was the latest full regression?`
+
+Questions about status, last run, coverage, schedule, expected results, history, or known issues are answered in the same thread from a stored quality snapshot. They do not start Playwright. If Qali has no snapshot yet, it reads the project pack and comes back with the answer.
 
 Qali classifies only the intent, project ID, and a declarative focus. It cannot choose a filesystem root, environment, permissions, publication repository, or autonomy mode from your message. Those are trusted project settings.
 
 ### 2. Get an immediate acknowledgement
 
-Qali responds in the message thread so it does not flood the channel. You see a short progression such as:
+Qali responds in the message thread so it does not flood the channel. Questions are answered directly. Work requests show a short progression such as:
 
 1. `Working on it…`
 2. `Started explore-project.`
