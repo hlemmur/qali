@@ -195,9 +195,9 @@ A green local test does not prove the live integration, and a Slack “passed”
 
 No. Qali accepts normal Slack language. Specific prompts produce better focus, but users do not need to know internal workflow or skill names.
 
-### Is Qali a replacement for Playwright or a QA engineer?
+### Does Qali replace a QA engineer?
 
-No. Playwright remains the deterministic execution truth. Qali automates orchestration, evidence capture, bounded exploration, test generation, triage, maintenance proposals, and reporting. QA Leads still own expected behavior, risk decisions, and high-impact approvals.
+Qali is the E2E QA teammate: it explores the product, generates and runs Playwright tests, triages failures, and reports evidence. Playwright remains the deterministic execution truth. People still decide product intent when Qali is uncertain, and they can retract generated tests after review. They should not operate the harness.
 
 ### Can Qali test a private or authenticated application?
 

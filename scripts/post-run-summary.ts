@@ -71,6 +71,63 @@ export function resolveSlackRunStatus(jobStatus: string, reportStatus: unknown):
   return jobStatus;
 }
 
+const KITCHEN_LANGUAGE = /GitHub Actions|test report was produced/i;
+
+const INTENT_INCOMPLETE: Record<string, string> = {
+  'explore-project': 'Exploration did not finish with a complete report.',
+  'onboard-project': 'Onboarding did not finish with a complete report.',
+  'generate-test-suite': 'Test generation did not finish.',
+  'run-test-suite': 'The test run did not finish with a complete report.',
+  'triage-failure': 'Triage did not finish with a complete report.',
+  'maintain-knowledge': 'Knowledge maintenance did not finish.',
+  'maintain-suite': 'Suite maintenance did not finish.',
+  'quality-pulse': 'Quality pulse did not finish.'
+};
+
+export function userFacingFailureDetails(input: {
+  jobStatus: string;
+  intent?: string;
+  hasCounts: boolean;
+  existingErrors: string[];
+  executeResult?: string;
+  publishResult?: string;
+}): string[] {
+  const cleaned = input.existingErrors.filter((error) => !KITCHEN_LANGUAGE.test(error));
+  if (input.jobStatus !== 'failure' && input.jobStatus !== 'cancelled') {
+    return cleaned;
+  }
+  if (cleaned.length > 0) return cleaned;
+  if (
+    input.publishResult === 'failure' ||
+    input.publishResult === 'cancelled' ||
+    (input.executeResult === 'success' && input.publishResult && input.publishResult !== 'success')
+  ) {
+    return ['Work finished, but the review change could not be published.'];
+  }
+  if (input.hasCounts) return cleaned;
+  return [
+    INTENT_INCOMPLETE[input.intent ?? ''] ?? 'The run did not finish with a complete report.'
+  ];
+}
+
+export function describeRunStages(
+  executeResult?: string,
+  publishResult?: string
+): { execution?: string; publication?: string } {
+  const normalize = (result?: string): string | undefined => {
+    if (!result || result === 'skipped') return undefined;
+    if (result === 'success') return 'passed';
+    if (result === 'failure' || result === 'cancelled') return 'failed';
+    return result;
+  };
+  const execution = normalize(executeResult);
+  const publication = normalize(publishResult);
+  const stages: { execution?: string; publication?: string } = {};
+  if (execution) stages.execution = execution;
+  if (publication) stages.publication = publication;
+  return stages;
+}
+
 export async function postRunSummary(): Promise<void> {
   const workerBase = (
     process.env.QALI_WORKER_BASE_URL ??
@@ -100,13 +157,18 @@ export async function postRunSummary(): Promise<void> {
 
   const jobStatus = process.env.JOB_STATUS ?? 'unknown';
   const status = resolveSlackRunStatus(jobStatus, report.status);
+  const stages = describeRunStages(process.env.EXECUTE_RESULT, process.env.PUBLISH_RESULT);
 
-  const errors = Array.isArray(report.errors)
-    ? report.errors.filter((entry): entry is string => typeof entry === 'string')
-    : [];
-  if (!counts && jobStatus === 'failure') {
-    errors.push('GitHub Actions failed before a test report was produced');
-  }
+  const errors = userFacingFailureDetails({
+    jobStatus,
+    hasCounts: Boolean(counts),
+    existingErrors: Array.isArray(report.errors)
+      ? report.errors.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    ...(process.env.SUMMARY_INTENT ? { intent: process.env.SUMMARY_INTENT } : {}),
+    ...(process.env.EXECUTE_RESULT ? { executeResult: process.env.EXECUTE_RESULT } : {}),
+    ...(process.env.PUBLISH_RESULT ? { publishResult: process.env.PUBLISH_RESULT } : {})
+  });
 
   const body = JSON.stringify({
     requestId: process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID,
@@ -120,6 +182,7 @@ export async function postRunSummary(): Promise<void> {
         ? { suiteLabel: 'smoke' }
         : {}),
     status,
+    ...(Object.keys(stages).length ? { stages } : {}),
     ...(typeof report.durationMs === 'number' ? { durationMs: report.durationMs } : {}),
     ...(errors.length ? { errors } : {}),
     ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),

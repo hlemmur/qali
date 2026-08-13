@@ -480,6 +480,15 @@ async function githubRunSummary(
         .filter((entry): entry is string => typeof entry === 'string')
         .map((entry) => redact(entry))
     : undefined;
+  const rawStages = record(payload.stages);
+  const parsedStages = ['execution', 'validation', 'publication'].reduce<SlackRunSummary['stages']>(
+    (stages, key) => {
+      const value = rawStages[key];
+      if (typeof value !== 'string' || !value.trim()) return stages;
+      return { ...stages, [key]: value };
+    },
+    undefined
+  );
   const summary: SlackRunSummary = {
     runId: runId ?? correlation.runId ?? correlation.requestId,
     status: typeof payload.status === 'string' ? payload.status : correlation.status,
@@ -507,7 +516,8 @@ async function githubRunSummary(
             skipped: counts.skipped as number
           }
         }
-      : {})
+      : {}),
+    ...(parsedStages ? { stages: parsedStages } : {})
   };
   return applySlackSummary({ store, slack, correlation, summary });
 }

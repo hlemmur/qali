@@ -19,6 +19,11 @@ export interface RunSummary {
   durationMs?: number;
   evidence?: string[];
   errors?: string[];
+  stages?: {
+    execution?: string;
+    validation?: string;
+    publication?: string;
+  };
 }
 
 export interface RunSummaryActions {
@@ -54,6 +59,15 @@ export function isTerminalRunStatus(summary: Pick<RunSummary, 'status' | 'conclu
   return !['queued', 'waiting', 'requested', 'pending', 'in_progress', 'running'].includes(status);
 }
 
+function stageLine(stages: NonNullable<RunSummary['stages']>): string | undefined {
+  const bits = [
+    stages.execution ? `Execution ${stages.execution}` : undefined,
+    stages.validation ? `Validation ${stages.validation}` : undefined,
+    stages.publication ? `Publication ${stages.publication}` : undefined
+  ].filter(Boolean);
+  return bits.length ? bits.join(' · ') : undefined;
+}
+
 function headline(summary: RunSummary): string {
   const status = displayRunStatus(summary);
   const bits = [
@@ -85,7 +99,9 @@ export function renderSlackRunSummary(
         ? '• Failures recorded — expand for details'
         : undefined;
 
-  const body = [title, countLine, failureLine].filter(Boolean).join('\n');
+  const body = [title, countLine, stageLine(summary.stages ?? {}), failureLine]
+    .filter(Boolean)
+    .join('\n');
   const text = countLine ? `Qali ${status}: ${countLine}` : `Qali ${status}`;
   const blocks: Array<Record<string, unknown>> = [
     {
@@ -155,6 +171,7 @@ export function renderSlackRunDetails(summary: RunSummary): SlackBlockPayload {
         ]
       : []),
     ...(summary.durationMs !== undefined ? [`Duration: ${summary.durationMs} ms`] : []),
+    ...(stageLine(summary.stages ?? {}) ? [`Stages: ${stageLine(summary.stages ?? {})}`] : []),
     ...(summary.evidence?.length ? [`Evidence: ${summary.evidence.join(', ')}`] : []),
     ...(summary.errors?.length ? [`Errors: ${summary.errors.join('; ')}`] : [])
   ];

@@ -13,6 +13,9 @@ describe('control plane setup helpers', () => {
     const manifest = renderSlackAppManifest('https://qali-slack-control.example.workers.dev');
 
     expect(manifest.display_information.name).toBe('Qali');
+    expect(manifest.display_information.description).toMatch(/Playwright/i);
+    expect(manifest.display_information.description).toMatch(/evidence/i);
+    expect(manifest.display_information.description).not.toMatch(/test suits/i);
     expect(manifest.display_information.background_color).toBe('#ff0084');
     expect(manifest.oauth_config.scopes.bot).toEqual([
       'app_mentions:read',
