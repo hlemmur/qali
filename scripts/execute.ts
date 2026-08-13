@@ -61,7 +61,7 @@ import {
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
 import { selectAgentExecutionRoute } from './execute-routing.js';
-import { shouldWriteFallbackPlaywrightSummary } from './execute-reporting.js';
+import { failureSummaryAction } from './execute-reporting.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -644,18 +644,17 @@ if (result.status === 'succeeded') {
     command.project.root,
     'observations/evidence/test-runs/results.json'
   );
-  if (
-    shouldWriteFallbackPlaywrightSummary({
-      intent: command.intent,
-      resultsExist: existsSync(resultsPath),
-      executorSummaryExists: existsSync(transientSlackSummaryPath)
-    })
-  ) {
+  const summaryAction = failureSummaryAction({
+    intent: command.intent,
+    resultsExist: existsSync(resultsPath),
+    executorSummaryExists: existsSync(transientSlackSummaryPath)
+  });
+  if (summaryAction === 'write-playwright-fallback') {
     writePlaywrightSlackSummary(
       command,
       parsePlaywrightJsonReport(JSON.parse(readFileSync(resultsPath, 'utf8')))
     );
-  } else {
+  } else if (summaryAction === 'write-workflow-fallback') {
     const detail = (result.events.at(-1)?.detail ?? {}) as Record<string, unknown>;
     const message =
       typeof detail.reason === 'string'
