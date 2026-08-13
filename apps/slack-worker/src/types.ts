@@ -34,6 +34,8 @@ export interface Env {
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
   QALI_CALLBACK_SECRET: string;
+  QALI_REDACTION_PATTERNS_JSON?: string;
+  QALI_SENSITIVE_VALUES_JSON?: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_INSTALLATION_ID: string;

@@ -726,7 +726,12 @@ describe('Slack control worker', () => {
       slack,
       now: () => new Date('2023-11-14T22:15:00.000Z')
     });
-    const body = JSON.stringify({ requestId: 'Ev1', status: 'passed' });
+    const body = JSON.stringify({
+      requestId: 'Ev1',
+      status: 'passed',
+      errors: ['Authorization: Bearer callback-token', 'employee-1234 failed'],
+      evidence: ['customer-42/screenshot.png']
+    });
     const timestamp = '1700000000';
     const nonce = 'run-42-attempt-1';
     const signature = await signHmacForTest(
@@ -745,11 +750,17 @@ describe('Slack control worker', () => {
         body
       });
 
-    expect((await worker.fetch(callback(), baseEnv([]))).status).toBe(200);
+    const env = baseEnv([]);
+    env.QALI_REDACTION_PATTERNS_JSON = '["employee-[0-9]+"]';
+    env.QALI_SENSITIVE_VALUES_JSON = '["customer-42"]';
+    expect((await worker.fetch(callback(), env)).status).toBe(200);
     expect(await (await worker.fetch(callback(), baseEnv([]))).json()).toEqual({
       ok: true,
       skipped: 'replay'
     });
     expect(slack.postResult).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(vi.mocked(slack.postResult).mock.calls[0]?.[1])).not.toMatch(
+      /callback-token|employee-1234|customer-42/
+    );
   });
 });

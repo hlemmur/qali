@@ -5,6 +5,7 @@ import { GitHubAppClient } from './github.js';
 import { verifyCallbackRequest, verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
+import { createControlPlaneRedactor } from './privacy.js';
 import {
   DEFAULT_EXECUTION_PROFILES,
   DEFAULT_PROJECT_REGISTRY,
@@ -50,6 +51,37 @@ const csv = (value?: string): Set<string> =>
       .map((entry) => entry.trim())
       .filter(Boolean)
   );
+
+function stringArray(value: string | undefined, label: string): string[] {
+  if (!value) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${label} must be valid JSON`, { cause: error });
+  }
+  if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== 'string')) {
+    throw new Error(`${label} must be a JSON string array`);
+  }
+  return parsed;
+}
+
+function redactorService(env: Env): (value: string) => string {
+  return createControlPlaneRedactor({
+    sensitiveValues: [
+      env.SLACK_SIGNING_SECRET,
+      env.SLACK_BOT_TOKEN,
+      env.GITHUB_WEBHOOK_SECRET,
+      env.QALI_CALLBACK_SECRET,
+      env.GITHUB_APP_PRIVATE_KEY,
+      ...stringArray(env.QALI_SENSITIVE_VALUES_JSON, 'QALI_SENSITIVE_VALUES_JSON')
+    ],
+    configuredPatterns: stringArray(
+      env.QALI_REDACTION_PATTERNS_JSON,
+      'QALI_REDACTION_PATTERNS_JSON'
+    )
+  });
+}
 
 const transientQueueFailure = (detail: string): boolean =>
   /\b(?:408|425|429|500|502|503|504)\b|network|timed?\s*out|temporar|rate.?limit|econn/i.test(
@@ -365,6 +397,7 @@ async function githubRunSummary(
   now: Date
 ): Promise<Response> {
   const raw = await request.text();
+  const redact = redactorService(env);
   const authentication = await verifyCallbackRequest({
     secret: env.QALI_CALLBACK_SECRET,
     body: raw,
@@ -399,10 +432,14 @@ async function githubRunSummary(
     typeof counts.skipped === 'number';
   const meta = commandMeta(correlation);
   const errors = Array.isArray(payload.errors)
-    ? payload.errors.filter((entry): entry is string => typeof entry === 'string')
+    ? payload.errors
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => redact(entry))
     : undefined;
   const evidence = Array.isArray(payload.evidence)
-    ? payload.evidence.filter((entry): entry is string => typeof entry === 'string')
+    ? payload.evidence
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => redact(entry))
     : undefined;
   const summary: SlackRunSummary = {
     runId: runId ?? correlation.runId ?? correlation.requestId,
