@@ -238,6 +238,64 @@ describe('knowledge maintenance', () => {
     );
   });
 
+  it('does not treat an existing governed reference as confirmation authority', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-reference-authority-'));
+    const projectRoot = join(workspace, 'projects/shop');
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/knowledge.json'),
+      `${JSON.stringify({ version: 1, facts: [] })}\n`
+    );
+    writeFileSync(join(projectRoot, 'sources/questions.md'), '# Questions\n');
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('propose', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json'
+        }
+      ]),
+      command({
+        knowledgeChange: {
+          factId: 'REQ-005',
+          statement: 'Checkout shows a delivery estimate.',
+          proposedStatus: 'confirmed',
+          purpose: 'expected-behavior',
+          source: {
+            kind: 'authoritative-doc',
+            ref: 'sources/reference/knowledge.json',
+            observedAt: '2026-08-13'
+          },
+          authority: {
+            actor: 'agent',
+            authoritativeSourceRef: 'sources/reference/knowledge.json'
+          }
+        }
+      })
+    );
+
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('reconcile', [
+        { artifact: 'reference', path: 'projects/{projectId}/sources/reference' },
+        { artifact: 'questions', path: 'projects/{projectId}/sources/questions.md' },
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance'
+        }
+      ]),
+      command({})
+    );
+
+    const ledger = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/knowledge.json'), 'utf8')
+    );
+    expect(ledger.facts[0]).toMatchObject({ id: 'REQ-005', status: 'observed' });
+    expect(readFileSync(join(projectRoot, 'sources/questions.md'), 'utf8')).toContain(
+      'Who can confirm REQ-005 as expected behavior?'
+    );
+  });
+
   it('confirms knowledge only when the cited human decision is recorded', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-authorized-'));
     const projectRoot = join(workspace, 'projects/shop');

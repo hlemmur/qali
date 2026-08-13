@@ -161,7 +161,9 @@ export async function executeKnowledgeMaintenanceStep(
       authority: {
         actor: decisionIsRecorded ? 'human' : 'agent',
         ...(decisionIsRecorded && decisionRef ? { decisionRef } : {}),
-        ...(sourceIsRecorded && sourceRef ? { authoritativeSourceRef: sourceRef } : {})
+        ...(decisionIsRecorded && sourceIsRecorded && sourceRef
+          ? { authoritativeSourceRef: sourceRef }
+          : {})
       }
     });
     const authorizedStatus =
