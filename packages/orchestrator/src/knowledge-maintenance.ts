@@ -154,10 +154,11 @@ export async function executeKnowledgeMaintenanceStep(
         ...(sourceIsRecorded && sourceRef ? { authoritativeSourceRef: sourceRef } : {})
       }
     });
-    const effectiveStatus =
+    const authorizedStatus =
       change.proposedStatus === 'confirmed' && !promotion.allowed
         ? 'observed'
         : change.proposedStatus;
+    const effectiveStatus = existing?.status === 'confirmed' ? 'confirmed' : authorizedStatus;
     if (existing) {
       existing.status = effectiveStatus;
       if (!existing.sources.some(({ ref }) => ref === change.source.ref)) {
@@ -173,7 +174,10 @@ export async function executeKnowledgeMaintenanceStep(
     }
     mkdirSync(dirname(ledgerPath), { recursive: true });
     writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-    const awaitingAuthority = change.proposedStatus === 'confirmed' && !promotion.allowed;
+    const awaitingAuthority =
+      change.proposedStatus === 'confirmed' &&
+      !promotion.allowed &&
+      existing?.status !== 'confirmed';
     if (awaitingAuthority) {
       const questionsPath = join(projectRoot, 'sources/questions.md');
       mkdirSync(dirname(questionsPath), { recursive: true });

@@ -318,4 +318,63 @@ describe('knowledge maintenance', () => {
     );
     expect(ledger.facts[0]).toMatchObject({ id: 'REQ-003', status: 'observed' });
   });
+
+  it('never downgrades an existing confirmed fact without new authority', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-knowledge-no-downgrade-'));
+    const projectRoot = join(workspace, 'projects/shop');
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/knowledge.json'),
+      `${JSON.stringify({
+        version: 1,
+        facts: [
+          {
+            id: 'REQ-004',
+            statement: 'Checkout shows a receipt.',
+            status: 'confirmed',
+            sources: [{ kind: 'human-decision', ref: 'D-004', observedAt: '2026-08-10' }]
+          }
+        ]
+      })}\n`
+    );
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('propose', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/proposal.json'
+        }
+      ]),
+      command({
+        knowledgeChange: {
+          factId: 'REQ-004',
+          statement: 'Checkout shows a receipt.',
+          proposedStatus: 'confirmed',
+          purpose: 'expected-behavior',
+          source: {
+            kind: 'report',
+            ref: 'observations/evidence/exploration/session.json',
+            observedAt: '2026-08-13'
+          },
+          authority: { actor: 'human', decisionRef: 'D-MISSING' }
+        }
+      })
+    );
+
+    await executeKnowledgeMaintenanceStep(
+      workspace,
+      step('reconcile', [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/knowledge-maintenance/reconciliation.json'
+        }
+      ]),
+      command({})
+    );
+
+    const ledger = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/knowledge.json'), 'utf8')
+    );
+    expect(ledger.facts[0].status).toBe('confirmed');
+  });
 });
