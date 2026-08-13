@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
+import {
+  FakeEventStore,
+  FakePolicyEnforcer,
+  FakePreconditionChecker,
+  FileSystemOutputValidator,
+  executeWorkflow
+} from './execution.js';
 import { executeSuiteMaintenanceStep } from './suite-maintenance.js';
+import { loadWorkflowDirectory } from './workflows.js';
 
 const command: NormalizedCommand = {
   intent: 'maintain-suite',
@@ -188,5 +196,62 @@ describe('suite maintenance', () => {
       oracleFingerprintUnchanged: true,
       selectorNeutralFingerprintUnchanged: true
     });
+  });
+
+  it('runs guarded suite maintenance through the production orchestrator in Mock Mode', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-suite-e2e-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'tests'), { recursive: true });
+    mkdirSync(join(projectRoot, 'sources'), { recursive: true });
+    mkdirSync(join(projectRoot, 'derived/scenarios/approved'), { recursive: true });
+    writeFileSync(join(projectRoot, 'sources/project-context.md'), '# Context\n');
+    writeFileSync(join(projectRoot, 'sources/decisions.md'), '# Decisions\n');
+    writeFileSync(join(projectRoot, 'derived/scenarios/approved/checkout.md'), '# Checkout\n');
+    writeFileSync(
+      join(projectRoot, 'tests/checkout.spec.ts'),
+      [
+        "import { expect, test } from '@playwright/test';",
+        "test('checkout submits an order', async ({ page }) => {",
+        "  await page.locator('#submit').click();",
+        "  await expect(page.getByText('Receipt')).toBeVisible();",
+        '});',
+        ''
+      ].join('\n')
+    );
+    writeRun(workspace, 'run-1');
+    writeRun(workspace, 'run-2');
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'suite-maintenance')!;
+
+    const result = await executeWorkflow(repairCommand, {
+      loader: { load: () => workflow },
+      preconditions: new FakePreconditionChecker(),
+      policy: new FakePolicyEnforcer(),
+      executor: {
+        execute: (workflowStep, workflowCommand) =>
+          executeSuiteMaintenanceStep(workspace, workflowStep, workflowCommand)
+      },
+      events: new FakeEventStore(),
+      outputValidator: new FileSystemOutputValidator(workspace),
+      harnessHash: () => 'f'.repeat(64)
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.attempts.map(({ stepId }) => stepId)).toEqual([
+      'snapshot',
+      'diagnose',
+      'repair-selectors',
+      'validate-repair'
+    ]);
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(projectRoot, 'observations/evidence/suite-maintenance/validation.json'),
+          'utf8'
+        )
+      )
+    ).toMatchObject({ status: 'accepted', oracleFingerprintUnchanged: true });
   });
 });
