@@ -72,6 +72,35 @@ export class D1ControlStore implements ControlStore {
       .run();
   }
 
+  async consumeRateLimit(input: {
+    scope: string;
+    subjectHash: string;
+    eventId: string;
+    occurredAt: string;
+    windowStart: string;
+    limit: number;
+  }): Promise<'accepted' | 'duplicate' | 'limited'> {
+    const duplicate = await this.db
+      .prepare('SELECT event_id FROM rate_limit_events WHERE event_id = ?')
+      .bind(input.eventId)
+      .first();
+    if (duplicate) return 'duplicate';
+    const count = await this.db
+      .prepare(
+        'SELECT COUNT(*) AS total FROM rate_limit_events WHERE scope = ? AND subject_hash = ? AND occurred_at >= ?'
+      )
+      .bind(input.scope, input.subjectHash, input.windowStart)
+      .first<{ total: number }>();
+    if ((count?.total ?? 0) >= input.limit) return 'limited';
+    await this.db
+      .prepare(
+        'INSERT INTO rate_limit_events (event_id, scope, subject_hash, occurred_at) VALUES (?, ?, ?, ?)'
+      )
+      .bind(input.eventId, input.scope, input.subjectHash, input.occurredAt)
+      .run();
+    return 'accepted';
+  }
+
   async claim(requestId: string): Promise<boolean> {
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
     const result = await this.db

@@ -24,6 +24,7 @@ class MemoryStore implements ControlStore {
   readonly correlations = new Map<string, Correlation>();
   readonly runIndex = new Map<string, string>();
   readonly denials: Array<{ reasonCode: string; requestKind: string }> = [];
+  readonly rateEvents = new Map<string, string[]>();
 
   async accept(work: InboundWork): Promise<boolean> {
     if (this.accepted.has(work.identity)) return false;
@@ -54,6 +55,25 @@ class MemoryStore implements ControlStore {
     requestKind: string;
   }): Promise<void> {
     this.denials.push({ reasonCode: input.reasonCode, requestKind: input.requestKind });
+  }
+
+  async consumeRateLimit(input: {
+    scope: string;
+    subjectHash: string;
+    eventId: string;
+    occurredAt: string;
+    windowStart: string;
+    limit: number;
+  }): Promise<'accepted' | 'duplicate' | 'limited'> {
+    if ([...this.rateEvents.values()].some((events) => events.includes(input.eventId))) {
+      return 'duplicate';
+    }
+    const key = `${input.scope}:${input.subjectHash}`;
+    const events = this.rateEvents.get(key) ?? [];
+    if (events.length >= input.limit) return 'limited';
+    events.push(input.eventId);
+    this.rateEvents.set(key, events);
+    return 'accepted';
   }
 
   async claim(requestId: string): Promise<boolean> {
@@ -372,6 +392,67 @@ describe('Slack control worker', () => {
       env
     );
     expect(await verification.text()).toBe('challenge-token');
+  });
+
+  it('rate limits user intake without storing the Slack user id', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const worker = createWorker({
+      store,
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack: {} as SlackPort,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const env = { ...baseEnv(queue), QALI_USER_RATE_LIMIT_PER_MINUTE: '1' };
+    const second = structuredClone(eventBody);
+    second.event_id = 'Ev2';
+
+    expect((await worker.fetch(await slackEvent(eventBody), env)).status).toBe(200);
+    expect((await worker.fetch(await slackEvent(second), env)).status).toBe(429);
+    expect(queue).toHaveLength(1);
+    expect([...store.rateEvents.keys()].join(',')).not.toContain('U1');
+    expect(store.denials).toContainEqual({
+      reasonCode: 'rate_limit_user',
+      requestKind: 'message'
+    });
+  });
+
+  it('rate limits resolved project dispatch independently from intake limits', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const github: GitHubPort = { dispatch: vi.fn(async () => ({ runId: '42' })) };
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => command(work) },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      executionProfiles: [{ ...testExecutionProfile, rate: { maxActionsPerMinute: 1 } }],
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const second = structuredClone(eventBody);
+    second.event_id = 'Ev2';
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    await worker.fetch(await slackEvent(second), baseEnv(queue));
+
+    for (const work of queue) {
+      await worker.queue(
+        { messages: [{ body: work, ack: vi.fn(), retry: vi.fn() }] },
+        baseEnv(queue)
+      );
+    }
+
+    expect(github.dispatch).toHaveBeenCalledTimes(1);
+    expect(store.correlations.get('Ev2')?.status).toBe('rejected');
+    expect(store.denials).toContainEqual({
+      reasonCode: 'rate_limit_project',
+      requestKind: 'message'
+    });
+    expect([...store.rateEvents.keys()].join(',')).not.toContain('_demo');
   });
 
   it('maps QA Lead IDs and defaults allowed Slack users to Developer before queueing', async () => {

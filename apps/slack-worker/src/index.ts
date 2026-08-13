@@ -83,6 +83,18 @@ function redactorService(env: Env): (value: string) => string {
   });
 }
 
+async function subjectHash(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error('Rate limit must be positive');
+  return parsed;
+}
+
 const transientQueueFailure = (detail: string): boolean =>
   /\b(?:408|425|429|500|502|503|504)\b|network|timed?\s*out|temporar|rate.?limit|econn/i.test(
     detail
@@ -138,6 +150,23 @@ async function acceptWork(work: InboundWork, env: Env, store: ControlStore): Pro
       requestKind: work.kind
     });
     return new Response('Forbidden', { status: 403 });
+  }
+  const occurredAt = new Date(work.receivedAt);
+  const rate = await store.consumeRateLimit({
+    scope: 'user',
+    subjectHash: await subjectHash(`${work.slack.teamId}:${work.requestedBy}`),
+    eventId: `user:${work.identity}`,
+    occurredAt: occurredAt.toISOString(),
+    windowStart: new Date(occurredAt.getTime() - 60_000).toISOString(),
+    limit: positiveInteger(env.QALI_USER_RATE_LIMIT_PER_MINUTE, 60)
+  });
+  if (rate === 'limited') {
+    await store.recordSecurityDenial({
+      occurredAt: work.receivedAt,
+      reasonCode: 'rate_limit_user',
+      requestKind: work.kind
+    });
+    return new Response('Too Many Requests', { status: 429 });
   }
   if (await store.accept(work)) await env.INBOUND_QUEUE.send(work);
   return json(200, { ok: true });
@@ -546,6 +575,35 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
             overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
           );
+          const executionProfiles = overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
+          const executionProfile = executionProfiles.find(
+            (profile) => profile.id === command.project.executionProfileId
+          );
+          const occurredAt = new Date(message.body.receivedAt);
+          const projectRate = await store.consumeRateLimit({
+            scope: 'project',
+            subjectHash: await subjectHash(command.project.id),
+            eventId: `project:${message.body.requestId}`,
+            occurredAt: occurredAt.toISOString(),
+            windowStart: new Date(occurredAt.getTime() - 60_000).toISOString(),
+            limit: executionProfile?.rate.maxActionsPerMinute ?? 60
+          });
+          if (projectRate === 'limited') {
+            const reason = 'Project rate limit exceeded';
+            await store.recordSecurityDenial({
+              occurredAt: message.body.receivedAt,
+              reasonCode: 'rate_limit_project',
+              requestKind: message.body.kind
+            });
+            await slack.postThreadNotice({
+              channelId: message.body.slack.channelId,
+              threadTs: message.body.slack.threadTs,
+              text: `Qali rejected this request: ${reason}`
+            });
+            await store.markCompleted(message.body.requestId, 'rejected', undefined, reason);
+            message.ack();
+            continue;
+          }
           const authorization = authorizeCommand(command);
           if (!authorization.allowed) {
             const reason = authorization.reason;

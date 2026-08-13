@@ -36,6 +36,7 @@ export interface Env {
   QALI_CALLBACK_SECRET: string;
   QALI_REDACTION_PATTERNS_JSON?: string;
   QALI_SENSITIVE_VALUES_JSON?: string;
+  QALI_USER_RATE_LIMIT_PER_MINUTE?: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_INSTALLATION_ID: string;
@@ -84,6 +85,14 @@ export interface ControlStore {
     reasonCode: string;
     requestKind: string;
   }): Promise<void>;
+  consumeRateLimit(input: {
+    scope: string;
+    subjectHash: string;
+    eventId: string;
+    occurredAt: string;
+    windowStart: string;
+    limit: number;
+  }): Promise<'accepted' | 'duplicate' | 'limited'>;
   claim(requestId: string): Promise<boolean>;
   requeue(requestId: string): Promise<void>;
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;
