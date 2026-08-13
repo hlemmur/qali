@@ -48,6 +48,7 @@ import {
 import {
   SpawnPlaywrightRunner,
   parsePlaywrightJsonReport,
+  summarizePlaywrightRun,
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
@@ -86,7 +87,7 @@ function writeWorkflowSlackSummary(
 
 function writePlaywrightSlackSummary(
   command: NormalizedCommand,
-  summary: PlaywrightEvidenceSummary
+  summary: PlaywrightEvidenceSummary & { status?: 'passed' | 'failed' }
 ): void {
   const reportDirectory = join(workspace, command.project.root, 'derived/reports');
   mkdirSync(reportDirectory, { recursive: true });
@@ -107,7 +108,7 @@ function writePlaywrightSlackSummary(
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
       : `${command.intent}-run`,
-    status: summary.failed === 0 ? 'passed' : 'failed',
+    status: summary.status ?? (summary.failed === 0 ? 'passed' : 'failed'),
     intent: command.intent,
     projectId: command.project.id,
     suiteLabel: 'smoke',
@@ -211,7 +212,8 @@ class WorkflowPolicy implements PolicyEnforcer {
 class RoutedStepExecutor implements StepExecutor {
   private readonly playwright = new SpawnPlaywrightRunner();
   private readonly agent = new CursorCliAgentRuntime();
-  private playwrightSummary: PlaywrightEvidenceSummary | undefined;
+  private playwrightSummary:
+    (PlaywrightEvidenceSummary & { status?: 'passed' | 'failed' }) | undefined;
   private readonly skills = new Map(
     loadRuntimeSkillAssets(join(workspace, 'skills/runtime')).map((skill) => [
       skill.id,
@@ -319,6 +321,7 @@ class RoutedStepExecutor implements StepExecutor {
 
     if (step.id === 'report' && command.intent === 'run-test-suite') {
       const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
+      const observedStatus = this.playwrightSummary?.status;
       const summary =
         this.playwrightSummary ??
         (existsSync(reportPath)
@@ -328,14 +331,14 @@ class RoutedStepExecutor implements StepExecutor {
       const reportDirectory = join(projectRoot, 'derived/reports');
       mkdirSync(reportDirectory, { recursive: true });
       const runSummary = {
+        ...summary,
         runId: command.parameters.requestId
           ? String(command.parameters.requestId)
           : `${command.intent}-run`,
-        status: summary.failed === 0 ? 'passed' : 'failed',
+        status: observedStatus ?? (summary.failed === 0 ? 'passed' : 'failed'),
         intent: command.intent,
         projectId: command.project.id,
-        suiteLabel: 'smoke',
-        ...summary
+        suiteLabel: 'smoke'
       };
       const report = renderRunReport(runSummary);
       writeFileSync(
@@ -411,9 +414,14 @@ class RoutedStepExecutor implements StepExecutor {
         ...(this.webServer ? { webServer: this.webServer } : {})
       });
       if (existsSync(join(evidenceDir, 'results.json'))) {
-        this.playwrightSummary = parsePlaywrightJsonReport(
-          JSON.parse(readFileSync(join(evidenceDir, 'results.json'), 'utf8'))
+        const reportPath = join(evidenceDir, 'results.json');
+        this.playwrightSummary = summarizePlaywrightRun(
+          JSON.parse(readFileSync(reportPath, 'utf8')),
+          run
         );
+        if (!this.playwrightSummary.evidence.includes(reportPath)) {
+          this.playwrightSummary.evidence.unshift(reportPath);
+        }
         writePlaywrightSlackSummary(command, this.playwrightSummary);
       }
       const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
