@@ -106,6 +106,28 @@ describe('semantic publication policy', () => {
     });
   });
 
+  it('rejects visual baselines and non-spec artifacts under tests', () => {
+    const baseline = createSemanticPublicationChange({
+      path: 'projects/shop/tests/checkout.spec.ts-snapshots/checkout-chromium.png',
+      before: 'old baseline bytes',
+      after: 'new baseline bytes'
+    });
+    expect(assessSemanticPublication(semanticManifest([baseline]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/baseline|non-spec|raw browser evidence/i)
+    });
+
+    const snapshot = createSemanticPublicationChange({
+      path: 'projects/shop/tests/__snapshots__/checkout.snap',
+      before: 'old snapshot',
+      after: 'new snapshot'
+    });
+    expect(assessSemanticPublication(semanticManifest([snapshot]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/non-spec/i)
+    });
+  });
+
   it('requires authority and provenance for governed-source changes', () => {
     const source = createSemanticPublicationChange({
       path: 'projects/shop/sources/reference/risks.md',

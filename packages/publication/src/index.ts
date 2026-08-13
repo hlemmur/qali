@@ -139,6 +139,12 @@ export function assessSemanticPublication(
       continue;
     }
     if (change.classification === 'test') {
+      if (!change.path.endsWith('.spec.ts')) {
+        return {
+          allowed: false,
+          reason: `non-spec test artifacts and visual baselines are not publishable: ${change.path}`
+        };
+      }
       if (containsSkippedTest(change.after.content)) {
         return { allowed: false, reason: `skipped tests are not publishable: ${change.path}` };
       }
