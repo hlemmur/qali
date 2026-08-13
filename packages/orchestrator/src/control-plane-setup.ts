@@ -17,6 +17,11 @@ export interface SlackAppManifest {
       display_name: string;
       always_online: boolean;
     };
+    app_home: {
+      home_tab_enabled: boolean;
+      messages_tab_enabled: boolean;
+      messages_tab_read_only_enabled: boolean;
+    };
   };
   oauth_config: {
     scopes: {
@@ -59,6 +64,11 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
       bot_user: {
         display_name: 'Qali',
         always_online: true
+      },
+      app_home: {
+        home_tab_enabled: true,
+        messages_tab_enabled: true,
+        messages_tab_read_only_enabled: false
       }
     },
     oauth_config: {
@@ -69,7 +79,7 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
     settings: {
       event_subscriptions: {
         request_url: `${base}/slack/events`,
-        bot_events: ['app_mention', 'message.im']
+        bot_events: ['app_mention', 'message.im', 'app_home_opened']
       },
       interactivity: {
         is_enabled: true,

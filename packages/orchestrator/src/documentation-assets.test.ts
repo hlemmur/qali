@@ -41,7 +41,9 @@ describe('product documentation assets', () => {
     expect(readme).toMatch(/no preview URL/i);
     expect(read('docs/developer-guide.md')).toContain('npm run demo:loop');
     expect(read('docs/user-guide.md')).toContain('sauce-demo');
+    expect(read('docs/user-guide.md')).toContain("I'll use");
     expect(read('docs/user-guide.md')).not.toMatch(/Try Qali locally in Mock Mode/);
+    expect(read('docs/user-guide.md')).not.toContain('Working on it');
     expect(read('.env.example')).toContain('qali-sauce-demo');
     expect(read('.env.example')).toContain('https://www.saucedemo.com');
     expect(read('.env.example')).toContain('QALI_TEST_DATA_JSON={"username":"standard_user"}');
@@ -74,6 +76,7 @@ describe('product documentation assets', () => {
     expect(read('docs/setup-slack.md')).toContain('control-plane:sync-secrets');
     expect(read('docs/setup-slack.md')).toContain('WORKER_BASE_URL');
     expect(read('docs/setup-slack.md')).toContain('qali-icon.png');
+    expect(read('docs/setup-slack.md')).toContain('App Home');
     expect(read('docs/setup-slack.md')).not.toContain('CLOUDFLARE_WORKERS_SUBDOMAIN');
     expect(read('.env.example')).toContain('WORKER_BASE_URL');
     expect(read('.env.example')).toContain('CURSOR_MODEL=composer-2.5');

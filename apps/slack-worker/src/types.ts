@@ -110,6 +110,7 @@ export interface ControlStore {
   ): Promise<void>;
   getQualitySnapshot(projectId: string): Promise<QualitySnapshot | null>;
   upsertQualitySnapshot(snapshot: QualitySnapshot): Promise<void>;
+  listWorkForUser(userId: string): Promise<Correlation[]>;
 }
 
 export interface IntentClassifier {
@@ -132,7 +133,13 @@ export interface SlackPort {
     responseTs: string,
     summary: SlackRunSummary
   ): Promise<void>;
-  postThreadNotice(input: { channelId: string; threadTs: string; text: string }): Promise<void>;
+  postThreadNotice(input: {
+    channelId: string;
+    threadTs: string;
+    text: string;
+  }): Promise<string | undefined>;
+  updateThreadNotice?(input: { channelId: string; ts: string; text: string }): Promise<void>;
+  publishHome?(userId: string, view: Record<string, unknown>): Promise<void>;
 }
 
 export interface SlackRunSummary {

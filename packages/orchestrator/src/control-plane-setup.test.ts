@@ -25,7 +25,12 @@ describe('control plane setup helpers', () => {
     ]);
     expect(manifest.settings.event_subscriptions).toEqual({
       request_url: 'https://qali-slack-control.example.workers.dev/slack/events',
-      bot_events: ['app_mention', 'message.im']
+      bot_events: ['app_mention', 'message.im', 'app_home_opened']
+    });
+    expect(manifest.features.app_home).toEqual({
+      home_tab_enabled: true,
+      messages_tab_enabled: true,
+      messages_tab_read_only_enabled: false
     });
     expect(manifest.settings.interactivity).toEqual({
       is_enabled: true,

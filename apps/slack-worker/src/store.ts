@@ -236,4 +236,19 @@ export class D1ControlStore implements ControlStore {
       .bind(snapshot.projectId, JSON.stringify(snapshot), snapshot.updatedAt)
       .run();
   }
+
+  async listWorkForUser(userId: string): Promise<Correlation[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT request_id, workflow_id, run_id, status, created_at, updated_at, team_id, channel_id,
+                user_id, thread_ts, request_ts, response_ts, last_error, command_json
+         FROM correlations
+         WHERE user_id = ?
+         ORDER BY updated_at DESC
+         LIMIT 40`
+      )
+      .bind(userId)
+      .all();
+    return (result.results ?? []).map((row) => rowToCorrelation(row as Record<string, unknown>));
+  }
 }

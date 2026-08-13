@@ -139,6 +139,12 @@ class MemoryStore implements ControlStore {
   async upsertQualitySnapshot(snapshot: QualitySnapshot) {
     this.snapshots.set(snapshot.projectId, snapshot);
   }
+
+  async listWorkForUser(userId: string) {
+    return [...this.correlations.values()]
+      .filter((row) => row.userId === userId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
 }
 
 const command = (work: InboundWork): ClassifiedIntent => {
@@ -689,8 +695,9 @@ describe('Slack control worker', () => {
       slack: {
         postResult: vi.fn(),
         updateResult: vi.fn(),
-        postThreadNotice: vi.fn(async ({ text }) => {
+        postThreadNotice: vi.fn(async ({ text }): Promise<string | undefined> => {
           if (text.startsWith('Started')) throw new Error('Slack network timeout');
+          return undefined;
         })
       },
       now: () => new Date('2023-11-14T22:15:00.000Z')
@@ -986,7 +993,7 @@ describe('Slack control worker', () => {
       expect.objectContaining({ intent: 'query-project' }),
       'Ev1'
     );
-    expect(notices).toContain('Looking that up…');
+    expect(notices.some((text) => text.includes('Looking that up'))).toBe(true);
     expect(notices.some((text) => text.startsWith('Started:'))).toBe(false);
   });
 
@@ -1065,5 +1072,127 @@ describe('Slack control worker', () => {
       failed: 0,
       skipped: 0
     });
+  });
+
+  it('acknowledges work with channel affinity and updates the same thread message', async () => {
+    const queue: InboundWork[] = [];
+    const notices: string[] = [];
+    const updates: string[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: { classify: async (work) => command(work) },
+      github: {
+        dispatch: vi.fn(async () => ({ runId: '42', htmlUrl: 'https://github.test/runs/42' }))
+      },
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input.text);
+          return '1700000000.200';
+        },
+        updateThreadNotice: async (input) => {
+          updates.push(input.text);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(notices[0]).toContain("I'll use `_demo`, mock, smoke.");
+    expect(notices[0]).toContain('Checking project and permission');
+    expect(notices.some((text) => text.startsWith('Started:'))).toBe(false);
+    expect(updates[0]).toContain("I'll use `_demo`, mock, smoke.");
+    expect(updates[0]).toContain('Running tests');
+    expect(updates[0]).not.toMatch(/github actions|step id/i);
+  });
+
+  it('publishes App Home sections when the user opens the tab', async () => {
+    const store = new MemoryStore();
+    await store.accept({
+      identity: 'slack:event:EvHome',
+      requestId: 'EvHome',
+      kind: 'message',
+      text: 'explore',
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: '2026-08-13T21:00:00.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+    });
+    await store.markDispatched(
+      'EvHome',
+      {
+        intent: 'explore-project',
+        project: { id: 'sauce-demo', root: 'projects/sauce-demo' },
+        requestedBy: 'U1',
+        externalRole: 'developer',
+        receivedAt: '2026-08-13T21:00:00.000Z',
+        parameters: {}
+      },
+      '99'
+    );
+    const published: Array<{ userId: string; view: Record<string, unknown> }> = [];
+    const worker = createWorker({
+      store,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(),
+        publishHome: async (userId, view) => {
+          published.push({ userId, view });
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const homeOpened = {
+      type: 'event_callback',
+      team_id: 'T1',
+      event_id: 'EvHomeOpened',
+      event: { type: 'app_home_opened', user: 'U1', tab: 'home' }
+    };
+
+    expect((await worker.fetch(await slackEvent(homeOpened), baseEnv([]))).status).toBe(200);
+    expect(published).toHaveLength(1);
+    expect(published[0]?.userId).toBe('U1');
+    expect(JSON.stringify(published[0]?.view)).toContain('Needs attention');
+    expect(JSON.stringify(published[0]?.view)).toContain('Running');
+    expect(JSON.stringify(published[0]?.view)).toContain(
+      'sauce-demo · explore-project · dispatched'
+    );
+  });
+
+  it('does not publish App Home for users outside the allowlist', async () => {
+    const published: unknown[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(),
+        publishHome: async (_userId, view) => {
+          published.push(view);
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const homeOpened = {
+      type: 'event_callback',
+      team_id: 'T1',
+      event_id: 'EvHomeDenied',
+      event: { type: 'app_home_opened', user: 'U2', tab: 'home' }
+    };
+    const env = {
+      ...baseEnv([]),
+      SLACK_ALLOWED_TEAM_IDS: 'T1',
+      SLACK_ALLOWED_CHANNEL_IDS: 'C1',
+      SLACK_ALLOWED_USER_IDS: 'U1'
+    };
+
+    expect((await worker.fetch(await slackEvent(homeOpened), env)).status).toBe(200);
+    expect(published).toHaveLength(0);
   });
 });

@@ -115,19 +115,33 @@ export class SlackWebClient implements SlackPort {
     channelId: string;
     threadTs: string;
     text: string;
-  }): Promise<void> {
+  }): Promise<string | undefined> {
     try {
-      await this.call('chat.postMessage', {
+      const result = await this.call('chat.postMessage', {
         channel: input.channelId,
         thread_ts: input.threadTs,
         text: input.text
       });
+      return result.ts;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      await this.call('chat.postMessage', {
+      const result = await this.call('chat.postMessage', {
         channel: input.channelId,
         text: `${input.text}\n_(Could not reply in-thread: ${detail.slice(0, 120)})_`
       });
+      return result.ts;
     }
+  }
+
+  async updateThreadNotice(input: { channelId: string; ts: string; text: string }): Promise<void> {
+    await this.call('chat.update', {
+      channel: input.channelId,
+      ts: input.ts,
+      text: input.text
+    });
+  }
+
+  async publishHome(userId: string, view: Record<string, unknown>): Promise<void> {
+    await this.call('views.publish', { user_id: userId, view });
   }
 }
