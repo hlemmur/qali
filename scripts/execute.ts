@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
@@ -35,6 +42,7 @@ import {
   ROLE_PROFILES,
   executeExplorationStep,
   executeOnboardingMockStep,
+  executeTestRunStep,
   executeTestGenerationStep,
   executeWorkflow,
   loadWorkflowDirectory,
@@ -48,10 +56,12 @@ import {
 import {
   SpawnPlaywrightRunner,
   parsePlaywrightJsonReport,
+  resolvePlaywrightSuite,
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
 import { renderRunReport } from '../packages/reporting/src/index.js';
 import { selectAgentExecutionRoute } from './execute-routing.js';
+import { failureSummaryAction } from './execute-reporting.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -86,7 +96,7 @@ function writeWorkflowSlackSummary(
 
 function writePlaywrightSlackSummary(
   command: NormalizedCommand,
-  summary: PlaywrightEvidenceSummary
+  summary: PlaywrightEvidenceSummary & { status?: 'passed' | 'failed' }
 ): void {
   const reportDirectory = join(workspace, command.project.root, 'derived/reports');
   mkdirSync(reportDirectory, { recursive: true });
@@ -107,10 +117,10 @@ function writePlaywrightSlackSummary(
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
       : `${command.intent}-run`,
-    status: summary.failed === 0 ? 'passed' : 'failed',
+    status: summary.status ?? (summary.failed === 0 ? 'passed' : 'failed'),
     intent: command.intent,
     projectId: command.project.id,
-    suiteLabel: 'smoke',
+    suiteLabel: resolvePlaywrightSuite(command.parameters.suite).label,
     total: summary.total,
     passed: summary.passed,
     failed: summary.failed,
@@ -211,7 +221,8 @@ class WorkflowPolicy implements PolicyEnforcer {
 class RoutedStepExecutor implements StepExecutor {
   private readonly playwright = new SpawnPlaywrightRunner();
   private readonly agent = new CursorCliAgentRuntime();
-  private playwrightSummary: PlaywrightEvidenceSummary | undefined;
+  private playwrightSummary:
+    (PlaywrightEvidenceSummary & { status?: 'passed' | 'failed' }) | undefined;
   private readonly skills = new Map(
     loadRuntimeSkillAssets(join(workspace, 'skills/runtime')).map((skill) => [
       skill.id,
@@ -319,6 +330,7 @@ class RoutedStepExecutor implements StepExecutor {
 
     if (step.id === 'report' && command.intent === 'run-test-suite') {
       const reportPath = join(projectRoot, 'observations/evidence/test-runs/results.json');
+      const observedStatus = this.playwrightSummary?.status;
       const summary =
         this.playwrightSummary ??
         (existsSync(reportPath)
@@ -328,14 +340,14 @@ class RoutedStepExecutor implements StepExecutor {
       const reportDirectory = join(projectRoot, 'derived/reports');
       mkdirSync(reportDirectory, { recursive: true });
       const runSummary = {
+        ...summary,
         runId: command.parameters.requestId
           ? String(command.parameters.requestId)
           : `${command.intent}-run`,
-        status: summary.failed === 0 ? 'passed' : 'failed',
+        status: observedStatus ?? (summary.failed === 0 ? 'passed' : 'failed'),
         intent: command.intent,
         projectId: command.project.id,
-        suiteLabel: 'smoke',
-        ...summary
+        suiteLabel: resolvePlaywrightSuite(command.parameters.suite).label
       };
       const report = renderRunReport(runSummary);
       writeFileSync(
@@ -400,33 +412,20 @@ class RoutedStepExecutor implements StepExecutor {
           reason: `host harness profile violates execution contract: ${step.harnessProfileId}`
         } as const;
       }
-      const evidenceDir = join(workspace, command.project.root, 'observations/evidence/test-runs');
-      mkdirSync(evidenceDir, { recursive: true });
-      const run = await this.playwright.run({
+      const outcome = await executeTestRunStep({
         workspace,
-        projectId: command.project.id,
+        step,
+        command,
+        runner: this.playwright,
         targetBaseUrl: this.targetBaseUrl,
-        reportPath: join(evidenceDir, 'results.json'),
         signal: context.signal,
         ...(this.webServer ? { webServer: this.webServer } : {})
       });
-      if (existsSync(join(evidenceDir, 'results.json'))) {
-        this.playwrightSummary = parsePlaywrightJsonReport(
-          JSON.parse(readFileSync(join(evidenceDir, 'results.json'), 'utf8'))
-        );
+      this.playwrightSummary = outcome.summary;
+      if (this.playwrightSummary) {
         writePlaywrightSlackSummary(command, this.playwrightSummary);
       }
-      const jobPath = join(workspace, command.project.root, 'derived/jobs/test-run.md');
-      mkdirSync(dirname(jobPath), { recursive: true });
-      writeFileSync(
-        jobPath,
-        generatedMarkdown(
-          `# Test run job\n\nStatus: ${run.status}\nEvidence: \`${join(evidenceDir, 'results.json')}\`\n`
-        )
-      );
-      return run.status === 'passed'
-        ? ({ status: 'succeeded', outputs } as const)
-        : ({ status: 'failed', error: run.stderr ?? `Playwright exited ${run.exitCode}` } as const);
+      return outcome.result;
     }
 
     const agentExecutionRoute = selectAgentExecutionRoute(
@@ -586,6 +585,8 @@ if (executionMode !== 'mock') {
   process.env.CURSOR_MODEL = qualification.candidate.modelIdentifier;
 }
 mkdirSync(join(workspace, '.qali'), { recursive: true });
+const transientSlackSummaryPath = join(workspace, '.qali/slack-summary.json');
+if (existsSync(transientSlackSummaryPath)) unlinkSync(transientSlackSummaryPath);
 const agentMode =
   Boolean(process.env.CURSOR_MODEL?.trim()) &&
   Boolean(process.env.CURSOR_API_KEY?.trim()) &&
@@ -643,12 +644,17 @@ if (result.status === 'succeeded') {
     command.project.root,
     'observations/evidence/test-runs/results.json'
   );
-  if (command.intent === 'run-test-suite' && existsSync(resultsPath)) {
+  const summaryAction = failureSummaryAction({
+    intent: command.intent,
+    resultsExist: existsSync(resultsPath),
+    executorSummaryExists: existsSync(transientSlackSummaryPath)
+  });
+  if (summaryAction === 'write-playwright-fallback') {
     writePlaywrightSlackSummary(
       command,
       parsePlaywrightJsonReport(JSON.parse(readFileSync(resultsPath, 'utf8')))
     );
-  } else {
+  } else if (summaryAction === 'write-workflow-fallback') {
     const detail = (result.events.at(-1)?.detail ?? {}) as Record<string, unknown>;
     const message =
       typeof detail.reason === 'string'

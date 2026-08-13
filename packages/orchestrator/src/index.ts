@@ -9,6 +9,7 @@ export * from './execution.js';
 export * from './onboarding.js';
 export * from './exploration.js';
 export * from './test-generation.js';
+export * from './test-execution.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 

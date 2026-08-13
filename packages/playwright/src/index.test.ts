@@ -4,11 +4,23 @@ import {
   FakePlaywrightRunner,
   PlaywrightTestGenerationRequestSchema,
   SpawnPlaywrightRunner,
+  summarizePlaywrightRun,
   parsePlaywrightJsonReport,
+  resolvePlaywrightSuite,
   type PlaywrightSpawn
 } from './index.js';
 
 describe('Playwright adapter', () => {
+  it('normalizes project suite selection without allowing regex injection', () => {
+    expect(resolvePlaywrightSuite(undefined)).toEqual({ label: 'all' });
+    expect(resolvePlaywrightSuite('all')).toEqual({ label: 'all' });
+    expect(resolvePlaywrightSuite('checkout.*')).toEqual({
+      label: 'checkout.*',
+      grep: 'checkout\\.\\*'
+    });
+    expect(resolvePlaywrightSuite('  ')).toEqual({ label: 'all' });
+  });
+
   it('parses report status and failure evidence', () => {
     const report = parsePlaywrightJsonReport({
       suites: [
@@ -50,6 +62,48 @@ describe('Playwright adapter', () => {
       evidence: ['test-results/trace.zip', 'test-results/failure.png'],
       errors: ['Expected dashboard']
     });
+  });
+
+  it('preserves process failure state when the JSON report has no failed tests', () => {
+    expect(
+      summarizePlaywrightRun(
+        { suites: [] },
+        { status: 'failed', exitCode: 1, stderr: 'No tests found' }
+      )
+    ).toEqual({
+      status: 'failed',
+      total: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      durationMs: 0,
+      evidence: [],
+      errors: ['No tests found']
+    });
+  });
+
+  it('does not report runner warnings as test errors when the process succeeds', () => {
+    expect(
+      summarizePlaywrightRun(
+        {
+          suites: [
+            {
+              specs: [
+                {
+                  tests: [
+                    {
+                      status: 'expected',
+                      results: [{ status: 'passed', duration: 12 }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { status: 'passed', exitCode: 0, stderr: 'NO_COLOR is ignored' }
+      )
+    ).toMatchObject({ status: 'passed', passed: 1, errors: [] });
   });
 
   it('runs deterministic project tests without a shell', async () => {

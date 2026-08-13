@@ -13,6 +13,10 @@ export interface PlaywrightEvidenceSummary {
   errors: string[];
 }
 
+export interface PlaywrightRunEvidence extends PlaywrightEvidenceSummary {
+  status: 'passed' | 'failed';
+}
+
 interface JsonResult {
   status?: string;
   duration?: number;
@@ -61,6 +65,32 @@ export function parsePlaywrightJsonReport(input: unknown): PlaywrightEvidenceSum
     }
   }
   return summary;
+}
+
+export function summarizePlaywrightRun(
+  report: unknown,
+  run: PlaywrightRunResult
+): PlaywrightRunEvidence {
+  const summary = parsePlaywrightJsonReport(report);
+  const errors = [...summary.errors];
+  if (run.status === 'failed' && run.stderr?.trim() && !errors.includes(run.stderr.trim())) {
+    errors.push(run.stderr.trim());
+  }
+  return {
+    status: run.status === 'failed' || summary.failed > 0 ? 'failed' : 'passed',
+    ...summary,
+    errors
+  };
+}
+
+export function resolvePlaywrightSuite(value: unknown): { label: string; grep?: string } {
+  if (typeof value !== 'string') return { label: 'all' };
+  const label = value
+    .replace(/[\r\n]/g, ' ')
+    .trim()
+    .slice(0, 120);
+  if (!label || label.toLowerCase() === 'all') return { label: 'all' };
+  return { label, grep: label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') };
 }
 
 export const PlaywrightTestGenerationRequestSchema = z
