@@ -83,6 +83,7 @@ import {
 import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
+import { writeBrowserMcpEnvironmentFile } from './browser-mcp-env.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -665,11 +666,13 @@ class RoutedStepExecutor implements StepExecutor {
       );
       mkdirSync(evidenceDirectory, { recursive: true });
       browserEnvironmentFile = join(harnessParent, 'browser.env');
-      const envLines = Object.entries(process.env)
-        .filter(([name, value]) => name.startsWith('QALI_') && value !== undefined)
-        .map(([name, value]) => `${name}=${value}`);
-      envLines.push(`QALI_BROWSER_EVIDENCE_DIR=${evidenceDirectory}`);
-      writeFileSync(browserEnvironmentFile, `${envLines.join('\n')}\n`);
+      writeBrowserMcpEnvironmentFile({
+        destination: browserEnvironmentFile,
+        executionProfilePath: resolve(workspace, command.project.root, 'execution-profile.json'),
+        evidenceDirectory,
+        profile: this.executionProfile,
+        env: process.env
+      });
     }
     try {
       const result = await executeAssembledAgentStep({
