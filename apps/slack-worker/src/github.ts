@@ -172,13 +172,31 @@ export class GitHubAppClient implements GitHubPort {
     return response;
   }
 
+  private async ensureProjectEnvironment(token: string, environment: string): Promise<void> {
+    const url = this.repoUrl(`/environments/${environment}`);
+    const existing = await this.request(url, { headers: githubHeaders(token) });
+    if (existing.ok) return;
+    if (existing.status !== 404) {
+      throw new Error(`GitHub request failed: ${existing.status} ${url}`);
+    }
+    const created = await this.request(url, {
+      method: 'PUT',
+      headers: { ...githubHeaders(token), 'content-type': 'application/json' },
+      body: '{}'
+    });
+    if (created.ok) return;
+    if (created.status === 403) {
+      throw new Error(
+        `GitHub cannot create environment ${decodeURIComponent(environment)} without repository Administration. Create that Environment in the repo settings, then retry onboard.`
+      );
+    }
+    throw new Error(`GitHub request failed: ${created.status} ${url}`);
+  }
+
   async provisionProjectEnvironment(input: ProjectEnvironmentProvision): Promise<void> {
     const token = await this.installationToken();
     const environment = encodeURIComponent(input.environment);
-    await this.githubJson(token, this.repoUrl(`/environments/${environment}`), {
-      method: 'PUT',
-      body: '{}'
-    });
+    await this.ensureProjectEnvironment(token, environment);
     const variables = [
       { name: 'QALI_TARGET_BASE_URL', value: input.baseUrl },
       { name: 'QALI_ALLOWED_ORIGINS_JSON', value: JSON.stringify(input.allowedOrigins) },
