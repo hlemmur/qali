@@ -176,6 +176,63 @@ describe('deterministic test generation', () => {
     expect(generated).toContain("page.getByRole('alert')).toHaveText('Signed in')");
   });
 
+  it('generates Playwright tests from journeys when no approved scenarios exist', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| ID | Statement | Status |\n| --- | --- | --- |\n| REQ-001 | Shopper can sign in | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      [
+        '## JRN-001: Sign in and view inventory',
+        '',
+        '- Requirement links: REQ-001',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/',
+          actions: [
+            { kind: 'fill', label: 'Username', value: 'standard_user' },
+            { kind: 'click', role: 'button', name: 'Login' }
+          ],
+          assertions: [{ kind: 'visible', role: 'heading', name: 'Products' }]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    const coverage = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'design-coverage')!,
+      command
+    );
+    const generated = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command,
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(coverage.status).toBe('succeeded');
+    expect(generated.status).toBe('succeeded');
+    const spec = readFileSync(
+      join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'),
+      'utf8'
+    );
+    expect(spec).toContain('// Generated from: JRN-001');
+    expect(spec).toContain('// Requirements: REQ-001');
+    expect(spec).not.toContain('// Generation request:');
+    expect(spec).toContain("page.getByRole('button', { name: 'Login' })");
+    expect(existsSync(join(projectRoot, 'derived/scenarios/approved'))).toBe(false);
+  });
+
   it('uses visual assertions for baselines and labels evidence-only screenshots separately', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
     const projectRoot = join(workspace, command.project.root);
@@ -431,5 +488,95 @@ describe('deterministic test generation', () => {
     expect(existsSync(join(projectRoot, 'tests/generated/scn-current.generated.spec.ts'))).toBe(
       true
     );
+  });
+
+  it('stamps generated specs with the generation request id', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| ID | Statement | Status |\n| --- | --- | --- |\n| REQ-001 | Shopper can sign in | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      [
+        '## JRN-001: Sign in and view inventory',
+        '',
+        '- Requirement links: REQ-001',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/',
+          actions: [],
+          assertions: [{ kind: 'visible', role: 'heading', name: 'Products' }]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'design-coverage')!,
+      command
+    );
+    await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      { ...command, parameters: { generationRequestId: 'Ev-generate-1' } },
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(
+      readFileSync(join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'), 'utf8')
+    ).toContain('// Generation request: Ev-generate-1');
+  });
+
+  it('retracts only generated specs from the correlated generation request', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'tests/generated'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'),
+      ['test("old", () => {});', '// Generation request: Ev-old'].join('\n')
+    );
+    writeFileSync(
+      join(projectRoot, 'tests/generated/jrn-002.generated.spec.ts'),
+      ['test("newer", () => {});', '// Generation request: Ev-new'].join('\n')
+    );
+    writeFileSync(
+      join(projectRoot, 'tests/generated/untagged.generated.spec.ts'),
+      'test("legacy", () => {});'
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+    const generateTests = workflow.steps.find(({ id }) => id === 'generate-tests')!;
+
+    const result = await executeTestGenerationStep(
+      workspace,
+      generateTests,
+      { ...command, parameters: { retractGeneratedTests: true, sourceRequestId: 'Ev-old' } },
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(existsSync(join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'))).toBe(false);
+    expect(existsSync(join(projectRoot, 'tests/generated/jrn-002.generated.spec.ts'))).toBe(true);
+    expect(existsSync(join(projectRoot, 'tests/generated/untagged.generated.spec.ts'))).toBe(true);
+
+    const unscoped = await executeTestGenerationStep(
+      workspace,
+      generateTests,
+      { ...command, parameters: { retractGeneratedTests: true } },
+      new FakeGeneratedTestValidator()
+    );
+    expect(unscoped.status).toBe('succeeded');
+    expect(existsSync(join(projectRoot, 'tests/generated/jrn-002.generated.spec.ts'))).toBe(true);
   });
 });

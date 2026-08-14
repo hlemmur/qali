@@ -30,7 +30,8 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 | Sauce Demo live Slack target; Mock Mode off product path | Implemented + unit-tested | Live registry is `sauce-demo` only; `_demo` remains a Vitest fixture; not live-verified until a post-merge Slack run                                                                        |
 | Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge                                                                      |
 | Hosted HTML reports + Slack **Open report**              | Live-verified             | R2 `qali-reports`; Slack **Open report** on quality-pulse run [31752717647](https://github.com/hlemmur/qali/actions/runs/31752717647); signed GET `200` `text/html`; unsigned/expired `401` |
-| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Mock-tested, not live-verified. Still need `#qali-ops`, `SLACK_OPS_CHANNEL_IDS`, and GitHub App Environments/Secrets/Variables write                                                        |
+| Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                                                                                       |
+| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Mock-tested, not live-verified. Still need `SLACK_OPS_CHANNEL_IDS` and GitHub App Environments/Secrets/Variables write                                                                      |
 
 ## Readiness vocabulary
 

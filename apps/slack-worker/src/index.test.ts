@@ -595,7 +595,10 @@ describe('Slack control worker', () => {
     expect(classifier.classify).toHaveBeenCalledTimes(1);
     expect(github.dispatch).toHaveBeenCalledTimes(1);
     expect(github.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ intent: 'run-test-suite' }),
+      expect.objectContaining({
+        intent: 'run-test-suite',
+        parameters: expect.objectContaining({ generationRequestId: 'Ev1' })
+      }),
       'Ev1'
     );
     expect(store.correlations.get('Ev1')).toMatchObject({

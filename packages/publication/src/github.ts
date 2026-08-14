@@ -1,5 +1,9 @@
 import type { SemanticPublicationChange } from '../../contracts/src/index.js';
-import type { GitHubPublicationPort, PullRequestReference } from './index.js';
+import {
+  isRetractableGeneratedSpec,
+  type GitHubPublicationPort,
+  type PullRequestReference
+} from './index.js';
 
 export interface GitHubPublicationAdapterOptions {
   token: string;
@@ -73,6 +77,10 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
     const tree = [];
     for (const change of changes) {
       if (!change.after) {
+        if (isRetractableGeneratedSpec(change.path) && change.before) {
+          tree.push({ path: change.path, mode: '100644', type: 'blob', sha: null });
+          continue;
+        }
         throw new Error(`adapter received an unsafe change: ${change.path}`);
       }
       const blob = await this.request(this.repoPath('/git/blobs'), {
@@ -124,5 +132,19 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
       throw new Error('GitHub pull request response was incomplete');
     }
     return { number: pull.number, nodeId: pull.node_id, url: pull.html_url };
+  }
+
+  async enableAutoMerge(pullRequestNodeId: string): Promise<void> {
+    const result = await this.request('/graphql', {
+      method: 'POST',
+      body: JSON.stringify({
+        query:
+          'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id}}}',
+        variables: { id: pullRequestNodeId }
+      })
+    });
+    if (result.errors) {
+      throw new Error(`GitHub auto-merge enable failed: ${JSON.stringify(result.errors)}`);
+    }
   }
 }

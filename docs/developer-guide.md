@@ -94,7 +94,7 @@ Qali uses `sources → observations → derived artifacts/tests`:
 - **Sources** are expected behavior, reference facts, questions, decisions, and autonomy policy.
 - **Observations** are append-only statements about actual behavior with evidence and provenance.
 - **Derived** artifacts are regenerable reports, strategy, plans, coverage maps, scenarios, jobs, and workflow state.
-- **Tests** are generated only from approved scenarios and remain subject to oracle-preservation policy.
+- **Tests** are generated from journeys or approved scenarios, remain subject to oracle-preservation policy, and can be retracted from Slack.
 
 The distinction prevents a common agent failure: observing unexpected behavior and silently redefining that behavior as correct.
 
@@ -269,7 +269,7 @@ Policy evaluates before/after semantics, not path alone:
 
 - Observations must be append-only and include provenance.
 - Raw browser evidence stays outside Git.
-- New tests require an approved scenario.
+- New tests require an approved scenario or a journey generation source.
 - Test repairs must preserve the assertion/oracle fingerprint.
 - Governed sources require authority plus provenance.
 - `decisions.md` and `autonomy-policy.md` remain reviewer-owned.

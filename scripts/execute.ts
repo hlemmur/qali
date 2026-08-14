@@ -594,7 +594,19 @@ function commandInput(): NormalizedCommand {
   const index = process.argv.indexOf('--command');
   const raw = index >= 0 ? process.argv[index + 1] : process.env.COMMAND_JSON;
   if (!raw) throw new Error('Provide a normalized command with --command or COMMAND_JSON');
-  return NormalizedCommandSchema.parse(JSON.parse(raw));
+  const command = NormalizedCommandSchema.parse(JSON.parse(raw));
+  const requestId = process.env.QALI_REQUEST_ID?.trim();
+  if (
+    requestId &&
+    command.parameters.retractGeneratedTests !== true &&
+    typeof command.parameters.generationRequestId !== 'string'
+  ) {
+    return NormalizedCommandSchema.parse({
+      ...command,
+      parameters: { ...command.parameters, generationRequestId: requestId }
+    });
+  }
+  return command;
 }
 
 const command = commandInput();

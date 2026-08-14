@@ -87,6 +87,7 @@ export function createSemanticPublicationChange(input: {
   after: string | null;
   provenanceRef?: string;
   approvedScenarioRef?: string;
+  generationSourceRef?: string;
   authorityRef?: string;
 }): SemanticPublicationChange {
   return {
@@ -96,6 +97,7 @@ export function createSemanticPublicationChange(input: {
     after: input.after === null ? null : { content: input.after, sha256: sha256(input.after) },
     ...(input.provenanceRef ? { provenanceRef: input.provenanceRef } : {}),
     ...(input.approvedScenarioRef ? { approvedScenarioRef: input.approvedScenarioRef } : {}),
+    ...(input.generationSourceRef ? { generationSourceRef: input.generationSourceRef } : {}),
     ...(input.authorityRef ? { authorityRef: input.authorityRef } : {})
   };
 }
@@ -106,6 +108,13 @@ function isSafeProjectPath(path: string, projectRoot: string): boolean {
   if (!path.startsWith(`${projectRoot}/`) || path.includes('\\')) return false;
   const segments = path.split('/');
   return !segments.some((segment) => segment === '.' || segment === '..' || segment === '');
+}
+
+const RETRACTABLE_GENERATED_SPEC =
+  /^projects\/[^/]+\/tests\/generated\/[^/]+\.generated\.spec\.ts$/;
+
+export function isRetractableGeneratedSpec(path: string): boolean {
+  return isSafePath(path) && RETRACTABLE_GENERATED_SPEC.test(path);
 }
 
 export function assessSemanticPublication(
@@ -136,8 +145,10 @@ export function assessSemanticPublication(
     if (change.after && sha256(change.after.content) !== change.after.sha256) {
       return { allowed: false, reason: `after hash mismatch: ${change.path}` };
     }
-    if (!change.after)
+    if (!change.after) {
+      if (isRetractableGeneratedSpec(change.path) && change.before) continue;
       return { allowed: false, reason: `deletions are not publishable: ${change.path}` };
+    }
     if (change.classification === 'raw-evidence') {
       return { allowed: false, reason: `raw browser evidence remains outside Git: ${change.path}` };
     }
@@ -164,10 +175,10 @@ export function assessSemanticPublication(
         return { allowed: false, reason: `skipped tests are not publishable: ${change.path}` };
       }
       if (!change.before) {
-        if (!change.approvedScenarioRef) {
+        if (!change.approvedScenarioRef && !change.generationSourceRef) {
           return {
             allowed: false,
-            reason: `new tests require an approved scenario: ${change.path}`
+            reason: `new tests require an approved scenario or generation source: ${change.path}`
           };
         }
         continue;
@@ -238,6 +249,7 @@ export interface PublicationChange {
   deleted?: boolean;
   provenanceRef?: string;
   approvedScenarioRef?: string;
+  generationSourceRef?: string;
   authorityRef?: string;
 }
 
@@ -265,18 +277,25 @@ const ALWAYS_REJECT = new Set<PublicationMutation>([
   'modify-source-code'
 ]);
 
-const isSafePath = (path: string): boolean =>
-  path.startsWith('projects/') &&
-  !path.startsWith('/') &&
-  !path.split('/').includes('..') &&
-  !path.includes('\\');
+function isSafePath(path: string): boolean {
+  return (
+    path.startsWith('projects/') &&
+    !path.startsWith('/') &&
+    !path.split('/').includes('..') &&
+    !path.includes('\\')
+  );
+}
 
 function assessChange(change: PublicationChange): PublicationPolicyDecision {
   if (!isSafePath(change.path)) {
     return { allowed: false, reason: `path is outside governed projects: ${change.path}` };
   }
-  if (change.deleted)
+  if (change.deleted) {
+    if (isRetractableGeneratedSpec(change.path) && change.mutation === 'delete-test') {
+      return { allowed: true };
+    }
     return { allowed: false, reason: `deletions are not publishable: ${change.path}` };
+  }
   if (ALWAYS_REJECT.has(change.mutation)) {
     return {
       allowed: false,
@@ -303,11 +322,11 @@ function assessChange(change: PublicationChange): PublicationPolicyDecision {
   }
   if (change.path.includes('/tests/')) {
     return ['create-test', 'repair-test-equivalent'].includes(change.mutation) &&
-      Boolean(change.approvedScenarioRef)
+      Boolean(change.approvedScenarioRef || change.generationSourceRef)
       ? { allowed: true }
       : {
           allowed: false,
-          reason: `tests require an approved scenario and safe mutation: ${change.path}`
+          reason: `tests require an approved scenario or generation source and a safe mutation: ${change.path}`
         };
   }
   if (change.path.includes('/sources/')) {
@@ -361,10 +380,12 @@ export interface GitHubPublicationPort {
     title: string;
     body: string;
   }): Promise<PullRequestReference>;
+  enableAutoMerge?(pullRequestNodeId: string): Promise<void>;
 }
 
 export type PublicationResult =
   | { status: 'rejected'; reason: string }
+  | { status: 'skipped'; reason: string }
   | { status: 'published'; branch: string; pullRequestUrl: string };
 
 const branchToken = (requestId: string): string =>
@@ -380,6 +401,9 @@ export class ControlledPublisher {
   async publish(request: SemanticPublicationManifest): Promise<PublicationResult> {
     const decision = assessSemanticPublication(request);
     if (!decision.allowed) return { status: 'rejected', reason: decision.reason };
+    if (request.changes.length === 0) {
+      return { status: 'skipped', reason: 'no git-visible changes' };
+    }
 
     const branch = `qali/${branchToken(request.requestId)}`;
     await this.github.createBranch(branch, request.baseBranch);
@@ -391,7 +415,9 @@ export class ControlledPublisher {
       body: [
         'Generated by Qali controlled publication.',
         '',
-        '**Review-only publication. A separate code reviewer must merge this PR.**',
+        request.reviewOnly
+          ? '**Review-only publication. A separate code reviewer must merge this PR.**'
+          : '**Tests and observations in the Qali repo auto-merge. Retract from Slack if this was wrong.**',
         '',
         'Executed deterministic checks:',
         ...request.checks.map(
@@ -400,6 +426,9 @@ export class ControlledPublisher {
         )
       ].join('\n')
     });
+    if (!request.reviewOnly) {
+      await this.github.enableAutoMerge?.(pullRequest.nodeId);
+    }
     return { status: 'published', branch, pullRequestUrl: pullRequest.url };
   }
 }

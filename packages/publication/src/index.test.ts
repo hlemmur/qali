@@ -34,6 +34,10 @@ const semanticManifest = (
 });
 
 describe('semantic publication policy', () => {
+  it('allows a passing empty manifest when there is nothing git-visible to publish', () => {
+    expect(assessSemanticPublication(semanticManifest([]))).toEqual({ allowed: true });
+  });
+
   it('allows append-only observations and rejects replacement or raw browser evidence', () => {
     const appended = createSemanticPublicationChange({
       path: 'projects/shop/observations/exploration.md',
@@ -106,11 +110,18 @@ describe('semantic publication policy', () => {
     });
     expect(assessSemanticPublication(semanticManifest([newTest]))).toMatchObject({
       allowed: false,
-      reason: expect.stringMatching(/approved scenario/i)
+      reason: expect.stringMatching(/approved scenario|generation source/i)
     });
     expect(
       assessSemanticPublication(
         semanticManifest([{ ...newTest, approvedScenarioRef: 'SCN-CHECKOUT-01' }])
+      )
+    ).toEqual({ allowed: true });
+    expect(
+      assessSemanticPublication(
+        semanticManifest([
+          { ...newTest, generationSourceRef: 'sources/reference/journeys.md#JRN-001' }
+        ])
       )
     ).toEqual({ allowed: true });
 
@@ -211,6 +222,42 @@ describe('semantic publication policy', () => {
     });
   });
 
+  it('allows retract of generated specs and rejects other deletions', () => {
+    const retract = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+      before: "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n",
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([retract]))).toEqual({ allowed: true });
+
+    const missingBefore = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+      before: null,
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([missingBefore]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/deletions are not publishable/i)
+    });
+
+    for (const path of [
+      'projects/shop/tests/login.spec.ts',
+      'projects/shop/tests/generated/foo.spec.ts',
+      'projects/shop/derived/reports/run.md',
+      'projects/shop/tests/__snapshots__/checkout.snap'
+    ]) {
+      const deleted = createSemanticPublicationChange({
+        path,
+        before: 'existing content',
+        after: null
+      });
+      expect(assessSemanticPublication(semanticManifest([deleted]))).toMatchObject({
+        allowed: false,
+        reason: expect.stringMatching(/deletions are not publishable/i)
+      });
+    }
+  });
+
   it('publishes derived artifacts only when their generated-content hash is valid', () => {
     const body = '\n\n# Coverage\n\nAll approved scenarios are traced.\n';
     const generated = `<!-- qali:generated owner=qali sha256=${createHash('sha256').update(body).digest('hex')} -->${body}`;
@@ -288,6 +335,31 @@ describe('generated-change publication policy', () => {
     expect(assessGeneratedChanges(request([{ path, mutation, content: 'unsafe' }]))).toMatchObject({
       allowed: false
     });
+  });
+
+  it('allows delete-test only for retractable generated specs', () => {
+    expect(
+      assessGeneratedChanges(
+        request([
+          {
+            path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+            mutation: 'delete-test',
+            deleted: true
+          }
+        ])
+      )
+    ).toEqual({ allowed: true });
+    expect(
+      assessGeneratedChanges(
+        request([
+          {
+            path: 'projects/shop/tests/generated/foo.generated.spec.ts',
+            mutation: 'delete-test',
+            content: 'still present'
+          }
+        ])
+      )
+    ).toMatchObject({ allowed: false });
   });
 
   it('rejects deletion flags, source changes without authority, and failed checks', () => {
@@ -372,6 +444,25 @@ describe('controlled GitHub publisher', () => {
     expect(pullRequestBody).toContain('`npm run build`');
     expect(pullRequestBody).toContain('exit 0');
     expect(pullRequestBody).toContain('Review-only publication');
+  });
+
+  it('skips GitHub when there are no git-visible changes to publish', async () => {
+    const github: GitHubPublicationPort = {
+      createBranch: async () => {
+        throw new Error('must not run');
+      },
+      commit: async () => {
+        throw new Error('must not run');
+      },
+      createPullRequest: async () => {
+        throw new Error('must not run');
+      }
+    };
+
+    await expect(new ControlledPublisher(github).publish(semanticManifest([]))).resolves.toEqual({
+      status: 'skipped',
+      reason: 'no git-visible changes'
+    });
   });
 
   it('does not call GitHub when publication policy rejects a request', async () => {

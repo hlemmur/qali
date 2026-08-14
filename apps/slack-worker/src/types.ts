@@ -161,6 +161,7 @@ export interface SlackRunSummary {
   suiteLabel?: string;
   htmlUrl?: string;
   reportUrl?: string;
+  specUrl?: string;
   durationMs?: number;
   evidence?: string[];
   errors?: string[];
@@ -177,4 +178,8 @@ export interface SlackRunSummary {
     skipped: number;
   };
   qualitySnapshot?: QualitySnapshot;
+  generatedTests?: {
+    count: number;
+    area?: string;
+  };
 }
