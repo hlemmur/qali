@@ -31,7 +31,7 @@ Slice 4 binds workflow steps to these profile IDs. Conditional visual and journe
 - Empty declared directories under `outputs/`.
 - A host-generated `harness-manifest.json` with asset hashes and a deterministic fingerprint.
 
-All generated files and non-output directories are made read-only at the filesystem layer. Declared output directories alone remain writable. Cursor always runs with sandboxing enabled, without `--force`, and receives an environment allowlist rather than inherited Slack, GitHub, publication, target, cloud, or database credentials. The browser MCP reads its secrets from a host-owned external environment file; secret values are never written into the staged workspace.
+All generated files and non-output directories are made read-only at the filesystem layer. Declared output directories alone remain writable. Unattended Cursor CLI uses `--sandbox disabled` (allowlist mode) and never `--force`. GitHub-hosted Ubuntu 24.04 cannot start Cursor’s Landlock/AppArmor kernel sandbox, so enabling it fails the run before any harness work. Isolation is the ephemeral workspace, read-only files, `.cursor/cli.json` (`Shell(*)` denied), MCP allowlist, and secret-filtered environment—not a caller-controlled `CURSOR_SANDBOX` variable. The browser MCP reads its secrets from a host-owned external environment file; secret values are never written into the staged workspace.
 
 Shell commands remain host responsibilities. Deterministic host code runs Playwright, validators, fingerprinting, policy checks, and publication after the agent returns staged artifacts.
 

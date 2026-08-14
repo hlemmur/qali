@@ -79,7 +79,6 @@ jobs:
           CURSOR_MODEL: ${{ vars.CURSOR_MODEL }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           QALI_CURSOR_FAILOVER_MODELS_JSON: ${{ vars.QALI_CURSOR_FAILOVER_MODELS_JSON }}
-          CURSOR_SANDBOX: disabled
         run: |
           if [ -n "${CURSOR_MODEL:-}" ] && [ -n "${CURSOR_API_KEY:-}" ] && command -v agent >/dev/null; then
             echo "Qali agent runtime available (model=${CURSOR_MODEL}); qualification policy will decide execution"
