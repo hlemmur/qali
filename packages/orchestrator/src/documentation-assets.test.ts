@@ -103,6 +103,7 @@ describe('product documentation assets', () => {
     }
     expect(combined).toMatch(/Developer/);
     expect(combined).toMatch(/#qali-ops/);
+    expect(read('apps/slack-worker/wrangler.jsonc')).toContain('C0BQ1LXP877');
     expect(combined).not.toMatch(/QA Lead\/Admin/);
     expect(read('docs/user-guide.md')).toMatch(/E2E QA teammate/i);
     expect(read('docs/user-guide.md')).not.toMatch(
