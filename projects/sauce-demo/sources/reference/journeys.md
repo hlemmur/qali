@@ -14,6 +14,30 @@
 - Source: https://www.saucedemo.com
 - Date: 2026-08-13
 
+```json qali-playwright
+{
+  "path": "/",
+  "actions": [
+    {
+      "kind": "fillNamed",
+      "locator": "placeholder",
+      "name": "Username",
+      "source": "testData",
+      "field": "username"
+    },
+    {
+      "kind": "fillNamed",
+      "locator": "placeholder",
+      "name": "Password",
+      "source": "credentials",
+      "field": "password"
+    },
+    { "kind": "click", "role": "button", "name": "Login" }
+  ],
+  "assertions": [{ "kind": "visible", "role": "button", "name": "Add to cart" }]
+}
+```
+
 ## JRN-002: Add a product to the cart
 
 - Actor: authenticated demo shopper

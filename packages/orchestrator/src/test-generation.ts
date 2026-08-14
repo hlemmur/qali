@@ -68,6 +68,15 @@ const PlaywrightScenarioSchema = z
     actions: z.array(
       z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('fill'), label: z.string().min(1), value: z.string() }).strict(),
+        z
+          .object({
+            kind: z.literal('fillNamed'),
+            locator: z.enum(['label', 'placeholder']),
+            name: z.string().min(1),
+            source: z.enum(['credentials', 'testData']),
+            field: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+          })
+          .strict(),
         z.object({ kind: z.literal('click'), role: RoleSchema, name: z.string().min(1) }).strict()
       ])
     ),
@@ -239,6 +248,13 @@ export async function executeTestGenerationStep(
       const usesExpect = scenario.playwright.assertions.some(
         ({ kind }) => kind !== 'evidenceScreenshot'
       );
+      const usesNamedFills = scenario.playwright.actions.some(({ kind }) => kind === 'fillNamed');
+      const usesTestData = scenario.playwright.actions.some(
+        (action) => action.kind === 'fillNamed' && action.source === 'testData'
+      );
+      const usesCredentials = scenario.playwright.actions.some(
+        (action) => action.kind === 'fillNamed' && action.source === 'credentials'
+      );
       const lines = [
         `import { ${usesExpect ? 'expect, ' : ''}test } from '@playwright/test';`,
         '',
@@ -248,6 +264,20 @@ export async function executeTestGenerationStep(
           ? [`// Generation request: ${generationRequestId(command)}`]
           : []),
         `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
+        ...(usesNamedFills
+          ? [
+              ...(usesTestData
+                ? [
+                    "  const testData = JSON.parse(process.env.QALI_TEST_DATA_JSON ?? '{}') as Record<string, string>;"
+                  ]
+                : []),
+              ...(usesCredentials
+                ? [
+                    "  const credentials = JSON.parse(process.env.QALI_TEST_CREDENTIALS_JSON ?? '{}') as Record<string, string>;"
+                  ]
+                : [])
+            ]
+          : []),
         `  await page.goto(${quoted(scenario.playwright.path)});`
       ];
       for (const action of scenario.playwright.actions) {
@@ -255,6 +285,13 @@ export async function executeTestGenerationStep(
           lines.push(
             `  await page.getByLabel(${quoted(action.label)}).fill(${quoted(action.value)});`
           );
+        } else if (action.kind === 'fillNamed') {
+          const locator =
+            action.locator === 'placeholder'
+              ? `page.getByPlaceholder(${quoted(action.name)})`
+              : `page.getByLabel(${quoted(action.name)})`;
+          const source = action.source === 'credentials' ? 'credentials' : 'testData';
+          lines.push(`  await ${locator}.fill(String(${source}.${action.field} ?? ''));`);
         } else if (action.kind === 'click') {
           lines.push(
             `  await page.getByRole(${quoted(action.role)}, { name: ${quoted(action.name)} }).click();`
