@@ -83,7 +83,12 @@ const PlaywrightScenarioSchema = z
     assertions: z.array(
       z.discriminatedUnion('kind', [
         z
-          .object({ kind: z.literal('visible'), role: RoleSchema, name: z.string().min(1) })
+          .object({
+            kind: z.literal('visible'),
+            role: RoleSchema,
+            name: z.string().min(1),
+            first: z.literal(true).optional()
+          })
           .strict(),
         z
           .object({ kind: z.literal('text'), testId: z.string().min(1), value: z.string() })
@@ -291,7 +296,16 @@ export async function executeTestGenerationStep(
               ? `page.getByPlaceholder(${quoted(action.name)})`
               : `page.getByLabel(${quoted(action.name)})`;
           const source = action.source === 'credentials' ? 'credentials' : 'testData';
-          lines.push(`  await ${locator}.fill(String(${source}.${action.field} ?? ''));`);
+          const envName =
+            action.source === 'credentials' ? 'QALI_TEST_CREDENTIALS_JSON' : 'QALI_TEST_DATA_JSON';
+          const valueName = `${action.field}Value`;
+          lines.push(
+            `  const ${valueName} = String(${source}.${action.field} ?? '').trim();`,
+            `  if (!${valueName}) {`,
+            `    throw new Error(${quoted(`Missing ${envName}.${action.field}`)});`,
+            '  }',
+            `  await ${locator}.fill(${valueName});`
+          );
         } else if (action.kind === 'click') {
           lines.push(
             `  await page.getByRole(${quoted(action.role)}, { name: ${quoted(action.name)} }).click();`
@@ -300,9 +314,8 @@ export async function executeTestGenerationStep(
       }
       for (const assertion of scenario.playwright.assertions) {
         if (assertion.kind === 'visible') {
-          lines.push(
-            `  await expect(page.getByRole(${quoted(assertion.role)}, { name: ${quoted(assertion.name)} })).toBeVisible();`
-          );
+          const locator = `page.getByRole(${quoted(assertion.role)}, { name: ${quoted(assertion.name)} })${assertion.first ? '.first()' : ''}`;
+          lines.push(`  await expect(${locator}).toBeVisible();`);
         } else if (assertion.kind === 'text') {
           lines.push(
             `  await expect(page.getByTestId(${quoted(assertion.testId)})).toHaveText(${quoted(assertion.value)});`

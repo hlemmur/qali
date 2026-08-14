@@ -268,7 +268,7 @@ describe('deterministic test generation', () => {
             },
             { kind: 'click', role: 'button', name: 'Login' }
           ],
-          assertions: [{ kind: 'visible', role: 'button', name: 'Add to cart' }]
+          assertions: [{ kind: 'visible', role: 'button', name: 'Add to cart', first: true }]
         }),
         '```'
       ].join('\n')
@@ -292,10 +292,13 @@ describe('deterministic test generation', () => {
     );
     expect(spec).toContain("getByPlaceholder('Username')");
     expect(spec).toContain("getByPlaceholder('Password')");
+    expect(spec).toContain("getByRole('button', { name: 'Add to cart' }).first()");
     expect(spec).toContain("JSON.parse(process.env.QALI_TEST_DATA_JSON ?? '{}')");
     expect(spec).toContain("JSON.parse(process.env.QALI_TEST_CREDENTIALS_JSON ?? '{}')");
-    expect(spec).toContain("testData.username ?? ''");
-    expect(spec).toContain("credentials.password ?? ''");
+    expect(spec).toContain('Missing QALI_TEST_DATA_JSON.username');
+    expect(spec).toContain('Missing QALI_TEST_CREDENTIALS_JSON.password');
+    expect(spec).toContain('usernameValue');
+    expect(spec).toContain('passwordValue');
     expect(spec).not.toContain('secret_sauce');
     expect(spec).not.toContain('standard_user');
   });
@@ -337,6 +340,7 @@ describe('deterministic test generation', () => {
     expect(spec).toContain("getByPlaceholder('Username')");
     expect(spec).toContain("getByPlaceholder('Password')");
     expect(spec).toContain("getByRole('button', { name: 'Login' })");
+    expect(spec).toContain("getByRole('button', { name: 'Add to cart' }).first()");
     expect(spec).not.toContain('secret_sauce');
   });
 

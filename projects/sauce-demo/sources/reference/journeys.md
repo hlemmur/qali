@@ -34,7 +34,7 @@
     },
     { "kind": "click", "role": "button", "name": "Login" }
   ],
-  "assertions": [{ "kind": "visible", "role": "button", "name": "Add to cart" }]
+  "assertions": [{ "kind": "visible", "role": "button", "name": "Add to cart", "first": true }]
 }
 ```
 
