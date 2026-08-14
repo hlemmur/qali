@@ -27,11 +27,17 @@ describe('Playwright adapter', () => {
         {
           specs: [
             {
+              title: 'login.spec.ts › shows inventory',
               tests: [
                 {
                   status: 'expected',
                   results: [{ status: 'passed', duration: 120, attachments: [] }]
-                },
+                }
+              ]
+            },
+            {
+              title: 'checkout.spec.ts › pays with saved card',
+              tests: [
                 {
                   status: 'unexpected',
                   results: [
@@ -60,7 +66,15 @@ describe('Playwright adapter', () => {
       skipped: 0,
       durationMs: 200,
       evidence: ['test-results/trace.zip', 'test-results/failure.png'],
-      errors: ['Expected dashboard']
+      errors: ['Expected dashboard'],
+      tests: [
+        { title: 'login.spec.ts › shows inventory', status: 'passed' },
+        {
+          title: 'checkout.spec.ts › pays with saved card',
+          status: 'failed',
+          error: 'Expected dashboard'
+        }
+      ]
     });
   });
 
@@ -78,7 +92,8 @@ describe('Playwright adapter', () => {
       skipped: 0,
       durationMs: 0,
       evidence: [],
-      errors: ['No tests found']
+      errors: ['No tests found'],
+      tests: []
     });
   });
 
@@ -129,9 +144,13 @@ describe('Playwright adapter', () => {
     const [command, args, options] = spawn.mock.calls[0]!;
     expect(command).toBe(process.execPath);
     expect(args[0]).toContain('@playwright/test/cli.js');
-    expect(args).toEqual(expect.arrayContaining(['test', 'projects/_demo/tests']));
+    expect(args).toEqual(
+      expect.arrayContaining(['test', 'projects/_demo/tests', '--reporter=json', '--reporter=html'])
+    );
     expect(options).toMatchObject({ cwd: '/repo', shell: false });
     expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
+    expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toBe('test-results/report.json');
+    expect(options.env.PLAYWRIGHT_HTML_REPORT).toBe('playwright-report');
   });
 
   it('scopes regression validation to explicit candidate test paths', async () => {

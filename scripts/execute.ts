@@ -139,7 +139,26 @@ function writePlaywrightSlackSummary(
     evidence: (summary.evidence ?? [])
       .slice(0, 5)
       .map((path) => path.split('/').slice(-2).join('/')),
-    errors: compactErrors
+    errors: compactErrors,
+    ...(summary.tests?.length
+      ? {
+          tests: summary.tests.slice(0, 100).map((test) => ({
+            title: test.title,
+            status: test.status,
+            ...(test.error
+              ? {
+                  error:
+                    test.error
+                      .replace(ansiPattern, '')
+                      .split('\n')
+                      .map((line) => line.trim())
+                      .find((line) => line.length > 0)
+                      ?.slice(0, 240) ?? test.error.slice(0, 240)
+                }
+              : {})
+          }))
+        }
+      : {})
   };
   const report = renderRunReport(runSummary);
   writeFileSync(join(reportDirectory, 'test-run.md'), generatedMarkdown(report.markdown));

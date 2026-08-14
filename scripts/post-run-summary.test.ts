@@ -3,9 +3,35 @@ import {
   callbackAuthenticationHeaders,
   describeRunStages,
   publishHostedReport,
+  reportTests,
   resolveSlackRunStatus,
   userFacingFailureDetails
 } from './post-run-summary.js';
+
+describe('reportTests', () => {
+  it('keeps titled Playwright cases for the hosted HTML report', () => {
+    expect(
+      reportTests({
+        tests: [
+          { title: 'login.spec.ts › shows inventory', status: 'passed' },
+          {
+            title: 'checkout.spec.ts › pays with saved card',
+            status: 'failed',
+            error: 'Expected dashboard'
+          },
+          { status: 'failed' }
+        ]
+      })
+    ).toEqual([
+      { title: 'login.spec.ts › shows inventory', status: 'passed' },
+      {
+        title: 'checkout.spec.ts › pays with saved card',
+        status: 'failed',
+        error: 'Expected dashboard'
+      }
+    ]);
+  });
+});
 
 describe('resolveSlackRunStatus', () => {
   it('overrides a passed report when the Actions job failed', () => {

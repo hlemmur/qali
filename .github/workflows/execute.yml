@@ -131,6 +131,9 @@ jobs:
             printf '%s\n' "- Project: \`$SUMMARY_PROJECT\`"
             echo "- Result: \`${{ job.status }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f playwright-report/index.html ]; then
+            echo "- Playwright HTML report: uploaded in this run's artifact under \`playwright-report/\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload Playwright and workflow evidence
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

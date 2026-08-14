@@ -45,6 +45,25 @@ function findTestRunJson(projectRoot: string): Record<string, unknown> | undefin
   return undefined;
 }
 
+export function reportTests(
+  report: Record<string, unknown>
+): NonNullable<RunSummary['tests']> | undefined {
+  if (!Array.isArray(report.tests)) return undefined;
+  const tests = report.tests.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const value = entry as { title?: unknown; status?: unknown; error?: unknown };
+    if (typeof value.title !== 'string' || typeof value.status !== 'string') return [];
+    return [
+      {
+        title: value.title,
+        status: value.status,
+        ...(typeof value.error === 'string' ? { error: value.error } : {})
+      }
+    ];
+  });
+  return tests.length ? tests : undefined;
+}
+
 function sign(secret: string, body: string): string {
   const digest = createHmac('sha256', secret).update(body).digest('hex');
   return `sha256=${digest}`;
@@ -216,6 +235,7 @@ export async function postRunSummary(): Promise<void> {
 
   const runId = process.env.GITHUB_RUN_ID;
   const requestId = process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID;
+  const tests = reportTests(report);
   const htmlSummary: RunSummary = {
     runId: runId ?? 'unknown',
     status,
@@ -232,6 +252,7 @@ export async function postRunSummary(): Promise<void> {
     ...(Array.isArray(report.evidence)
       ? { evidence: report.evidence.filter((entry): entry is string => typeof entry === 'string') }
       : {}),
+    ...(tests ? { tests } : {}),
     ...(counts ?? {})
   };
   const html = renderHtmlReport(htmlSummary);

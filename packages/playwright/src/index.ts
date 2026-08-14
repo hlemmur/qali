@@ -3,6 +3,12 @@ import type { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+export interface PlaywrightTestCase {
+  title: string;
+  status: 'passed' | 'failed' | 'skipped';
+  error?: string;
+}
+
 export interface PlaywrightEvidenceSummary {
   total: number;
   passed: number;
@@ -11,6 +17,7 @@ export interface PlaywrightEvidenceSummary {
   durationMs: number;
   evidence: string[];
   errors: string[];
+  tests: PlaywrightTestCase[];
 }
 
 export interface PlaywrightRunEvidence extends PlaywrightEvidenceSummary {
@@ -24,23 +31,46 @@ interface JsonResult {
   attachments?: Array<{ path?: string }>;
 }
 
-function collectTests(suite: unknown): Array<{ status?: string; results?: JsonResult[] }> {
+function collectTests(
+  suite: unknown,
+  parentTitle = ''
+): Array<{ title: string; status?: string; results?: JsonResult[] }> {
   if (!suite || typeof suite !== 'object') return [];
   const value = suite as {
-    tests?: Array<{ status?: string; results?: JsonResult[] }>;
-    specs?: Array<{ tests?: Array<{ status?: string; results?: JsonResult[] }> }>;
+    title?: string;
+    tests?: Array<{ title?: string; status?: string; results?: JsonResult[] }>;
+    specs?: Array<{
+      title?: string;
+      tests?: Array<{ title?: string; status?: string; results?: JsonResult[] }>;
+    }>;
     suites?: unknown[];
   };
+  const suiteTitle = [parentTitle, value.title]
+    .filter((part) => part && part.length > 0)
+    .join(' › ');
+  const named = (
+    title: string,
+    tests: Array<{ title?: string; status?: string; results?: JsonResult[] }>
+  ) =>
+    tests.map((test) => ({
+      ...test,
+      title: [title, test.title].filter((part) => part && part.length > 0).join(' › ') || 'test'
+    }));
   return [
-    ...(value.tests ?? []),
-    ...(value.specs ?? []).flatMap((spec) => spec.tests ?? []),
-    ...(value.suites ?? []).flatMap(collectTests)
+    ...named(suiteTitle, value.tests ?? []),
+    ...(value.specs ?? []).flatMap((spec) =>
+      named(
+        [suiteTitle, spec.title].filter((part) => part && part.length > 0).join(' › '),
+        spec.tests ?? []
+      )
+    ),
+    ...(value.suites ?? []).flatMap((child) => collectTests(child, suiteTitle))
   ];
 }
 
 export function parsePlaywrightJsonReport(input: unknown): PlaywrightEvidenceSummary {
   const report = input as { suites?: unknown[] };
-  const tests = (report.suites ?? []).flatMap(collectTests);
+  const tests = (report.suites ?? []).flatMap((suite) => collectTests(suite));
   const summary: PlaywrightEvidenceSummary = {
     total: tests.length,
     passed: 0,
@@ -48,15 +78,29 @@ export function parsePlaywrightJsonReport(input: unknown): PlaywrightEvidenceSum
     skipped: 0,
     durationMs: 0,
     evidence: [],
-    errors: []
+    errors: [],
+    tests: []
   };
   for (const test of tests) {
     const final = test.results?.at(-1);
     summary.durationMs +=
       test.results?.reduce((total, result) => total + (result.duration ?? 0), 0) ?? 0;
-    if (test.status === 'expected' && final?.status === 'passed') summary.passed += 1;
-    else if (test.status === 'skipped' || final?.status === 'skipped') summary.skipped += 1;
-    else summary.failed += 1;
+    let status: PlaywrightTestCase['status'] = 'failed';
+    if (test.status === 'expected' && final?.status === 'passed') {
+      summary.passed += 1;
+      status = 'passed';
+    } else if (test.status === 'skipped' || final?.status === 'skipped') {
+      summary.skipped += 1;
+      status = 'skipped';
+    } else {
+      summary.failed += 1;
+    }
+    const error = test.results?.map((result) => result.error?.message).find(Boolean);
+    summary.tests.push({
+      title: test.title,
+      status,
+      ...(error ? { error } : {})
+    });
     for (const result of test.results ?? []) {
       if (result.error?.message) summary.errors.push(result.error.message);
       for (const attachment of result.attachments ?? []) {
@@ -161,7 +205,8 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
       join(request.workspace, 'node_modules', '@playwright', 'test', 'cli.js'),
       'test',
       ...testPaths,
-      '--reporter=json'
+      '--reporter=json',
+      '--reporter=html'
     ];
     if (request.grep) args.push('--grep', request.grep);
     return new Promise((resolve) => {
@@ -171,6 +216,7 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
           ...process.env,
           QALI_TARGET_BASE_URL: request.targetBaseUrl,
           PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath,
+          PLAYWRIGHT_HTML_REPORT: 'playwright-report',
           ...(request.webServer
             ? {
                 QALI_WEB_SERVER_COMMAND: request.webServer.command,

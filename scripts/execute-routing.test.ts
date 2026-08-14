@@ -82,6 +82,8 @@ describe('unattended agent qualification gate', () => {
     expect(requiresQualifiedAgentRuntime('quality-pulse', 'production')).toBe(false);
     expect(requiresQualifiedAgentRuntime('query-project', 'production')).toBe(false);
     expect(requiresQualifiedAgentRuntime('maintain-schedule', 'production')).toBe(false);
+    expect(requiresQualifiedAgentRuntime('onboard-project', 'production')).toBe(false);
+    expect(requiresQualifiedAgentRuntime('run-test-suite', 'production')).toBe(false);
   });
 
   it('still requires a qualified agent for explore and generate on production', () => {

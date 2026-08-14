@@ -41,6 +41,7 @@ export function renderHtmlReport(summary: RunSummary): string {
   const stages = stageLine(summary.stages ?? {});
   const findings = summary.errors?.length ? summary.errors : [];
   const evidence = summary.evidence?.length ? summary.evidence : [];
+  const tests = summary.tests?.length ? summary.tests : [];
   const actions = nextActions(summary);
   const duration =
     summary.durationMs !== undefined ? `${Math.round(summary.durationMs)} ms` : undefined;
@@ -66,6 +67,13 @@ export function renderHtmlReport(summary: RunSummary): string {
   .status.passed { color: var(--pass); }
   .status.cancelled, .status.timed { color: var(--warn); }
   ul { margin: 0.25rem 0 0; padding-left: 1.2rem; }
+  .tests { list-style: none; padding: 0; }
+  .tests li { padding: 0.65rem 0; border-bottom: 1px solid var(--line); }
+  .tests li:last-child { border-bottom: 0; }
+  .tests .issue { color: var(--fail); font-size: 0.92rem; }
+  .tests li.ok .status { color: var(--pass); }
+  .tests li.bad .status { color: var(--fail); }
+  .tests li.skip .status { color: var(--warn); }
   code { font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>
 </head>
@@ -83,6 +91,20 @@ export function renderHtmlReport(summary: RunSummary): string {
     ${duration ? `<p>Duration: ${escapeHtml(duration)}</p>` : ''}
     ${stages ? `<p>${escapeHtml(stages)}</p>` : ''}
   </section>
+  ${
+    tests.length
+      ? `<section>
+    <h2>Tests</h2>
+    <ul class="tests">${tests
+      .map((test) => {
+        const klass = test.status === 'passed' ? 'ok' : test.status === 'skipped' ? 'skip' : 'bad';
+        const issue = test.error ? `<p class="issue">${escapeHtml(test.error)}</p>` : '';
+        return `<li class="${klass}"><span class="status">${escapeHtml(test.status)}</span> ${escapeHtml(test.title)}${issue}</li>`;
+      })
+      .join('')}</ul>
+  </section>`
+      : ''
+  }
   <section>
     <h2>Findings</h2>
     ${

@@ -16,6 +16,14 @@ describe('hosted HTML report', () => {
       durationMs: 3400,
       stages: { execution: 'passed', publication: 'failed' },
       errors: ['Login did not reach inventory'],
+      tests: [
+        { title: 'login.spec.ts › shows inventory', status: 'passed' },
+        {
+          title: 'checkout.spec.ts › pays with saved card',
+          status: 'failed',
+          error: 'Login did not reach inventory'
+        }
+      ],
       evidence: ['projects/sauce-demo/observations/evidence/exploration.md']
     });
 
@@ -24,6 +32,9 @@ describe('hosted HTML report', () => {
     expect(html).toContain('sauce-demo');
     expect(html).toContain('explore-project');
     expect(html).toContain('Login did not reach inventory');
+    expect(html).toContain('checkout.spec.ts › pays with saved card');
+    expect(html).toContain('login.spec.ts › shows inventory');
+    expect(html).toContain('<h2>Tests</h2>');
     expect(html).toContain('exploration.md');
     expect(html).toContain('Execution passed');
     expect(html).toContain('Open the GitHub run');
