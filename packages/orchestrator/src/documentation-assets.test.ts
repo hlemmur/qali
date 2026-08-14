@@ -147,7 +147,7 @@ describe('product documentation assets', () => {
     expect(workflow).not.toMatch(/git push\s+(?:origin\s+)?main/);
   });
 
-  it('reports Slack status only after execution and publication reach terminal outcomes', () => {
+  it('reports Slack status from execute outcome and still waits for publication to finish', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executionJob = workflow
       .split('  validate-and-execute:')[1]
@@ -159,7 +159,10 @@ describe('product documentation assets', () => {
     expect(notificationJob).toContain('validate-and-execute');
     expect(notificationJob).toContain('publish-generated-changes');
     expect(notificationJob).toContain('Post final Slack run summary');
-    expect(notificationJob).toContain("needs.publish-generated-changes.result == 'failure'");
+    expect(notificationJob).toContain(
+      "JOB_STATUS: ${{ needs.validate-and-execute.result != 'success' && 'failure' || 'success' }}"
+    );
+    expect(notificationJob).not.toContain("needs.publish-generated-changes.result == 'failure'");
     expect(notificationJob).toContain('EXECUTE_RESULT');
     expect(notificationJob).toContain('PUBLISH_RESULT');
   });
