@@ -72,7 +72,7 @@ The result card leads with the information developers usually need:
 - **Open report** for a hosted HTML recap (signed link; no unzipping Markdown)
 - GitHub as a fallback for the Actions run
 
-Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**.
+Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **Open spec** and **Retract** let you keep or remove the tests from that run without a pre-approval step. Retract only deletes generated specs stamped for that generation request.
 
 ### 4. Continue from the same thread
 
@@ -84,7 +84,7 @@ Every request carries Slack, D1, GitHub, workflow-state, evidence, and publicati
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **Onboard project**     | Discovers context, journeys, risks, and unknowns; prepares an initial strategy                                   | Governed project context, open questions, journey/risk material, strategy, test plan, proposed smoke scenarios, report |
 | **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report |
-| **Generate test suite** | Maps approved scenarios and requirements to Playwright code, then validates the generated tests                  | Coverage map, generated `*.spec.ts` files, traceability, deterministic lint/typecheck/targeted execution evidence      |
+| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                | Coverage map, generated `*.spec.ts` files, Slack recap with Open spec and Retract; no pre-approved scenario required   |
 | **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                   | Exact counts, status, duration, JSON evidence, reports, Slack summary                                                  |
 | **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                            |
 | **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                | Reconciliation proposal, contradictions, open questions, authority-gated updates                                       |
@@ -122,7 +122,7 @@ The ownership model is `sources → observations → derived artifacts/tests`:
 - **Sources** describe expected behavior and authority.
 - **Observations** record actual behavior and never silently redefine expectation.
 - **Derived artifacts** can be regenerated from sources and observations.
-- **Tests** come from approved scenarios and remain deterministic.
+- **Tests** come from journeys and generated scenarios, stay deterministic, and can be retracted from Slack.
 
 This makes Qali more than a chat bot: the Slack conversation is the front door to an auditable QA system that improves its project knowledge and test suite over time.
 

@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { preparePublicationManifest } from './prepare-publication.js';
+import { assessSemanticPublication } from '../packages/publication/src/index.js';
 
 const git = (workspace: string, ...args: string[]): string =>
   execFileSync('git', args, { cwd: workspace, encoding: 'utf8' });
@@ -37,7 +38,7 @@ describe('publication preparation', () => {
       ]
     });
 
-    expect(manifest.reviewOnly).toBe(true);
+    expect(manifest.reviewOnly).toBe(false);
     expect(manifest.checks).toEqual([
       expect.objectContaining({ exitCode: 0, stdout: 'semantic check passed', stderr: '' })
     ]);
@@ -89,6 +90,14 @@ describe('publication preparation', () => {
     ]);
   });
 
+  it('classifies retract of a generated spec as a publishable deletion', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-retract-'));
+    const specPath = 'projects/shop/tests/generated/foo.generated.spec.ts';
+    mkdirSync(join(workspace, 'projects/shop/tests/generated'), { recursive: true });
+    writeFileSync(
+      join(workspace, specPath),
+      "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n"
+    );
   it('succeeds with no git-visible changes when pulse outputs are gitignored', () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-pulse-'));
     mkdirSync(join(workspace, 'projects/shop/derived/reports'), { recursive: true });
@@ -102,6 +111,11 @@ describe('publication preparation', () => {
     git(workspace, 'config', 'user.email', 'test@example.test');
     git(workspace, 'add', '.');
     git(workspace, 'commit', '-m', 'baseline');
+    unlinkSync(join(workspace, specPath));
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-RETRACT',
     writeFileSync(
       join(workspace, 'projects/shop/derived/reports/quality-pulse-presentation.json'),
       '{"title":"pulse"}\n'
@@ -119,7 +133,17 @@ describe('publication preparation', () => {
       ]
     });
 
-    expect(manifest.changes).toEqual([]);
-    expect(manifest.checks[0]).toMatchObject({ exitCode: 0 });
+    expect(manifest.changes).toEqual([
+      expect.objectContaining({
+        path: specPath,
+        classification: 'test',
+        before: expect.objectContaining({
+          content:
+            "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n"
+        }),
+        after: null
+      })
+    ]);
+    expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
   });
 });

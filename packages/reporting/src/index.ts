@@ -38,11 +38,17 @@ export interface RunSummary {
     validation?: string;
     publication?: string;
   };
+  generatedTests?: {
+    count: number;
+    area?: string;
+  };
 }
 
 export interface RunSummaryActions {
   detailsUrl?: string;
   reportUrl?: string;
+  specUrl?: string;
+  retractValue?: string;
   rerunValue?: string;
   triageValue?: string;
   expandValue?: string;
@@ -97,10 +103,21 @@ export function renderSlackRunSummary(
         ? '• Failures recorded — expand for details'
         : undefined;
 
-  const body = [title, countLine, stageLine(summary.stages ?? {}), failureLine]
+  const generationLine =
+    summary.generatedTests && summary.generatedTests.count > 0
+      ? `${summary.generatedTests.count} tests added${
+          summary.generatedTests.area ? ` for ${summary.generatedTests.area}` : ''
+        }`
+      : undefined;
+
+  const body = [title, countLine, generationLine, stageLine(summary.stages ?? {}), failureLine]
     .filter(Boolean)
     .join('\n');
-  const text = countLine ? `Qali ${status}: ${countLine}` : `Qali ${status}`;
+  const text = generationLine
+    ? `Qali ${status}: ${generationLine}`
+    : countLine
+      ? `Qali ${status}: ${countLine}`
+      : `Qali ${status}`;
   const blocks: Array<Record<string, unknown>> = [
     {
       type: 'section',
@@ -123,6 +140,15 @@ export function renderSlackRunSummary(
       action_id: 'open_report',
       text: { type: 'plain_text', text: 'Open report' },
       url: actions.reportUrl
+    });
+  }
+
+  if (actions.specUrl) {
+    elements.push({
+      type: 'button',
+      action_id: 'open_spec',
+      text: { type: 'plain_text', text: 'Open spec' },
+      url: actions.specUrl
     });
   }
 
@@ -154,6 +180,14 @@ export function renderSlackRunSummary(
         action_id: 'triage_failures',
         text: { type: 'plain_text', text: 'Triage' },
         value: actions.triageValue ?? summary.runId
+      });
+    }
+    if (summary.generatedTests && summary.generatedTests.count > 0) {
+      elements.push({
+        type: 'button',
+        action_id: 'retract_generated_tests',
+        text: { type: 'plain_text', text: 'Retract' },
+        value: actions.retractValue ?? actions.rerunValue ?? summary.runId
       });
     }
   }

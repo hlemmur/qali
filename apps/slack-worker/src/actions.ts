@@ -16,7 +16,12 @@ import type {
 } from './types.js';
 
 /** Link buttons open URLs in the client; never enqueue work or post thread spam. */
-export const LINK_ONLY_ACTIONS = new Set(['open_run_url', 'open_report', 'run_details']);
+export const LINK_ONLY_ACTIONS = new Set([
+  'open_run_url',
+  'open_report',
+  'open_spec',
+  'run_details'
+]);
 
 const SUMMARY_ACTIONS = new Set(['expand_run_details', 'collapse_run_details']);
 
@@ -146,6 +151,49 @@ export async function handleSlackAction(input: {
       } satisfies Correlation);
     await slack.updateResult(target, responseTs, summary);
     await store.markCompleted(work.requestId, 'action-handled');
+    return;
+  }
+
+  if (actionId === 'retract_generated_tests') {
+    const correlation = await resolveCorrelation(store, value);
+    if (!correlation) {
+      throw new Error(`No correlated run found for ${actionId}`);
+    }
+    const baseCommand = rebuildCommand(
+      correlation,
+      work,
+      'generate-test-suite',
+      registry,
+      profiles
+    );
+    const command = {
+      ...baseCommand,
+      parameters: {
+        ...baseCommand.parameters,
+        retractGeneratedTests: true
+      }
+    };
+    const childRequestId = `retract-${Date.now().toString(36)}`;
+    const childWork: InboundWork = {
+      ...work,
+      identity: `child:${childRequestId}`,
+      requestId: childRequestId
+    };
+    await store.accept(childWork);
+    await store.claim(childRequestId);
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: 'Retracting the generated tests…'
+    });
+    const dispatched = await github.dispatch(command, childRequestId);
+    await store.markDispatched(childRequestId, command, dispatched.runId);
+    await store.markCompleted(work.requestId, 'action-handled');
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: dispatched.htmlUrl ? `Started: ${dispatched.htmlUrl}` : 'Started a retract run.'
+    });
     return;
   }
 

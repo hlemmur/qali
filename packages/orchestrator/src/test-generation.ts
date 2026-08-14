@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
 import { format } from 'prettier';
@@ -7,6 +14,16 @@ import { z } from 'zod';
 
 const expand = (path: string, command: NormalizedCommand): string =>
   path.replaceAll('{projectId}', command.project.id);
+
+function generationRequestId(command: NormalizedCommand): string | undefined {
+  const value = command.parameters.generationRequestId ?? command.parameters.sourceRequestId;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function specMatchesGenerationRequest(content: string, requestId: string): boolean {
+  const match = content.match(/^\/\/ Generation request: (.+)$/m);
+  return match?.[1]?.trim() === requestId;
+}
 
 const generatedMarkdown = (body: string): string => {
   const normalized = `\n\n${body.trim()}\n`;
@@ -17,6 +34,7 @@ const generatedMarkdown = (body: string): string => {
 interface ApprovedScenario {
   id: string;
   requirementIds: string[];
+  source: 'approved' | 'journey';
   playwright?: PlaywrightScenario;
 }
 
@@ -113,8 +131,51 @@ function approvedScenarios(markdown: string): ApprovedScenario[] {
     const traceability = /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ?? '';
     const requirementIds = [...traceability.matchAll(/\bREQ-\d+\b/g)].map(([id]) => id);
     const playwright = playwrightScenario(body);
-    return [{ id: heading[1]!, requirementIds, ...(playwright ? { playwright } : {}) }];
+    return [
+      {
+        id: heading[1]!,
+        requirementIds,
+        source: 'approved' as const,
+        ...(playwright ? { playwright } : {})
+      }
+    ];
   });
+}
+
+function journeyScenarios(markdown: string): ApprovedScenario[] {
+  const headings = [...markdown.matchAll(/^##\s+(JRN-[A-Z0-9-]+):[^\n]*$/gm)];
+  return headings.flatMap((heading, index) => {
+    const start = heading.index ?? 0;
+    const end = headings[index + 1]?.index ?? markdown.length;
+    const body = markdown.slice(start, end);
+    const traceability =
+      /^-\s*Requirement links:\s*(.+)$/im.exec(body)?.[1] ??
+      /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ??
+      '';
+    const requirementIds = [...traceability.matchAll(/\bREQ-\d+\b/g)].map(([id]) => id);
+    const playwright = playwrightScenario(body);
+    return [
+      {
+        id: heading[1]!,
+        requirementIds,
+        source: 'journey' as const,
+        ...(playwright ? { playwright } : {})
+      }
+    ];
+  });
+}
+
+function loadGenerationScenarios(projectRoot: string): ApprovedScenario[] {
+  const approvedDirectory = join(projectRoot, 'derived/scenarios/approved');
+  const approved = existsSync(approvedDirectory)
+    ? readdirSync(approvedDirectory)
+        .filter((name) => name.endsWith('.md'))
+        .flatMap((name) => approvedScenarios(readFileSync(join(approvedDirectory, name), 'utf8')))
+    : [];
+  if (approved.length > 0) return approved;
+  const journeysPath = join(projectRoot, 'sources/reference/journeys.md');
+  if (!existsSync(journeysPath)) return [];
+  return journeyScenarios(readFileSync(journeysPath, 'utf8'));
 }
 
 function requirementStatuses(markdown: string): Map<string, string> {
@@ -140,10 +201,21 @@ export async function executeTestGenerationStep(
     path: expand(path, command)
   }));
   const projectRoot = join(workspace, command.project.root);
-  const scenarioDirectory = join(projectRoot, 'derived/scenarios/approved');
-  const scenarios = readdirSync(scenarioDirectory)
-    .filter((name) => name.endsWith('.md'))
-    .flatMap((name) => approvedScenarios(readFileSync(join(scenarioDirectory, name), 'utf8')));
+  const scenarios = loadGenerationScenarios(projectRoot);
+  if (step.id === 'generate-tests' && command.parameters.retractGeneratedTests === true) {
+    const generatedDirectory = join(projectRoot, 'tests/generated');
+    const requestId = generationRequestId(command);
+    if (requestId && existsSync(generatedDirectory)) {
+      for (const name of readdirSync(generatedDirectory)) {
+        if (!name.endsWith('.generated.spec.ts')) continue;
+        const path = join(generatedDirectory, name);
+        if (specMatchesGenerationRequest(readFileSync(path, 'utf8'), requestId)) {
+          unlinkSync(path);
+        }
+      }
+    }
+    return { status: 'succeeded' as const, outputs };
+  }
   if (step.id === 'generate-tests') {
     const generatedScenarios = scenarios.filter(
       (scenario): scenario is ApprovedScenario & { playwright: PlaywrightScenario } =>
@@ -170,8 +242,11 @@ export async function executeTestGenerationStep(
       const lines = [
         `import { ${usesExpect ? 'expect, ' : ''}test } from '@playwright/test';`,
         '',
-        `// Approved scenario: ${scenario.id}`,
+        `// ${scenario.source === 'journey' ? 'Generated from' : 'Approved scenario'}: ${scenario.id}`,
         `// Requirements: ${scenario.requirementIds.join(', ')}`,
+        ...(generationRequestId(command)
+          ? [`// Generation request: ${generationRequestId(command)}`]
+          : []),
         `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
         `  await page.goto(${quoted(scenario.playwright.path)});`
       ];
@@ -253,7 +328,9 @@ export async function executeTestGenerationStep(
     generatedMarkdown(
       await format(
         [
-          '# Approved scenario coverage',
+          scenarios.every((scenario) => scenario.source === 'journey')
+            ? '# Journey coverage'
+            : '# Approved scenario coverage',
           '',
           '| Scenario | Requirement | Requirement status |',
           '| --- | --- | --- |',

@@ -378,9 +378,12 @@ export function validateWorkflow(
     }
     if (
       step.mutations.some((mutation) => mutation === 'create-test' || mutation === 'modify-test') &&
-      (!step.policyGates.includes('execution') || !step.policyGates.includes('approved-scenario'))
+      !step.policyGates.includes('execution')
     ) {
-      throw new Error(`step "${step.id}" requires execution and approved-scenario policy gates`);
+      throw new Error(`step "${step.id}" requires the execution policy gate`);
+    }
+    if (step.mutations.includes('modify-test') && !step.policyGates.includes('approved-scenario')) {
+      throw new Error(`step "${step.id}" requires the approved-scenario policy gate`);
     }
   }
 

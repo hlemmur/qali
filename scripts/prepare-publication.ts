@@ -75,6 +75,25 @@ function executeCheck(workspace: string, check: PublicationCheckCommand): Public
   };
 }
 
+function generationSourceRef(
+  workspace: string,
+  projectRoot: string,
+  content: string
+): string | undefined {
+  const journeyId = /^\/\/ Generated from: (\S+)$/m.exec(content)?.[1];
+  if (!journeyId) return undefined;
+  const journeysPath = `${projectRoot}/sources/reference/journeys.md`;
+  try {
+    if (!existsSync(resolve(workspace, journeysPath))) return undefined;
+    const body = readFileSync(resolve(workspace, journeysPath), 'utf8');
+    return body.includes(journeyId)
+      ? `${journeysPath.replace(`${projectRoot}/`, '')}#${journeyId}`
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function approvedScenarioRef(
   workspace: string,
   projectRoot: string,
@@ -116,21 +135,27 @@ export function preparePublicationManifest(
         after && classifyPublicationPath(path) === 'test'
           ? approvedScenarioRef(options.workspace, options.projectRoot, after)
           : undefined;
+      const generationSource =
+        after && classifyPublicationPath(path) === 'test'
+          ? generationSourceRef(options.workspace, options.projectRoot, after)
+          : undefined;
       return createSemanticPublicationChange({
         path,
         before: beforeContent(options.workspace, path),
         after,
         ...(options.provenanceRef ? { provenanceRef: options.provenanceRef } : {}),
         ...(options.authorityRef ? { authorityRef: options.authorityRef } : {}),
-        ...(approvedScenario ? { approvedScenarioRef: approvedScenario } : {})
+        ...(approvedScenario ? { approvedScenarioRef: approvedScenario } : {}),
+        ...(generationSource ? { generationSourceRef: generationSource } : {})
       });
     });
+  const reviewOnly = changes.some((change) => change.classification === 'governed-source');
   return SemanticPublicationManifestSchema.parse({
     version: 1,
     requestId: options.requestId,
     projectRoot: options.projectRoot,
     baseBranch: 'main',
-    reviewOnly: true,
+    reviewOnly,
     title: `Qali generated changes for ${options.requestId}`,
     commitMessage: `Publish governed Qali changes for ${options.requestId}`,
     checks,

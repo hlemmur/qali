@@ -419,6 +419,7 @@ export const SemanticPublicationChangeSchema = z
     after: PublicationFileStateSchema.nullable(),
     provenanceRef: z.string().min(1).optional(),
     approvedScenarioRef: z.string().min(1).optional(),
+    generationSourceRef: z.string().min(1).optional(),
     authorityRef: z.string().min(1).optional()
   })
   .strict();
@@ -430,7 +431,7 @@ export const SemanticPublicationManifestSchema = z
     requestId: z.string().min(1),
     projectRoot: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*$/),
     baseBranch: z.literal('main'),
-    reviewOnly: z.literal(true),
+    reviewOnly: z.boolean(),
     title: z.string().min(1),
     commitMessage: z.string().min(1),
     checks: z.array(PublicationCheckResultSchema).min(1),
