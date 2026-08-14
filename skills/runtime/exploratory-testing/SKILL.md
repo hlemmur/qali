@@ -70,6 +70,15 @@ Before designing a session, gather context. Check `.agents/qa-project-context.md
 
 ---
 
+## Required Qali charter fields
+
+Every exploration charter MUST include:
+
+- Focus: the Slack feature, depth, or area (for example login flow, not only `/`)
+- Method: bounded black-box exploration through the restricted browser facade
+
+Do not rewrite existing exploration file headers. Append observations, questions, assumptions, and gaps. Write generated questions into the exploration log, not reviewer-owned `sources/questions.md`.
+
 ## Core Principles
 
 ### 1. Structured Freedom

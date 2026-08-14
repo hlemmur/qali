@@ -21,6 +21,10 @@ steps:
         path: projects/{projectId}/sources/decisions.md
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/approved
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/proposed
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/exploration.md
     outputs:
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/coverage-map.md
@@ -42,6 +46,10 @@ steps:
         path: projects/{projectId}/sources/decisions.md
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/approved
+      - artifact: scenarios
+        path: projects/{projectId}/derived/scenarios/proposed
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/exploration.md
     outputs:
       - artifact: tests
         path: projects/{projectId}/tests

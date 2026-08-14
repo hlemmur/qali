@@ -41,9 +41,14 @@ describe('model qualification policy', () => {
   });
 
   it('loads the version-controlled qualification registry', () => {
-    expect(loadQualificationRegistry('qualification/registry.json')).toEqual({
-      version: 1,
-      records: []
+    const registry = loadQualificationRegistry('qualification/registry.json');
+    expect(registry.version).toBe(1);
+    expect(registry.records.length).toBeGreaterThan(0);
+    expect(registry.records[0]).toMatchObject({
+      result: 'passed',
+      state: 'active',
+      modelIdentifier: 'composer-2.5',
+      cursorCliVersion: '2026.08.11-e8db854'
     });
   });
 

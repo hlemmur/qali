@@ -33,6 +33,14 @@ function stageLine(stages: NonNullable<RunSummary['stages']>): string | undefine
 
 function nextActions(summary: RunSummary): string[] {
   const status = displayRunStatus(summary);
+  if (summary.intent === 'explore-project') {
+    const focus = summary.exploration?.focus ?? 'this focus';
+    return [
+      `Generate smoke tests for ${focus}`,
+      `Generate regression tests for ${focus}`,
+      'Open the GitHub run'
+    ];
+  }
   const actions = ['Open the GitHub run'];
   if (status === 'failed') {
     actions.push('Ask Qali to triage the failures');
@@ -44,6 +52,9 @@ function nextActions(summary: RunSummary): string[] {
 function nonTestRunNotice(intent?: string): string {
   if (intent === 'onboard-project') {
     return 'This onboard run did not execute Playwright tests. It records project context, journeys, risks, and open questions.';
+  }
+  if (intent === 'explore-project') {
+    return 'This exploration session used the restricted browser facade. It did not execute the scripted Playwright suite.';
   }
   return 'This run did not execute Playwright tests.';
 }
@@ -251,6 +262,60 @@ export function renderHtmlReport(summary: RunSummary): string {
   </section>`
       : '';
 
+  const exploration = summary.exploration;
+  const explorationBlock = exploration
+    ? `<section>
+    <h2>What Qali did</h2>
+    <ul>
+      ${exploration.charter ? `<li>Charter: ${escapeHtml(exploration.charter)}</li>` : ''}
+      ${exploration.focus ? `<li>Focus: ${escapeHtml(exploration.focus)}</li>` : ''}
+      ${
+        exploration.budget
+          ? `<li>Budget: ${exploration.budget.completedSteps ?? '—'} / ${exploration.budget.maxSteps} steps · cap ${escapeHtml(formatDurationMs(exploration.budget.timeBudgetMs))}${exploration.truncated ? ' · truncated' : ' · complete'}</li>`
+          : ''
+      }
+    </ul>
+  </section>
+  <section>
+    <h2>Coverage</h2>
+    <ul>
+      ${(exploration.areas ?? []).map((area) => `<li>Area: ${escapeHtml(area)}</li>`).join('')}
+      ${(exploration.ideas ?? []).map((idea) => `<li>Idea: ${escapeHtml(idea)}</li>`).join('')}
+    </ul>
+  </section>
+  <section>
+    <h2>Findings</h2>
+    ${
+      (exploration.findings ?? []).length ||
+      (exploration.questions ?? []).length ||
+      (exploration.assumptions ?? []).length
+        ? `<ul>${[
+            ...(exploration.findings ?? []).map((item) => `<li>${escapeHtml(item)}</li>`),
+            ...(exploration.questions ?? []).map(
+              (item) => `<li>Question: ${escapeHtml(item)}</li>`
+            ),
+            ...(exploration.assumptions ?? []).map(
+              (item) => `<li>Assumption: ${escapeHtml(item)}</li>`
+            )
+          ].join('')}</ul>`
+        : '<p>No findings were recorded.</p>'
+    }
+  </section>
+  ${
+    (exploration.screenshotUrls ?? []).length
+      ? `<section>
+    <h2>Evidence</h2>
+    ${(exploration.screenshotUrls ?? [])
+      .map(
+        (url) =>
+          `<p><img src="${escapeHtml(url)}" alt="Exploration evidence for ${escapeHtml(exploration.focus ?? 'session')}"></p>`
+      )
+      .join('')}
+  </section>`
+      : ''
+  }`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -309,6 +374,7 @@ export function renderHtmlReport(summary: RunSummary): string {
     ${stages ? `<p class="meta">${escapeHtml(stages)}</p>` : ''}
   </header>
   ${kpi}
+  ${explorationBlock}
   ${failuresBlock}
   ${tableBlock}
   <section>

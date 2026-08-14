@@ -30,6 +30,10 @@ where it landed. You leave with a deterministic, CI-gated agent run and a gradua
 durable scripted test once the flow stabilizes.
 </objective>
 
+## Qali runtime
+
+Use Slack `feature` / `depth` as the charter focus. Login flow means the login UI, not a single home snapshot. Try multiple ideas within the host budget: happy path, obvious negatives, locked/blocked user when visible, and nearby navigation. Append-only observations; evidence-backed known issues only. Never use shell.
+
 ## Quick Route
 
 | Situation | Go to |

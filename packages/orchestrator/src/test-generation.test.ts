@@ -690,4 +690,50 @@ describe('deterministic test generation', () => {
     expect(unscoped.status).toBe('succeeded');
     expect(existsSync(join(projectRoot, 'tests/generated/jrn-002.generated.spec.ts'))).toBe(true);
   });
+
+  it('adds login coverage beyond JRN-001 when Slack focus is login', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-login-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| ID | Statement | Status |\n| --- | --- | --- |\n| REQ-001 | Shopper can sign in | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      [
+        '## JRN-001: Sign in and view inventory',
+        '',
+        '- Requirement links: REQ-001',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/',
+          actions: [{ kind: 'click', role: 'button', name: 'Login' }],
+          assertions: [{ kind: 'visible', role: 'button', name: 'Add to cart', first: true }]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    const generated = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      { ...command, parameters: { feature: 'login flow' } },
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(generated.status).toBe('succeeded');
+    expect(existsSync(join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'))).toBe(true);
+    expect(existsSync(join(projectRoot, 'tests/generated/scn-login-neg.generated.spec.ts'))).toBe(
+      true
+    );
+    expect(
+      readFileSync(join(projectRoot, 'tests/generated/scn-login-neg.generated.spec.ts'), 'utf8')
+    ).toContain('@smoke');
+  });
 });

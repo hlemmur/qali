@@ -34,7 +34,8 @@ const generatedMarkdown = (body: string): string => {
 interface ApprovedScenario {
   id: string;
   requirementIds: string[];
-  source: 'approved' | 'journey';
+  source: 'approved' | 'journey' | 'proposed';
+  suite?: 'smoke' | 'regression';
   playwright?: PlaywrightScenario;
 }
 
@@ -130,8 +131,12 @@ function playwrightScenario(body: string): PlaywrightScenario | undefined {
   }
 }
 
-function approvedScenarios(markdown: string): ApprovedScenario[] {
-  const headings = [...markdown.matchAll(/^##\s+([A-Z][A-Z0-9-]+):[^\n]*$/gm)];
+function headingScenarios(
+  markdown: string,
+  source: ApprovedScenario['source'],
+  pattern: RegExp
+): ApprovedScenario[] {
+  const headings = [...markdown.matchAll(pattern)];
   const documentApproved = /^-\s*Status:\s*approved for automation\s*$/im.test(
     markdown.slice(0, headings[0]?.index ?? markdown.length)
   );
@@ -140,43 +145,112 @@ function approvedScenarios(markdown: string): ApprovedScenario[] {
     const end = headings[index + 1]?.index ?? markdown.length;
     const body = markdown.slice(start, end);
     const scenarioStatus = /^-\s*Status:\s*(.+)$/im.exec(body)?.[1]?.trim().toLowerCase();
-    if (scenarioStatus ? scenarioStatus !== 'approved for automation' : !documentApproved)
-      return [];
-    const traceability = /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ?? '';
+    if (source === 'approved') {
+      if (scenarioStatus ? scenarioStatus !== 'approved for automation' : !documentApproved) {
+        return [];
+      }
+    }
+    const traceability =
+      /^-\s*Requirement links:\s*(.+)$/im.exec(body)?.[1] ??
+      /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ??
+      '';
     const requirementIds = [...traceability.matchAll(/\bREQ-\d+\b/g)].map(([id]) => id);
+    const suiteRaw = /^-\s*Suite:\s*(.+)$/im.exec(body)?.[1]?.trim().toLowerCase();
+    const suite =
+      suiteRaw === 'regression' ? 'regression' : suiteRaw === 'smoke' ? 'smoke' : undefined;
     const playwright = playwrightScenario(body);
     return [
       {
         id: heading[1]!,
         requirementIds,
-        source: 'approved' as const,
+        source,
+        ...(suite ? { suite } : source === 'journey' ? { suite: 'smoke' as const } : {}),
         ...(playwright ? { playwright } : {})
       }
     ];
   });
 }
 
+function approvedScenarios(markdown: string): ApprovedScenario[] {
+  return headingScenarios(markdown, 'approved', /^##\s+([A-Z][A-Z0-9-]+):[^\n]*$/gm);
+}
+
 function journeyScenarios(markdown: string): ApprovedScenario[] {
-  const headings = [...markdown.matchAll(/^##\s+(JRN-[A-Z0-9-]+):[^\n]*$/gm)];
-  return headings.flatMap((heading, index) => {
-    const start = heading.index ?? 0;
-    const end = headings[index + 1]?.index ?? markdown.length;
-    const body = markdown.slice(start, end);
-    const traceability =
-      /^-\s*Requirement links:\s*(.+)$/im.exec(body)?.[1] ??
-      /^-\s*Traceability:\s*(.+)$/im.exec(body)?.[1] ??
-      '';
-    const requirementIds = [...traceability.matchAll(/\bREQ-\d+\b/g)].map(([id]) => id);
-    const playwright = playwrightScenario(body);
-    return [
+  return headingScenarios(markdown, 'journey', /^##\s+(JRN-[A-Z0-9-]+):[^\n]*$/gm);
+}
+
+function proposedScenarios(markdown: string): ApprovedScenario[] {
+  return headingScenarios(markdown, 'proposed', /^##\s+([A-Z][A-Z0-9-]+):[^\n]*$/gm);
+}
+
+function loadProposedScenarios(projectRoot: string): ApprovedScenario[] {
+  const directory = join(projectRoot, 'derived/scenarios/proposed');
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory)
+    .filter((name) => name.endsWith('.md'))
+    .flatMap((name) => proposedScenarios(readFileSync(join(directory, name), 'utf8')));
+}
+
+function generationFocus(parameters: NormalizedCommand['parameters']): string | undefined {
+  const value = parameters.feature ?? parameters.area ?? parameters.focus;
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value
+    .replace(/[\r\n|`]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || undefined;
+}
+
+const LOGIN_NEGATIVE: ApprovedScenario & { playwright: PlaywrightScenario } = {
+  id: 'SCN-LOGIN-NEG',
+  requirementIds: ['REQ-001'],
+  source: 'proposed',
+  suite: 'smoke',
+  playwright: {
+    path: '/',
+    actions: [{ kind: 'click', role: 'button', name: 'Login' }],
+    assertions: [
       {
-        id: heading[1]!,
-        requirementIds,
-        source: 'journey' as const,
-        ...(playwright ? { playwright } : {})
+        kind: 'visible',
+        role: 'heading',
+        name: 'Epic sadface: Username is required'
       }
-    ];
+    ]
+  }
+};
+
+function selectGenerationScenarios(
+  scenarios: ApprovedScenario[],
+  command: NormalizedCommand
+): ApprovedScenario[] {
+  const focus = generationFocus(command.parameters);
+  if (!focus) return scenarios;
+  const haystack = focus.toLowerCase();
+  const matching = scenarios.filter((scenario) => {
+    if (scenario.source === 'proposed') return true;
+    const id = scenario.id.toLowerCase();
+    if (/login/.test(haystack)) {
+      return /login|sign|jrn-001/.test(id);
+    }
+    return haystack
+      .split(/\s+/)
+      .some((token) => token.length > 3 && id.includes(token.replace(/[^a-z0-9]/g, '')));
   });
+  const selected = matching.length > 0 ? [...matching] : scenarios;
+  if (/login/i.test(focus)) {
+    const hasExtra = selected.some((scenario) => scenario.playwright && scenario.id !== 'JRN-001');
+    if (!hasExtra) selected.push(LOGIN_NEGATIVE);
+  }
+  return selected;
+}
+
+function assertExpandedCoverage(command: NormalizedCommand, generated: ApprovedScenario[]): void {
+  const focus = generationFocus(command.parameters);
+  if (!focus || !/login/i.test(focus)) return;
+  const ids = generated.filter((scenario) => scenario.playwright).map((scenario) => scenario.id);
+  if (ids.length === 1 && ids[0] === 'JRN-001') {
+    throw new Error('could not design more coverage');
+  }
 }
 
 function loadGenerationScenarios(projectRoot: string): ApprovedScenario[] {
@@ -188,8 +262,10 @@ function loadGenerationScenarios(projectRoot: string): ApprovedScenario[] {
     : [];
   if (approved.length > 0) return approved;
   const journeysPath = join(projectRoot, 'sources/reference/journeys.md');
-  if (!existsSync(journeysPath)) return [];
-  return journeyScenarios(readFileSync(journeysPath, 'utf8'));
+  const journeys = existsSync(journeysPath)
+    ? journeyScenarios(readFileSync(journeysPath, 'utf8'))
+    : [];
+  return [...journeys, ...loadProposedScenarios(projectRoot)];
 }
 
 function requirementStatuses(markdown: string): Map<string, string> {
@@ -215,7 +291,7 @@ export async function executeTestGenerationStep(
     path: expand(path, command)
   }));
   const projectRoot = join(workspace, command.project.root);
-  const scenarios = loadGenerationScenarios(projectRoot);
+  const scenarios = selectGenerationScenarios(loadGenerationScenarios(projectRoot), command);
   if (step.id === 'generate-tests' && command.parameters.retractGeneratedTests === true) {
     const generatedDirectory = join(projectRoot, 'tests/generated');
     const requestId = generationRequestId(command);
@@ -235,6 +311,7 @@ export async function executeTestGenerationStep(
       (scenario): scenario is ApprovedScenario & { playwright: PlaywrightScenario } =>
         Boolean(scenario.playwright)
     );
+    assertExpandedCoverage(command, generatedScenarios);
     const untraced = generatedScenarios.find((scenario) => scenario.requirementIds.length === 0);
     if (untraced) {
       throw new Error(`${untraced.id} is missing requirement traceability`);
@@ -268,7 +345,7 @@ export async function executeTestGenerationStep(
         ...(generationRequestId(command)
           ? [`// Generation request: ${generationRequestId(command)}`]
           : []),
-        `test(${quoted(`${scenario.id} generated scenario`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
+        `test(${quoted(`${scenario.id} generated scenario${scenario.suite ? ` @${scenario.suite}` : ''}`)}, async ({ page }${usesTestInfo ? ', testInfo' : ''}) => {`,
         ...(usesNamedFills
           ? [
               ...(usesTestData

@@ -76,7 +76,7 @@ After classification, `@qali/project-config` resolves the canonical root, GitHub
 
 The Workers AI classifier uses a strict JSON schema. A deterministic heuristic fallback preserves intake availability, but both routes feed the same trusted resolver and authorization checks.
 
-Questions about status, last run, coverage, schedule, expected results, history, journeys, or known issues classify as `query-project`. The Worker answers from a D1 quality snapshot when one exists. If the snapshot is missing, Actions runs a host-only pack read with no Playwright, Cursor, or publication. Imperative run, explore, generate, triage, onboard, maintain, schedule pause/update, and quality-pulse requests remain work intents. Host-deterministic `maintain-schedule` writes `derived/workflow-state/schedule.yaml`; `npm run registry:validate` fails if `execute.yml` crons drift from those files. Production `explore-project` and `generate-test-suite` also run on the host (restricted browser + Playwright) until a qualified Cursor identity exists.
+Questions about status, last run, coverage, schedule, expected results, history, journeys, or known issues classify as `query-project`. The Worker answers from a D1 quality snapshot when one exists. If the snapshot is missing, Actions runs a host-only pack read with no Playwright, Cursor, or publication. Imperative run, explore, generate, triage, onboard, maintain, schedule pause/update, and quality-pulse requests remain work intents. Host-deterministic `maintain-schedule` writes `derived/workflow-state/schedule.yaml`; `npm run registry:validate` fails if `execute.yml` crons drift from those files. Production `explore-project` and `generate-test-suite` run a qualified Cursor agent inside `assembleHarnessWorkspace()`. Mock Mode is the only deterministic compiler/stub path. Host Playwright still executes generated specs.
 
 ### 4.1.1 Implementation and review policy
 
@@ -259,7 +259,7 @@ The identity includes:
 
 Any meaningful runtime change invalidates the identity. The registry is version-controlled in `qualification/registry.json` and expiry is enforced.
 
-Current operational nuance: the live Slack target `sauce-demo` uses a production execution profile with no Mock Mode badge and no local webServer. Unattended agent steps still require a qualified identity; without one they block rather than falling back. Host-deterministic intents (`quality-pulse`, `query-project`) skip that agent gate so the daily schedule can run without a mock profile. `projects/_demo` remains a Vitest fixture only. Never label an unqualified Sauce Demo run “qualified live agent” evidence.
+Current operational nuance: the live Slack target `sauce-demo` uses a production execution profile with no Mock Mode badge and no local webServer. Explore and generate require an active 30-day qualification record and run through the assembled harness (`browser-exploration`, `coverage-design`, `test-generation`). Host-deterministic intents (`quality-pulse`, `query-project`, `run-test-suite`, onboard) skip that agent gate. `projects/_demo` remains a Vitest fixture only. Never label an unqualified Sauce Demo run “qualified live agent” evidence.
 
 ## 9. Semantic publication
 

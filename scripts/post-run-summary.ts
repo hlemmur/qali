@@ -288,6 +288,52 @@ export async function publishHostedReport(input: {
   }
 }
 
+function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] | undefined {
+  const sidecar = readJson(join(projectRoot, 'derived/reports/exploration.json'));
+  if (!sidecar || sidecar.intent !== 'explore-project') return undefined;
+  const budget =
+    sidecar.budget && typeof sidecar.budget === 'object'
+      ? (sidecar.budget as Record<string, unknown>)
+      : undefined;
+  return {
+    ...(typeof sidecar.focus === 'string' ? { focus: sidecar.focus } : {}),
+    ...(typeof sidecar.charter === 'string' ? { charter: sidecar.charter } : {}),
+    ...(budget && typeof budget.maxSteps === 'number' && typeof budget.timeBudgetMs === 'number'
+      ? {
+          budget: {
+            maxSteps: budget.maxSteps,
+            timeBudgetMs: budget.timeBudgetMs,
+            ...(typeof budget.completedSteps === 'number'
+              ? { completedSteps: budget.completedSteps }
+              : {})
+          }
+        }
+      : {}),
+    ...(typeof sidecar.truncated === 'boolean' ? { truncated: sidecar.truncated } : {}),
+    ...(Array.isArray(sidecar.areas)
+      ? { areas: sidecar.areas.filter((entry): entry is string => typeof entry === 'string') }
+      : {}),
+    ...(Array.isArray(sidecar.ideas)
+      ? { ideas: sidecar.ideas.filter((entry): entry is string => typeof entry === 'string') }
+      : {}),
+    ...(Array.isArray(sidecar.findings)
+      ? { findings: sidecar.findings.filter((entry): entry is string => typeof entry === 'string') }
+      : {}),
+    ...(Array.isArray(sidecar.questions)
+      ? {
+          questions: sidecar.questions.filter((entry): entry is string => typeof entry === 'string')
+        }
+      : {}),
+    ...(Array.isArray(sidecar.assumptions)
+      ? {
+          assumptions: sidecar.assumptions.filter(
+            (entry): entry is string => typeof entry === 'string'
+          )
+        }
+      : {})
+  };
+}
+
 export async function postRunSummary(): Promise<void> {
   const workerBase = (
     process.env.QALI_WORKER_BASE_URL ??
@@ -371,7 +417,13 @@ export async function postRunSummary(): Promise<void> {
       ? { evidence: report.evidence.filter((entry): entry is string => typeof entry === 'string') }
       : {}),
     ...(tests ? { tests } : {}),
-    ...(counts ?? {})
+    ...(counts ?? {}),
+    ...(process.env.SUMMARY_INTENT === 'explore-project'
+      ? (() => {
+          const exploration = loadExplorationSummary(project.root);
+          return exploration ? { exploration } : {};
+        })()
+      : {})
   };
   const html = renderHtmlReport(htmlSummary);
   mkdirSync('.qali', { recursive: true });

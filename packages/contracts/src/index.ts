@@ -414,6 +414,45 @@ export const ModelQualificationRegistrySchema = z
   .strict();
 export type ModelQualificationRegistry = z.infer<typeof ModelQualificationRegistrySchema>;
 
+export const EvaluationSuiteCaseSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    kind: z.enum(['skill-invariant', 'harness-invariant']),
+    description: z.string().trim().min(1),
+    skillId: z
+      .string()
+      .regex(/^[a-z][a-z0-9-]*$/)
+      .optional(),
+    mustInclude: z.array(z.string().min(1)).min(1).optional(),
+    assertion: z.enum(['deny-shell', 'browser-mcp-matches-profile']).optional()
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.kind === 'skill-invariant') {
+      if (!value.skillId || !value.mustInclude) {
+        context.addIssue({
+          code: 'custom',
+          message: 'skill-invariant cases require skillId and mustInclude'
+        });
+      }
+    }
+    if (value.kind === 'harness-invariant' && !value.assertion) {
+      context.addIssue({
+        code: 'custom',
+        message: 'harness-invariant cases require assertion'
+      });
+    }
+  });
+export type EvaluationSuiteCase = z.infer<typeof EvaluationSuiteCaseSchema>;
+
+export const EvaluationSuiteSchema = z
+  .object({
+    version: z.literal(1),
+    cases: z.array(EvaluationSuiteCaseSchema).min(1)
+  })
+  .strict();
+export type EvaluationSuite = z.infer<typeof EvaluationSuiteSchema>;
+
 export const PublicationChangeClassificationSchema = z.enum([
   'observation',
   'test',

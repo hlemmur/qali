@@ -57,6 +57,8 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'questions',
         'decisions',
         'scenarios',
+        'exploration',
+        'reports',
         'evidence'
       ],
       writableArtifacts: ['strategy', 'plan', 'scenarios', 'reports', 'questions'],
@@ -68,8 +70,21 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
     id: 'explorer',
     displayName: 'Explorer',
     permissions: {
-      readableArtifacts: ['project-context', 'reference', 'scenarios', 'known-issues'],
-      writableArtifacts: ['evidence', 'exploration', 'reference', 'questions', 'known-issues'],
+      readableArtifacts: [
+        'project-context',
+        'reference',
+        'scenarios',
+        'known-issues',
+        'exploration'
+      ],
+      writableArtifacts: [
+        'evidence',
+        'exploration',
+        'reference',
+        'questions',
+        'known-issues',
+        'scenarios'
+      ],
       tools: ['file-read', 'file-write', 'browser'],
       mutations: ['append-observation', 'append-evidence']
     }
@@ -78,7 +93,7 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
     id: 'test-generator',
     displayName: 'Test Generator',
     permissions: {
-      readableArtifacts: ['project-context', 'reference', 'decisions', 'scenarios'],
+      readableArtifacts: ['project-context', 'reference', 'decisions', 'scenarios', 'reports'],
       writableArtifacts: ['tests', 'evidence'],
       tools: ['file-read', 'file-write', 'shell', 'playwright'],
       mutations: ['create-test', 'append-evidence']

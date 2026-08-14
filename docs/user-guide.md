@@ -90,16 +90,16 @@ Every request carries Slack, D1, GitHub, workflow-state, evidence, and publicati
 
 ## What each workflow produces
 
-| What you ask for        | What Qali does                                                                                                                                | What you receive                                                                                                                |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Onboard project**     | Scaffolds the pack, discovers context/journeys/risks, runs a first bounded explore, writes strategy/plan/scenarios, and seeds `schedule.yaml` | Governed pack, first exploration evidence, schedule seed, hosted HTML recap                                                     |
-| **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets                              | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report          |
-| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                                             | Coverage map, generated `*.spec.ts` files, Slack recap with View tests in GitHub and Retract; no pre-approved scenario required |
-| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                                                | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary              |
-| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red                              | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                                     |
-| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                                             | Reconciliation proposal, contradictions, open questions, authority-gated updates                                                |
-| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                                                     | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof                    |
-| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                                                     | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                                          |
+| What you ask for        | What Qali does                                                                                                                                | What you receive                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Onboard project**     | Scaffolds the pack, discovers context/journeys/risks, runs a first bounded explore, writes strategy/plan/scenarios, and seeds `schedule.yaml` | Governed pack, first exploration evidence, schedule seed, hosted HTML recap                                          |
+| **Explore project**     | Qualified Cursor agent explores in the assembled `browser-exploration` harness (Mock Mode uses a host stub)                                   | Charter, focus-driven session, append-only observations, proposed smoke/regression scenarios, structured Open report |
+| **Generate test suite** | Qualified Cursor agent designs coverage from journeys, proposed explore scenarios, and Slack focus, then host-validates Playwright specs      | Coverage map, generated `@smoke`/`@regression` specs, Slack recap with View tests in GitHub and Retract              |
+| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                                                | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary   |
+| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red                              | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                          |
+| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                                             | Reconciliation proposal, contradictions, open questions, authority-gated updates                                     |
+| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                                                     | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof         |
+| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                                                     | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                               |
 
 ## What Qali will not do silently
 
@@ -195,7 +195,7 @@ The GitHub Actions zip is forensics, not the user report. Open `report.html` at 
 
 **View tests in GitHub** (formerly Open spec) opens generated Playwright **source** in the repository. That is not the execution report.
 
-Onboard, explore, and quality pulse do not execute Playwright. Those hosted pages say so in the summary and list findings/evidence instead of a case table. Generate tests first, then run the suite, to get the detailed test list.
+Onboard and quality pulse do not execute Playwright. Explore Open reports describe the charter, coverage, findings, and evidence instead of a case table. Generate tests first, then run the suite, to get the detailed test list.
 
 ### Do developers need to learn commands?
 

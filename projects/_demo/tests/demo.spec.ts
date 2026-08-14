@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('DEMO-SMK-001 seeded customer reaches the dashboard', async ({ page }) => {
+test('DEMO-SMK-001 seeded customer reaches the dashboard @smoke', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('MOCK MODE')).toBeVisible();
   await page.getByLabel('Email').fill('alex@example.test');
@@ -13,7 +13,7 @@ test('DEMO-SMK-001 seeded customer reaches the dashboard', async ({ page }) => {
   await expect(page.getByText('MOCK MODE')).toBeVisible();
 });
 
-test('DEMO-SMK-002 invalid credentials are rejected accessibly', async ({ page }) => {
+test('DEMO-SMK-002 invalid credentials are rejected accessibly @smoke', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Email').fill('intruder@example.test');
   await page.getByLabel('Password').fill('wrong');
