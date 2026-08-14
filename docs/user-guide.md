@@ -86,16 +86,16 @@ Every request carries Slack, D1, GitHub, workflow-state, evidence, and publicati
 
 ## What each workflow produces
 
-| What you ask for        | What Qali does                                                                                                   | What you receive                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Onboard project**     | Discovers context, journeys, risks, and unknowns; prepares an initial strategy                                   | Governed project context, open questions, journey/risk material, strategy, test plan, proposed smoke scenarios, report |
-| **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report |
-| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                | Coverage map, generated `*.spec.ts` files, Slack recap with Open spec and Retract; no pre-approved scenario required   |
-| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                   | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary     |
-| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                            |
-| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                | Reconciliation proposal, contradictions, open questions, authority-gated updates                                       |
-| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                        | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof           |
-| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                        | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                                 |
+| What you ask for        | What Qali does                                                                                                                                | What you receive                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Onboard project**     | Scaffolds the pack, discovers context/journeys/risks, runs a first bounded explore, writes strategy/plan/scenarios, and seeds `schedule.yaml` | Governed pack, first exploration evidence, schedule seed, hosted HTML recap                                            |
+| **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets                              | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report |
+| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                                             | Coverage map, generated `*.spec.ts` files, Slack recap with Open spec and Retract; no pre-approved scenario required   |
+| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                                                | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary     |
+| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red                              | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                            |
+| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                                             | Reconciliation proposal, contradictions, open questions, authority-gated updates                                       |
+| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                                                     | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof           |
+| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                                                     | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                                 |
 
 ## What Qali will not do silently
 
@@ -160,7 +160,7 @@ In a product channel:
 
 Optional named credentials in the same message are written to the GitHub Environment secret and are never echoed in Slack acks. The live Sauce Demo URL maps to the existing `sauce-demo` pack instead of creating a duplicate.
 
-Operators can still copy `projects/_template` by hand. New slugs are scaffolded on the host; `projects/registry.json` is not auto-published yet. After a first onboard, review and approve scenarios before generating tests.
+Operators can still copy `projects/_template` by hand. New slugs are scaffolded on the host; `projects/registry.json` is not auto-published yet. One Slack onboard now includes a first bounded exploration and a conservative schedule seed. After that, review and approve scenarios before generating tests.
 
 See [Project template](project-template.md), [GitHub setup](setup-github.md), [Slack setup](setup-slack.md), and [Cloudflare setup](setup-cloudflare.md) for operator-level installation.
 

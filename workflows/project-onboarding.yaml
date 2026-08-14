@@ -82,3 +82,56 @@ steps:
     policyGates: []
     retries: 0
     timeoutMs: 300000
+  - id: first-explore
+    role: explorer
+    harnessProfileId: browser-exploration
+    needs: [plan-strategy]
+    inputs:
+      - artifact: project-context
+        path: projects/{projectId}/sources/project-context.md
+      - artifact: reference
+        path: projects/{projectId}/sources/reference
+    outputs:
+      - artifact: exploration
+        path: projects/{projectId}/observations/exploration.md
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/exploration
+    requiredTools: [file-read, file-write, browser]
+    mutations: [append-observation, append-evidence]
+    policyGates: []
+    retries: 0
+    timeoutMs: 300000
+  - id: first-explore-report
+    role: reporter
+    harnessProfileId: human-reporting
+    needs: [first-explore]
+    inputs:
+      - artifact: evidence
+        path: projects/{projectId}/observations/evidence/exploration
+      - artifact: exploration
+        path: projects/{projectId}/observations/exploration.md
+      - artifact: questions
+        path: projects/{projectId}/sources/questions.md
+    outputs:
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/exploration.md
+    requiredTools: [file-read, file-write, report-renderer]
+    mutations: [render-derived-report]
+    policyGates: []
+    retries: 0
+    timeoutMs: 120000
+  - id: seed-schedule
+    role: quality-analyst
+    harnessProfileId: host-schedule-maintenance
+    needs: [first-explore-report]
+    inputs:
+      - artifact: workflow-state
+        path: projects/{projectId}/derived/workflow-state
+    outputs:
+      - artifact: workflow-state
+        path: projects/{projectId}/derived/workflow-state/schedule.yaml
+    requiredTools: []
+    mutations: [format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000

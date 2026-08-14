@@ -337,7 +337,7 @@ export function validateWorkflow(
           sensitiveTools: []
         },
         'host-schedule-maintenance': {
-          stepIds: ['apply'],
+          stepIds: ['apply', 'seed-schedule'],
           role: 'quality-analyst',
           sensitiveTools: []
         }

@@ -144,6 +144,10 @@ describe('deterministic project onboarding', () => {
     expect(existsSync(join(projectRoot, 'sources/reference/risks.md'))).toBe(false);
     expect(strategy).toContain('Prioritize `RSK-001`');
     expect(canonicalPlan).toContain('Validate `JRN-001`');
+    expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
+      'Exploration Charter'
+    );
+    expect(existsSync(join(projectRoot, 'derived/workflow-state/schedule.yaml'))).toBe(true);
   });
 
   it('runs onboarding end to end through the production orchestrator in Mock Mode', async () => {
@@ -206,9 +210,15 @@ describe('deterministic project onboarding', () => {
     });
 
     expect(result.status).toBe('succeeded');
-    expect(result.attempts).toHaveLength(4);
+    expect(result.attempts).toHaveLength(7);
     expect(events.events.map(({ type }) => type)).toEqual([
       'workflow-started',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
+      'step-started',
+      'step-succeeded',
       'step-started',
       'step-succeeded',
       'step-started',
@@ -222,6 +232,12 @@ describe('deterministic project onboarding', () => {
     expect(readFileSync(join(projectRoot, 'sources/project-context.md'), 'utf8')).not.toContain(
       'Deterministic fallback'
     );
+    expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
+      'Exploration Charter'
+    );
+    expect(
+      readFileSync(join(projectRoot, 'derived/workflow-state/schedule.yaml'), 'utf8')
+    ).toContain('quality-pulse');
   });
 
   it('scaffolds a new pack from the template and writes URL evidence without touching the registry', async () => {
@@ -290,5 +306,77 @@ describe('deterministic project onboarding', () => {
       readFileSync(join(projectRoot, 'sources/reference/onboarding-evidence.json'), 'utf8')
     );
     expect(evidence.facts[0].source).toBe('https://www.saucedemo.com/');
+  });
+
+  it('keeps an existing schedule and records a live first-explore session when a browser is present', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboard-explore-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    mkdirSync(join(projectRoot, 'derived/workflow-state'), { recursive: true });
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/onboarding-evidence.json'),
+      JSON.stringify({
+        version: 1,
+        projectName: 'Sample Portal',
+        observedAt: '2026-08-13',
+        facts: [],
+        journeys: [],
+        risks: []
+      })
+    );
+    writeFileSync(
+      join(projectRoot, 'derived/workflow-state/schedule.yaml'),
+      [
+        '# qali:generated owner=qali sha256=keep',
+        'version: 1',
+        'template: startup-e2e',
+        'paused: false',
+        'jobs:',
+        '  - workflowId: quality-pulse',
+        "    cron: '17 6 * * *'",
+        '    enabled: true',
+        ''
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'project-onboarding')!;
+    const browser = {
+      calls: [] as string[],
+      async navigate(path: string) {
+        this.calls.push(`navigate:${path}`);
+        return { url: 'https://www.saucedemo.com/' };
+      },
+      async accessibilitySnapshot() {
+        this.calls.push('snapshot');
+        return { untrustedPageData: '- heading "Swag Labs"' };
+      },
+      async captureEvidence(id: string) {
+        this.calls.push(`evidence:${id}`);
+        return { evidenceId: id, artifacts: [`${id}/screenshot.png`] };
+      },
+      async readDiagnostics() {
+        return { untrustedConsole: [], untrustedNetwork: [] };
+      }
+    };
+
+    for (const step of workflow.steps) {
+      await expect(
+        executeOnboardingMockStep(workspace, step, command, browser)
+      ).resolves.toMatchObject({ status: 'succeeded' });
+    }
+
+    expect(browser.calls[0]).toBe('navigate:/');
+    expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
+      'www.saucedemo.com'
+    );
+    expect(
+      readFileSync(join(projectRoot, 'derived/workflow-state/schedule.yaml'), 'utf8')
+    ).toContain('startup-e2e');
+    expect(readFileSync(join(projectRoot, 'derived/reports/exploration.md'), 'utf8')).toContain(
+      'Exploration'
+    );
   });
 });

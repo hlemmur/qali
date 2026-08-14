@@ -9,6 +9,12 @@ import type {
 } from '../../contracts/src/index.js';
 import { scaffoldProject } from '../../knowledge/src/index.js';
 import type { StepExecutionResult } from './execution.js';
+import { executeExplorationStep, type ExplorationBrowser } from './exploration.js';
+import {
+  PROJECT_SCHEDULE_RELATIVE_PATH,
+  scheduleTemplate,
+  writeProjectSchedule
+} from './project-schedule.js';
 
 const FACT_CATEGORIES = [
   'product',
@@ -175,7 +181,8 @@ export function prepareOnboardProject(
 export async function executeOnboardingMockStep(
   workspace: string,
   step: WorkflowStep,
-  command: NormalizedCommand
+  command: NormalizedCommand,
+  browser?: ExplorationBrowser
 ): Promise<StepExecutionResult> {
   if (command.intent !== 'onboard-project') {
     return { status: 'failed', error: `Unsupported onboarding step: ${step.id}` };
@@ -360,6 +367,66 @@ export async function executeOnboardingMockStep(
     return { status: 'succeeded', outputs };
   }
 
+  if (step.id === 'first-explore') {
+    const charter = await executeExplorationStep(
+      workspace,
+      { ...step, id: 'charter' },
+      command,
+      undefined
+    );
+    if (charter.status !== 'succeeded') return charter;
+    if (browser) {
+      const explored = await executeExplorationStep(
+        workspace,
+        { ...step, id: 'explore' },
+        command,
+        browser
+      );
+      return explored.status === 'succeeded'
+        ? { status: 'succeeded', outputs: explored.outputs }
+        : explored;
+    }
+    const evidenceDirectory = join(
+      workspace,
+      command.project.root,
+      'observations/evidence/exploration'
+    );
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(
+      join(evidenceDirectory, 'onboard-first-explore.json'),
+      `${JSON.stringify(
+        {
+          version: 1,
+          status: 'charter-only',
+          targetUrl: targetUrlFrom(command) ?? `https://${command.project.id}`
+        },
+        null,
+        2
+      )}\n`
+    );
+    return { status: 'succeeded', outputs };
+  }
+
+  if (step.id === 'first-explore-report') {
+    const reported = await executeExplorationStep(
+      workspace,
+      { ...step, id: 'report' },
+      command,
+      undefined
+    );
+    return reported.status === 'succeeded'
+      ? { status: 'succeeded', outputs: reported.outputs }
+      : reported;
+  }
+
+  if (step.id === 'seed-schedule') {
+    const projectRoot = join(workspace, command.project.root);
+    if (!existsSync(join(projectRoot, PROJECT_SCHEDULE_RELATIVE_PATH))) {
+      writeProjectSchedule(projectRoot, scheduleTemplate('conservative'));
+    }
+    return { status: 'succeeded', outputs };
+  }
+
   return { status: 'failed', error: `Unsupported onboarding step: ${step.id}` };
 }
 
@@ -372,7 +439,10 @@ const ONBOARDING_EVIDENCE_PATHS = [
   'derived/strategy.md',
   'derived/plan.md',
   'derived/reports/risk-assessment.md',
-  'derived/reports/initial-test-plan.md'
+  'derived/reports/initial-test-plan.md',
+  'observations/exploration.md',
+  'derived/reports/exploration.md',
+  'derived/workflow-state/schedule.yaml'
 ] as const;
 
 export function summarizeOnboardingReport(projectRoot: string): {

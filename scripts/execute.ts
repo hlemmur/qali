@@ -450,6 +450,9 @@ class RoutedStepExecutor implements StepExecutor {
       if (command.intent === 'maintain-schedule' && step.id === 'apply') {
         return executeScheduleMaintenanceStep(workspace, step, command);
       }
+      if (command.intent === 'onboard-project' && step.id === 'seed-schedule') {
+        return executeOnboardingMockStep(workspace, step, command);
+      }
       if (
         command.intent === 'maintain-suite' &&
         (step.id === 'snapshot' || step.id === 'validate-repair')
@@ -509,6 +512,31 @@ class RoutedStepExecutor implements StepExecutor {
       this.executionMode === 'mock'
     );
     if (agentExecutionRoute === 'deterministic-onboarding') {
+      if (step.id === 'first-explore') {
+        const evidenceDirectory = join(
+          workspace,
+          command.project.root,
+          'observations/evidence/exploration'
+        );
+        const config = resolveBrowserServiceConfig(this.executionProfile, {
+          ...process.env,
+          QALI_BROWSER_EVIDENCE_DIR: evidenceDirectory
+        });
+        const explore = async () => {
+          const driver = await PlaywrightBrowserDriver.launch({
+            allowedOrigins: config.allowedOrigins,
+            browserName: config.browserName,
+            ...(config.executablePath ? { executablePath: config.executablePath } : {})
+          });
+          try {
+            const browser = new RestrictedBrowserFacade(driver, config);
+            return await executeOnboardingMockStep(workspace, step, command, browser);
+          } finally {
+            await driver.close();
+          }
+        };
+        return this.webServer ? withProjectWebServer(this.webServer, explore) : explore();
+      }
       return executeOnboardingMockStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-exploration') {
