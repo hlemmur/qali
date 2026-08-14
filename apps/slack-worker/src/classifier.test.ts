@@ -57,6 +57,21 @@ describe('intent classification fallbacks', () => {
     expect(heuristicClassify(work('can you run the smoke suite?')).intent).toBe('run-test-suite');
   });
 
+  it('maps pause, resume, and timed regression requests to maintain-schedule', () => {
+    expect(heuristicClassify(work('@Qali pause all test activities'))).toMatchObject({
+      intent: 'maintain-schedule',
+      focus: { action: 'pause' }
+    });
+    expect(heuristicClassify(work('resume testing'))).toMatchObject({
+      intent: 'maintain-schedule',
+      focus: { action: 'resume' }
+    });
+    expect(heuristicClassify(work('schedule full regression for 04:00'))).toMatchObject({
+      intent: 'maintain-schedule',
+      focus: { action: 'upsert-job', workflowId: 'run-test-suite', cron: '0 4 * * *' }
+    });
+  });
+
   it('falls back to heuristics when the primary classifier throws', async () => {
     const primary: IntentClassifier = {
       classify: async () => {

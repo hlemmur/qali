@@ -44,6 +44,7 @@ import {
   executeKnowledgeMaintenanceStep,
   executeQualityPulseStep,
   executeQueryProjectStep,
+  executeScheduleMaintenanceStep,
   executeSuiteMaintenanceStep,
   executeOnboardingMockStep,
   executeTriageStep,
@@ -53,6 +54,7 @@ import {
   loadWorkflowDirectory,
   prepareOnboardProject,
   routeCommand,
+  appendAgentLog,
   PlaywrightTriageRegressionValidator,
   type PolicyEnforcer,
   type PreconditionChecker,
@@ -420,6 +422,9 @@ class RoutedStepExecutor implements StepExecutor {
       if (command.intent === 'query-project' && step.id === 'snapshot') {
         return executeQueryProjectStep(workspace, step, command);
       }
+      if (command.intent === 'maintain-schedule' && step.id === 'apply') {
+        return executeScheduleMaintenanceStep(workspace, step, command);
+      }
       if (
         command.intent === 'maintain-suite' &&
         (step.id === 'snapshot' || step.id === 'validate-repair')
@@ -531,6 +536,9 @@ class RoutedStepExecutor implements StepExecutor {
     }
     if (agentExecutionRoute === 'deterministic-query-project') {
       return executeQueryProjectStep(workspace, step, command);
+    }
+    if (agentExecutionRoute === 'deterministic-schedule-maintenance') {
+      return executeScheduleMaintenanceStep(workspace, step, command);
     }
     if (agentExecutionRoute === 'deterministic-fallback') {
       if (this.executionMode !== 'mock') {
@@ -712,6 +720,15 @@ const result = await executeWorkflow(command, {
   harnessHash: () => harnessCatalogHash
 });
 console.log(JSON.stringify(result, null, 2));
+appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/agent-log.jsonl'), {
+  at: new Date().toISOString(),
+  intent: command.intent,
+  status: result.status,
+  workflowId: descriptor.id,
+  ...(typeof command.parameters.requestId === 'string'
+    ? { requestId: command.parameters.requestId }
+    : {})
+});
 if (result.status === 'succeeded') {
   if (command.intent !== 'run-test-suite') {
     writeWorkflowSlackSummary(command, 'passed');

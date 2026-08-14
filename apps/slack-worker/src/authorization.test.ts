@@ -56,6 +56,7 @@ describe('external role authorization', () => {
   it('rejects Developer maintenance and governance changes before dispatch', () => {
     expect(authorizeCommand(command('maintain-suite'))).toMatchObject({ allowed: false });
     expect(authorizeCommand(command('maintain-knowledge'))).toMatchObject({ allowed: false });
+    expect(authorizeCommand(command('maintain-schedule'))).toMatchObject({ allowed: false });
     expect(
       authorizeCommand(
         command('run-test-suite', {

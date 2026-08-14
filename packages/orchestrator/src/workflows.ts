@@ -150,11 +150,12 @@ export const ROLE_PROFILES: Record<RoleId, RoleProfile> = {
         'tests',
         'evidence',
         'reports',
-        'jobs'
+        'jobs',
+        'workflow-state'
       ],
-      writableArtifacts: ['evidence', 'reports'],
+      writableArtifacts: ['evidence', 'reports', 'workflow-state'],
       tools: ['file-read', 'file-write', 'report-renderer'],
-      mutations: ['append-evidence', 'render-derived-report']
+      mutations: ['append-evidence', 'render-derived-report', 'format-document']
     }
   }),
   reporter: role({
@@ -332,6 +333,11 @@ export function validateWorkflow(
         },
         'host-quality-query': {
           stepIds: ['snapshot'],
+          role: 'quality-analyst',
+          sensitiveTools: []
+        },
+        'host-schedule-maintenance': {
+          stepIds: ['apply'],
           role: 'quality-analyst',
           sensitiveTools: []
         }

@@ -197,6 +197,7 @@ const testProjectRegistry: ProjectRegistry = {
         'triage-failure',
         'maintain-knowledge',
         'maintain-suite',
+        'maintain-schedule',
         'quality-pulse',
         'query-project'
       ],

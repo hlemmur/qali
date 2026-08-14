@@ -184,7 +184,7 @@ jobs:
         run: echo "QALI_PUBLISH_GITHUB_TOKEN is not configured; generated.patch remains an artifact."
 
   notify-slack:
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
     needs: [validate-and-execute, publish-generated-changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 5

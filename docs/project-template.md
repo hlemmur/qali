@@ -35,6 +35,7 @@ projects/<id>/
 │   ├── tasks/
 │   ├── jobs/
 │   └── workflow-state/
+│       └── schedule.yaml    # Explore/regression/pulse crons; pause lives here
 └── tests/
     ├── README.md
     └── generated/           # Specs from approved scenarios
@@ -74,7 +75,7 @@ npm run project:validate -- projects/sauce-demo
 
 ## Environment configuration
 
-Every target has `execution-profile.json`, and `projects/registry.json` is the only trusted map from a classified project ID to its root, GitHub Environment, Slack scope, publication target, enabled workflows, schedules, and active profile. The classifier never supplies those values.
+Every target has `execution-profile.json`, a `derived/workflow-state/schedule.yaml` (crons and pause), and `projects/registry.json` as the trusted map from a classified project ID to its root, GitHub Environment, Slack scope, publication target, enabled workflows, schedules, and active profile. Registry `schedules` must match the canonical jobs in that YAML (pause does not flip registry `enabled` flags). `execute.yml` cron triggers stay in lockstep with the unique crons in those files, including after an ops upsert. The classifier never supplies those values.
 
 Configure these names in the selected GitHub Environment; do not commit their values:
 

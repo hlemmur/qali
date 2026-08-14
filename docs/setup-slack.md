@@ -78,7 +78,7 @@ npm run control-plane:deploy
 ### Role behavior
 
 - **Developer** (product channels) — onboard from an https URL, exploration, generate/run suites, triage, quality pulse, query. Cannot change autonomy, policy, authority, or trigger maintenance.
-- **Ops** (`#qali-ops`) — `maintain-knowledge` and `maintain-suite` for break-glass users listed in `SLACK_QA_LEAD_USER_IDS`.
+- **Ops** (`#qali-ops`) — `maintain-knowledge`, `maintain-suite`, and `maintain-schedule` (pause/resume/cron edits) for break-glass users listed in `SLACK_QA_LEAD_USER_IDS`.
 
 Authorization runs in the Worker queue handler **before** GitHub dispatch.
 

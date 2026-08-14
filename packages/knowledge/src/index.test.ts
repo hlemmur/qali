@@ -128,6 +128,7 @@ describe('canonical project template', () => {
       'derived/tasks/.generated.md',
       'derived/jobs/.generated.md',
       'derived/workflow-state/.generated.md',
+      'derived/workflow-state/schedule.yaml',
       'tests/README.md'
     ];
 

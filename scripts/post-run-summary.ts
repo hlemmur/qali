@@ -82,6 +82,7 @@ const INTENT_INCOMPLETE: Record<string, string> = {
   'triage-failure': 'Triage did not finish with a complete report.',
   'maintain-knowledge': 'Knowledge maintenance did not finish.',
   'maintain-suite': 'Suite maintenance did not finish.',
+  'maintain-schedule': 'The schedule change did not finish.',
   'quality-pulse': 'Quality pulse did not finish.',
   'query-project': 'I could not finish reading the project pack.'
 };

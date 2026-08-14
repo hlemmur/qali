@@ -46,4 +46,26 @@ describe('scheduled command', () => {
       })
     ).toThrow(/enabled schedule/i);
   });
+
+  it('rejects scheduled work when the project schedule is paused', () => {
+    const registry = JSON.parse(readFileSync('projects/registry.json', 'utf8'));
+    const profile = JSON.parse(readFileSync('projects/sauce-demo/execution-profile.json', 'utf8'));
+
+    expect(() =>
+      buildScheduledCommand({
+        registry,
+        profiles: [profile],
+        projectId: 'sauce-demo',
+        intent: 'quality-pulse',
+        receivedAt: '2026-08-13T10:00:00.000Z',
+        requestId: 'scheduled-123',
+        schedule: {
+          version: 1,
+          template: 'conservative',
+          paused: true,
+          jobs: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }]
+        }
+      })
+    ).toThrow(/enabled schedule/i);
+  });
 });

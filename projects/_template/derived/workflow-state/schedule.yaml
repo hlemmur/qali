@@ -1,0 +1,8 @@
+# qali:generated owner=qali sha256={{CONTENT_SHA256}}
+version: 1
+template: conservative
+paused: false
+jobs:
+  - workflowId: quality-pulse
+    cron: '17 6 * * *'
+    enabled: true

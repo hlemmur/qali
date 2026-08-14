@@ -76,7 +76,7 @@ After classification, `@qali/project-config` resolves the canonical root, GitHub
 
 The Workers AI classifier uses a strict JSON schema. A deterministic heuristic fallback preserves intake availability, but both routes feed the same trusted resolver and authorization checks.
 
-Questions about status, last run, coverage, schedule, expected results, history, journeys, or known issues classify as `query-project`. The Worker answers from a D1 quality snapshot when one exists. If the snapshot is missing, Actions runs a host-only pack read with no Playwright, Cursor, or publication. Imperative run, explore, generate, triage, onboard, maintain, and quality-pulse requests remain work intents.
+Questions about status, last run, coverage, schedule, expected results, history, journeys, or known issues classify as `query-project`. The Worker answers from a D1 quality snapshot when one exists. If the snapshot is missing, Actions runs a host-only pack read with no Playwright, Cursor, or publication. Imperative run, explore, generate, triage, onboard, maintain, schedule pause/update, and quality-pulse requests remain work intents. Host-deterministic `maintain-schedule` writes `derived/workflow-state/schedule.yaml`; `npm run registry:validate` fails if `execute.yml` crons drift from those files.
 
 ### 4.1.1 Implementation and review policy
 

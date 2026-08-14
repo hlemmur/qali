@@ -7,6 +7,7 @@ import {
   type WorkflowStep
 } from '../../contracts/src/index.js';
 import type { StepExecutionResult } from './execution.js';
+import { effectiveScheduleJobs, loadProjectSchedule } from './project-schedule.js';
 
 const expand = (value: string, command: NormalizedCommand): string =>
   value.replaceAll('{projectId}', command.project.id);
@@ -126,22 +127,31 @@ export function buildQualitySnapshot(
   const knownIssues = knownIssueRows(read(projectRoot, 'observations/known-issues.md') ?? '');
   let schedules: QualitySnapshot['schedules'] = [];
   try {
-    const registry = JSON.parse(
-      readFileSync(join(workspace, 'projects/registry.json'), 'utf8')
-    ) as {
-      projects?: Array<{
-        id?: string;
-        schedules?: Array<{ workflowId?: string; cron?: string; enabled?: boolean }>;
-      }>;
-    };
-    const project = registry.projects?.find((entry) => entry.id === command.project.id);
-    schedules = (project?.schedules ?? []).flatMap((entry) =>
-      typeof entry.workflowId === 'string' && typeof entry.cron === 'string'
-        ? [{ workflowId: entry.workflowId, cron: entry.cron, enabled: entry.enabled !== false }]
-        : []
-    );
+    const schedule = loadProjectSchedule(projectRoot);
+    schedules = effectiveScheduleJobs(schedule).map((entry) => ({
+      workflowId: entry.workflowId,
+      cron: entry.cron,
+      enabled: entry.enabled
+    }));
   } catch {
-    /* registry is optional for snapshot answers */
+    try {
+      const registry = JSON.parse(
+        readFileSync(join(workspace, 'projects/registry.json'), 'utf8')
+      ) as {
+        projects?: Array<{
+          id?: string;
+          schedules?: Array<{ workflowId?: string; cron?: string; enabled?: boolean }>;
+        }>;
+      };
+      const project = registry.projects?.find((entry) => entry.id === command.project.id);
+      schedules = (project?.schedules ?? []).flatMap((entry) =>
+        typeof entry.workflowId === 'string' && typeof entry.cron === 'string'
+          ? [{ workflowId: entry.workflowId, cron: entry.cron, enabled: entry.enabled !== false }]
+          : []
+      );
+    } catch {
+      /* schedule file and registry are optional for snapshot answers */
+    }
   }
   return QualitySnapshotSchema.parse({
     version: 1,

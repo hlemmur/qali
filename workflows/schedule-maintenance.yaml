@@ -1,0 +1,25 @@
+version: 1
+id: schedule-maintenance
+title: Schedule maintenance
+description: Pause, resume, or update the project schedule file without Cursor.
+executable: true
+triggers:
+  - type: command
+    intent: maintain-schedule
+preconditions: [project-exists]
+steps:
+  - id: apply
+    role: quality-analyst
+    harnessProfileId: host-schedule-maintenance
+    needs: []
+    inputs:
+      - artifact: workflow-state
+        path: projects/{projectId}/derived/workflow-state
+    outputs:
+      - artifact: workflow-state
+        path: projects/{projectId}/derived/workflow-state/schedule.yaml
+    requiredTools: []
+    mutations: [format-document]
+    policyGates: []
+    retries: 0
+    timeoutMs: 30000
