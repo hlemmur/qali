@@ -132,6 +132,23 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
+  it('renders exploration findings that are objects without crashing HTML escape', () => {
+    const html = renderHtmlReport({
+      runId: 'exp-2',
+      status: 'passed',
+      intent: 'explore-project',
+      projectId: 'sauce-demo',
+      exploration: {
+        focus: 'login flow',
+        findings: [{ title: 'Username is required', severity: 'info' }] as unknown as string[],
+        areas: [{ name: 'login' }] as unknown as string[],
+        questions: [{ id: 'Q-1', text: 'What happens for locked users?' }] as unknown as string[]
+      }
+    });
+    expect(html).toContain('Username is required');
+    expect(html).not.toContain('<script');
+  });
+
   it('explains that onboard did not execute Playwright tests', () => {
     const html = renderHtmlReport({
       runId: '99',
