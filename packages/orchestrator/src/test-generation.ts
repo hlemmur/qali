@@ -83,7 +83,12 @@ const PlaywrightScenarioSchema = z
     assertions: z.array(
       z.discriminatedUnion('kind', [
         z
-          .object({ kind: z.literal('visible'), role: RoleSchema, name: z.string().min(1) })
+          .object({
+            kind: z.literal('visible'),
+            role: RoleSchema,
+            name: z.string().min(1),
+            first: z.literal(true).optional()
+          })
           .strict(),
         z
           .object({ kind: z.literal('text'), testId: z.string().min(1), value: z.string() })
@@ -309,9 +314,8 @@ export async function executeTestGenerationStep(
       }
       for (const assertion of scenario.playwright.assertions) {
         if (assertion.kind === 'visible') {
-          lines.push(
-            `  await expect(page.getByRole(${quoted(assertion.role)}, { name: ${quoted(assertion.name)} })).toBeVisible();`
-          );
+          const locator = `page.getByRole(${quoted(assertion.role)}, { name: ${quoted(assertion.name)} })${assertion.first ? '.first()' : ''}`;
+          lines.push(`  await expect(${locator}).toBeVisible();`);
         } else if (assertion.kind === 'text') {
           lines.push(
             `  await expect(page.getByTestId(${quoted(assertion.testId)})).toHaveText(${quoted(assertion.value)});`
