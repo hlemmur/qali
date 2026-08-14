@@ -11,12 +11,12 @@
       "ruleHash": "fe3b1ebc98027ae3fa8bb4136b393f125b75fbf4beda319366caf74ba1a40bc2",
       "templateHash": "10b202e42334067e506dae7950d3a4e6fe440d4271879046e682474d45cbcfde",
       "browserFacadeHash": "9bc9796a41b9717cde4c84029ee7f8dec6f1a61382f72c737a1dcfc0b3446bcd",
-      "permissionHash": "3a8d8ff2c995586bc8ccaa44aeeb9e3213db52ab8466389047238620a7b6866b",
+      "permissionHash": "80b93d009a81e920892ac5ce9843748bfaa148b95aebafef34d264f2b27f71ab",
       "evaluationSuiteHash": "75fadec95df8657249175fed0f4ce90bf254a6541290ff6f001a132f41dfc592",
       "qualificationRunUrl": "https://github.com/hlemmur/qali/actions/workflows/qualify.yml",
       "result": "passed",
-      "qualifiedAt": "2026-08-14T22:50:56.705Z",
-      "expiresAt": "2026-09-13T22:50:56.705Z",
+      "qualifiedAt": "2026-08-14T23:47:03.279Z",
+      "expiresAt": "2026-09-13T23:47:03.279Z",
       "state": "active"
     }
   ]
