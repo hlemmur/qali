@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { preparePublicationManifest } from './prepare-publication.js';
+import { preparePublicationManifest, authorityRefFromCommand } from './prepare-publication.js';
 import { assessSemanticPublication } from '../packages/publication/src/index.js';
 
 const git = (workspace: string, ...args: string[]): string =>
@@ -163,5 +163,49 @@ describe('publication preparation', () => {
 
     expect(manifest.changes).toEqual([]);
     expect(manifest.checks[0]).toMatchObject({ exitCode: 0 });
+  });
+
+  it('stamps Slack requester authority so onboard governed sources can publish', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-onboard-'));
+    const contextPath = 'projects/shop/sources/project-context.md';
+    mkdirSync(join(workspace, 'projects/shop/sources'), { recursive: true });
+    writeFileSync(join(workspace, contextPath), '# QA Project Context\n\nUnknown\n');
+    git(workspace, 'init');
+    git(workspace, 'config', 'user.name', 'Test');
+    git(workspace, 'config', 'user.email', 'test@example.test');
+    git(workspace, 'add', '.');
+    git(workspace, 'commit', '-m', 'baseline');
+    writeFileSync(
+      join(workspace, contextPath),
+      '# QA Project Context\n\n- FACT-001 | The live target origin is https://www.saucedemo.com.\n'
+    );
+
+    expect(authorityRefFromCommand({ requestedBy: 'github-schedule' })).toBeUndefined();
+    expect(authorityRefFromCommand({ requestedBy: 'U099MTX6423' })).toBe('slack-user:U099MTX6423');
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-ONBOARD',
+      projectRoot: 'projects/shop',
+      provenanceRef: 'workflow:REQ-ONBOARD',
+      authorityRef: 'slack-user:U099MTX6423',
+      checks: [
+        {
+          command: process.execPath,
+          args: ['-e', "process.stdout.write('ok')"]
+        }
+      ]
+    });
+
+    expect(manifest.reviewOnly).toBe(true);
+    expect(manifest.changes).toEqual([
+      expect.objectContaining({
+        path: contextPath,
+        classification: 'governed-source',
+        provenanceRef: 'workflow:REQ-ONBOARD',
+        authorityRef: 'slack-user:U099MTX6423'
+      })
+    ]);
+    expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
   });
 });
