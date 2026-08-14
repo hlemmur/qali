@@ -31,7 +31,7 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 | Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge                                                                      |
 | Hosted HTML reports + Slack **Open report**              | Live-verified             | R2 `qali-reports`; Slack **Open report** on quality-pulse run [31752717647](https://github.com/hlemmur/qali/actions/runs/31752717647); signed GET `200` `text/html`; unsigned/expired `401` |
 | Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                                                                                       |
-| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Merged as [#30](https://github.com/hlemmur/qali/pull/30). Live Worker deploy sets `SLACK_OPS_CHANNEL_IDS` to `#qali-ops` (`C0BQ1LXP877`).                                                   |
+| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Worker deployed with `SLACK_OPS_CHANNEL_IDS=C0BQ1LXP877`. Product-channel pause rejected. Onboard reused `sauce-demo` then GitHub `403` on Environments. Invite Qali into `#qali-ops`.      |
 
 ## Readiness vocabulary
 
