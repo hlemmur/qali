@@ -1,6 +1,7 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import type { EventEmitter } from 'node:events';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import { z } from 'zod';
 
 export interface PlaywrightTestCase {
@@ -203,6 +204,9 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
     ) {
       throw new Error('Playwright test path is outside the selected project');
     }
+    const jsonOutputName = isAbsolute(request.reportPath)
+      ? relative(request.workspace, request.reportPath) || request.reportPath
+      : request.reportPath;
     const args = [
       join(request.workspace, 'node_modules', '@playwright', 'test', 'cli.js'),
       'test',
@@ -217,7 +221,7 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
         env: {
           ...process.env,
           QALI_TARGET_BASE_URL: request.targetBaseUrl,
-          PLAYWRIGHT_JSON_OUTPUT_NAME: request.reportPath,
+          PLAYWRIGHT_JSON_OUTPUT_NAME: jsonOutputName,
           PLAYWRIGHT_HTML_REPORT: 'playwright-report',
           ...(request.webServer
             ? {
@@ -229,11 +233,25 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe']
       });
+      let stdout = '';
       let stderr = '';
       let settled = false;
+      const persistJsonReport = (): void => {
+        if (existsSync(request.reportPath)) return;
+        const trimmed = stdout.trim();
+        if (!trimmed.startsWith('{')) return;
+        try {
+          JSON.parse(trimmed);
+        } catch {
+          return;
+        }
+        mkdirSync(dirname(request.reportPath), { recursive: true });
+        writeFileSync(request.reportPath, trimmed);
+      };
       const finish = (result: PlaywrightRunResult): void => {
         if (settled) return;
         settled = true;
+        persistJsonReport();
         request.signal?.removeEventListener('abort', cancel);
         resolve(result);
       };
@@ -241,6 +259,7 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
         child.kill('SIGTERM');
         finish({ status: 'failed', exitCode: 1, stderr: 'cancelled' });
       };
+      child.stdout.on('data', (chunk) => (stdout += String(chunk)));
       child.stderr.on('data', (chunk) => (stderr += String(chunk)));
       child.on('error', (error) =>
         finish({ status: 'failed', exitCode: 1, stderr: error.message })

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -160,6 +161,42 @@ describe('Playwright adapter', () => {
     expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
     expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toBe('test-results/report.json');
     expect(options.env.PLAYWRIGHT_HTML_REPORT).toBe('playwright-report');
+  });
+
+  it('writes JSON reporter stdout when Playwright does not honor the output file env', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-playwright-json-'));
+    const reportPath = join(
+      workspace,
+      'projects/_demo/observations/evidence/test-runs/results.json'
+    );
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      kill: ReturnType<typeof vi.fn<(signal?: NodeJS.Signals) => boolean>>;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => true);
+    const spawn = vi.fn<PlaywrightSpawn>(() => child);
+    const runner = new SpawnPlaywrightRunner(spawn);
+    const pending = runner.run({
+      workspace,
+      projectId: '_demo',
+      targetBaseUrl: 'https://staging.example.test',
+      reportPath
+    });
+    const [command, , options] = spawn.mock.calls[0]!;
+    expect(command).toBe(process.execPath);
+    expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toBe(
+      'projects/_demo/observations/evidence/test-runs/results.json'
+    );
+    queueMicrotask(() => {
+      child.stdout.emit('data', '{"suites":[]}');
+      child.emit('close', 0);
+    });
+    await expect(pending).resolves.toMatchObject({ status: 'passed' });
+    expect(existsSync(reportPath)).toBe(true);
+    expect(JSON.parse(readFileSync(reportPath, 'utf8'))).toEqual({ suites: [] });
   });
 
   it('scopes regression validation to explicit candidate test paths', async () => {
