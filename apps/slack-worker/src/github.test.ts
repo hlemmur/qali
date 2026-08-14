@@ -128,6 +128,7 @@ describe('GitHub App environment provisioning', () => {
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
@@ -162,33 +163,124 @@ describe('GitHub App environment provisioning', () => {
     expect(urls).toEqual([
       'https://api.github.test/app/installations/456/access_tokens',
       'https://api.github.test/repos/qali/control/environments/qali-example-com',
+      'https://api.github.test/repos/qali/control/environments/qali-example-com',
       'https://api.github.test/repos/qali/control/environments/qali-example-com/variables',
       'https://api.github.test/repos/qali/control/environments/qali-example-com/variables',
       'https://api.github.test/repos/qali/control/environments/qali-example-com/variables',
       'https://api.github.test/repos/qali/control/environments/qali-example-com/secrets/public-key',
       'https://api.github.test/repos/qali/control/environments/qali-example-com/secrets/QALI_TEST_CREDENTIALS_JSON'
     ]);
-    expect(request.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT' });
-    expect(JSON.parse(String(request.mock.calls[2]?.[1]?.body))).toEqual({
+    expect(request.mock.calls[1]?.[1]?.method ?? 'GET').toBe('GET');
+    expect(request.mock.calls[2]?.[1]).toMatchObject({ method: 'PUT' });
+    expect(JSON.parse(String(request.mock.calls[3]?.[1]?.body))).toEqual({
       name: 'QALI_TARGET_BASE_URL',
       value: 'https://example.com/'
     });
-    expect(JSON.parse(String(request.mock.calls[3]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(request.mock.calls[4]?.[1]?.body))).toEqual({
       name: 'QALI_ALLOWED_ORIGINS_JSON',
       value: '["https://example.com"]'
     });
-    expect(JSON.parse(String(request.mock.calls[4]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(request.mock.calls[5]?.[1]?.body))).toEqual({
       name: 'QALI_TEST_DATA_JSON',
       value: '{"username":"standard_user"}'
     });
     expect(encrypt).toHaveBeenCalledWith('{"password":"secret_sauce"}', 'cHVibGlj');
-    expect(JSON.parse(String(request.mock.calls[6]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(request.mock.calls[7]?.[1]?.body))).toEqual({
       encrypted_value: 'ciphertext-for-test',
       key_id: 'key-1'
     });
     expect(JSON.stringify(request.mock.calls)).not.toContain('secret_sauce');
     expect(JSON.stringify(logged)).not.toContain('secret_sauce');
     error.mockRestore();
+  });
+
+  it('skips environment PUT when GitHub already has the named environment', async () => {
+    const keys = await crypto.subtle.generateKey(
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256'
+      },
+      true,
+      ['sign', 'verify']
+    );
+    const privateKey = pem(await crypto.subtle.exportKey('pkcs8', keys.privateKey));
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(Response.json({ name: 'qali-example-com' }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({ key: 'cHVibGlj', key_id: 'key-1' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = new GitHubAppClient(
+      {
+        appId: '123',
+        privateKey,
+        installationId: '456',
+        owner: 'qali',
+        repo: 'control',
+        workflowFile: 'execute.yml',
+        ref: 'main',
+        apiUrl: 'https://api.github.test'
+      },
+      request,
+      async () => 'ciphertext-for-existing'
+    );
+
+    await client.provisionProjectEnvironment({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com']
+    });
+
+    const envCalls = request.mock.calls.filter(([url]) =>
+      String(url).endsWith('/environments/qali-example-com')
+    );
+    expect(envCalls).toHaveLength(1);
+    expect(envCalls[0]?.[1]?.method ?? 'GET').toBe('GET');
+  });
+
+  it('explains that creating a missing environment needs an operator-created GitHub Environment', async () => {
+    const keys = await crypto.subtle.generateKey(
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256'
+      },
+      true,
+      ['sign', 'verify']
+    );
+    const privateKey = pem(await crypto.subtle.exportKey('pkcs8', keys.privateKey));
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 }));
+    const client = new GitHubAppClient(
+      {
+        appId: '123',
+        privateKey,
+        installationId: '456',
+        owner: 'qali',
+        repo: 'control',
+        workflowFile: 'execute.yml',
+        ref: 'main',
+        apiUrl: 'https://api.github.test'
+      },
+      request
+    );
+
+    await expect(
+      client.provisionProjectEnvironment({
+        environment: 'qali-example-com',
+        baseUrl: 'https://example.com/',
+        allowedOrigins: ['https://example.com']
+      })
+    ).rejects.toThrow(/create that environment in the repo settings/i);
   });
 
   it('writes empty test-data and credentials defaults when onboard supplies neither', async () => {
@@ -206,6 +298,7 @@ describe('GitHub App environment provisioning', () => {
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
@@ -234,12 +327,12 @@ describe('GitHub App environment provisioning', () => {
       allowedOrigins: ['https://example.com']
     });
 
-    expect(JSON.parse(String(request.mock.calls[4]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(request.mock.calls[5]?.[1]?.body))).toEqual({
       name: 'QALI_TEST_DATA_JSON',
       value: '{}'
     });
     expect(encrypt).toHaveBeenCalledWith('{}', 'cHVibGlj');
-    expect(JSON.parse(String(request.mock.calls[6]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(request.mock.calls[7]?.[1]?.body))).toEqual({
       encrypted_value: 'ciphertext-for-empty',
       key_id: 'key-1'
     });
@@ -265,6 +358,7 @@ describe('GitHub App environment provisioning', () => {
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ token: 'installation-token' }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
@@ -292,7 +386,7 @@ describe('GitHub App environment provisioning', () => {
       credentialsJson: '{"password":"secret_sauce"}'
     });
 
-    const secretBody = JSON.parse(String(request.mock.calls[6]?.[1]?.body)) as {
+    const secretBody = JSON.parse(String(request.mock.calls[7]?.[1]?.body)) as {
       encrypted_value: string;
     };
     expect(secretBody.encrypted_value).not.toContain('secret_sauce');
