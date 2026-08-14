@@ -435,7 +435,7 @@ export const SemanticPublicationManifestSchema = z
     title: z.string().min(1),
     commitMessage: z.string().min(1),
     checks: z.array(PublicationCheckResultSchema).min(1),
-    changes: z.array(SemanticPublicationChangeSchema).min(1)
+    changes: z.array(SemanticPublicationChangeSchema)
   })
   .strict();
 export type SemanticPublicationManifest = z.infer<typeof SemanticPublicationManifestSchema>;

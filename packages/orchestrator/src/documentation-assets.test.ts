@@ -205,6 +205,10 @@ describe('product documentation assets', () => {
     expect(read('docs/user-guide.md')).toMatch(/Retract/i);
     expect(read('docs/user-guide.md')).toMatch(/generation request/i);
     expect(read('docs/developer-guide.md')).toMatch(/generation source/i);
+  it('skips GitHub publication when a run has no git-visible changes', () => {
+    expect(read('packages/publication/src/index.ts')).toContain("status: 'skipped'");
+    expect(read('packages/publication/src/index.ts')).toContain('no git-visible changes');
+    expect(read('docs/architecture.md')).toMatch(/empty manifest/i);
   });
 
   it('does not expose qualification bypass controls to the shared execute workflow', () => {

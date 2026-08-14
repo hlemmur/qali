@@ -98,6 +98,14 @@ describe('publication preparation', () => {
       join(workspace, specPath),
       "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n"
     );
+  it('succeeds with no git-visible changes when pulse outputs are gitignored', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-pulse-'));
+    mkdirSync(join(workspace, 'projects/shop/derived/reports'), { recursive: true });
+    writeFileSync(
+      join(workspace, '.gitignore'),
+      ['projects/*/derived/reports/*', '!projects/*/derived/reports/.generated.md'].join('\n')
+    );
+    writeFileSync(join(workspace, 'projects/shop/derived/reports/.generated.md'), 'baseline\n');
     git(workspace, 'init');
     git(workspace, 'config', 'user.name', 'Test');
     git(workspace, 'config', 'user.email', 'test@example.test');
@@ -108,6 +116,14 @@ describe('publication preparation', () => {
     const manifest = preparePublicationManifest({
       workspace,
       requestId: 'REQ-RETRACT',
+    writeFileSync(
+      join(workspace, 'projects/shop/derived/reports/quality-pulse-presentation.json'),
+      '{"title":"pulse"}\n'
+    );
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-PULSE',
       projectRoot: 'projects/shop',
       checks: [
         {

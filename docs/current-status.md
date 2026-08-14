@@ -1,6 +1,6 @@
 # Qali implementation and readiness status
 
-**Status date:** 2026-08-13
+**Status date:** 2026-08-14
 
 **Repository state at assessment:** `main` at `43b4b77`, clean and synchronized with `origin/main`
 
@@ -15,7 +15,7 @@ The pre-trial hardening implementation is substantially complete. All 16 planned
 - Start the registered target server before browser exploration (`#18`).
 - Preserve exploration as an append-only observation and keep generated questions out of reviewer-owned sources (`#19`).
 
-Qali is deployed and the live Slack → Cloudflare Worker/D1/Queue → GitHub Actions → evidence → callback → Slack path is working. Live runs have proved honest terminal failure reporting, substantive onboarding/exploration execution, restricted-browser evidence retention, deterministic validation, and append-only semantic publication preparation.
+Qali is deployed and the live Slack → Cloudflare Worker/D1/Queue → GitHub Actions → evidence → callback → Slack path is working. Live runs have proved honest terminal failure reporting, substantive onboarding/exploration execution, restricted-browser evidence retention, deterministic validation, append-only semantic publication preparation, and hosted HTML reports with Slack **Open report**.
 
 Qali is **not yet ready for the first real customer project** under the acceptance criteria in the hardening plan. The exact agent runtime has not been qualified, safe publication has not completed because the current publication token is invalid, and most of the uniquely correlated live release-candidate matrix remains to be executed.
 
@@ -153,6 +153,25 @@ Evidence established:
 
 Publication did not reach branch/PR creation because the configured publication token returned GitHub `401 Bad credentials`.
 
+### 5. Hosted HTML reports and Slack Open report
+
+**Correlation:** Slack quality-pulse on `sauce-demo` after R2 was enabled
+
+- Slack thread: `1786662494.472389` in private `#test-qali` ([permalink](https://radicalcreation.slack.com/archives/C0BPN1KEHC4/p1786662494472389))
+- Request: `Ev0BPYUACBAP`
+- GitHub run: [31752717647](https://github.com/hlemmur/qali/actions/runs/31752717647) — `failure`
+- Worker version at verification: `198bafcb-8a4b-4d39-bfeb-5fb33ad675dd` with `REPORTS` bound to `qali-reports`
+- Terminal card: `1786662505.457169` ([permalink](https://radicalcreation.slack.com/archives/C0BPN1KEHC4/p1786662505457169?thread_ts=1786662494.472389&cid=C0BPN1KEHC4))
+
+Evidence established:
+
+- `notify-slack` posted a terminal card with an **Open report** button (`reportUrl` present).
+- Object `sauce-demo/31752717647.html` was stored in R2 and served as a self-contained HTML recap (`<!DOCTYPE html>`, title `Qali · quality-pulse · sauce-demo · failed`, no `<script>`).
+- Signed Worker GET returned HTTP `200` with `content-type: text/html; charset=utf-8`.
+- Unsigned GET and expired-signature GET returned HTTP `401` `Unauthorized`.
+
+This live-verifies hosted HTML serving and Slack **Open report**. It does **not** live-verify the quality-pulse workflow: `validate-and-execute` failed on `invalid-generated-marker` for `derived/reports/quality-pulse-presentation.json`, so the production orchestrator step was skipped.
+
 ## Current blocker
 
 `QALI_PUBLISH_GITHUB_TOKEN` is non-empty locally and in the `qali-publication` GitHub Environment, but the locally stored value also returns GitHub HTTP `401`. Synchronizing the same value would not help.
@@ -233,8 +252,9 @@ The following hardening behaviors have automated tests, but the release plan req
 | Triage/reproduce            |     Yes     |     Yes     |           No            |      No       | Awaiting live run                                                            |
 | Knowledge maintenance       |     Yes     |     Yes     |           No            |      No       | Awaiting live run                                                            |
 | Suite maintenance           |     Yes     |     Yes     |           No            |      No       | Awaiting live run                                                            |
-| Quality pulse command       |     Yes     |     Yes     | Presentation may use AI |      No       | Awaiting live run                                                            |
+| Quality pulse command       |     Yes     |     Yes     | Presentation may use AI |      No       | Live Slack run failed before orchestrator; hosted HTML still served          |
 | Scheduled pulse             |     Yes     |     Yes     | Presentation may use AI |      No       | Existing schedule present; release evidence pending                          |
+| Hosted HTML Open report     |     Yes     |     Yes     |           N/A           |      Yes      | Signed GET 200 HTML; unsigned/expired 401; Slack Open report present         |
 | Honest publication failure  |     Yes     |     Yes     |           N/A           |      Yes      | Slack/D1 false-green prevention verified                                     |
 | Safe publication PR         |     Yes     |     Yes     |           N/A           |      No       | Blocked by invalid token                                                     |
 | Restricted browser evidence |     Yes     |     Yes     |           N/A           |      Yes      | Live screenshot/session/diagnostic artifact retained                         |

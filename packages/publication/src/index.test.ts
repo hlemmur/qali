@@ -34,6 +34,10 @@ const semanticManifest = (
 });
 
 describe('semantic publication policy', () => {
+  it('allows a passing empty manifest when there is nothing git-visible to publish', () => {
+    expect(assessSemanticPublication(semanticManifest([]))).toEqual({ allowed: true });
+  });
+
   it('allows append-only observations and rejects replacement or raw browser evidence', () => {
     const appended = createSemanticPublicationChange({
       path: 'projects/shop/observations/exploration.md',
@@ -440,6 +444,25 @@ describe('controlled GitHub publisher', () => {
     expect(pullRequestBody).toContain('`npm run build`');
     expect(pullRequestBody).toContain('exit 0');
     expect(pullRequestBody).toContain('Review-only publication');
+  });
+
+  it('skips GitHub when there are no git-visible changes to publish', async () => {
+    const github: GitHubPublicationPort = {
+      createBranch: async () => {
+        throw new Error('must not run');
+      },
+      commit: async () => {
+        throw new Error('must not run');
+      },
+      createPullRequest: async () => {
+        throw new Error('must not run');
+      }
+    };
+
+    await expect(new ControlledPublisher(github).publish(semanticManifest([]))).resolves.toEqual({
+      status: 'skipped',
+      reason: 'no git-visible changes'
+    });
   });
 
   it('does not call GitHub when publication policy rejects a request', async () => {

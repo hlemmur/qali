@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import { scaffoldProject, validateProjectDirectory } from '../../knowledge/src/index.js';
 import { describe, expect, it } from 'vitest';
 import {
   FakeEventStore,
@@ -192,6 +193,37 @@ describe('quality pulse', () => {
     expect(report).toContain('- Coverage: 4/5 approved scenarios automated (80%)');
     expect(report).toContain('- Open decisions: 2 (1 questions, 1 proposed decisions)');
     expect(report).toContain('observations/evidence/test-runs/run-1.json');
+  });
+
+  it('writes presentation JSON with a valid Qali generated marker', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-quality-presentation-marker-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+    try {
+      const { projectRoot } = scaffoldProject('shop', {
+        projectsRoot: join(workspace, 'projects'),
+        templateRoot,
+        date: '2026-08-13'
+      });
+
+      const result = await executeQualityPulseStep(
+        workspace,
+        {
+          id: 'present',
+          outputs: [
+            {
+              artifact: 'reports',
+              path: 'projects/{projectId}/derived/reports/quality-pulse-presentation.json'
+            }
+          ]
+        } as WorkflowStep,
+        command
+      );
+
+      expect(result.status).toBe('succeeded');
+      expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   it('fails closed when deterministic quality facts are malformed', async () => {
