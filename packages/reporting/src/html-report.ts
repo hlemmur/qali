@@ -13,8 +13,26 @@ test-results/ holds raw traces, videos, and screenshots.
 derived/ Markdown and JSONL are machine provenance, not the user-facing report.
 `;
 
-function escapeHtml(value: string): string {
-  return value
+function asText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of ['text', 'title', 'name', 'message', 'finding', 'question']) {
+      if (typeof record[key] === 'string') return record[key];
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return String(value);
+}
+
+function escapeHtml(value: unknown): string {
+  return asText(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
