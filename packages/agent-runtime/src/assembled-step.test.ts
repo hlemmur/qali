@@ -119,4 +119,71 @@ describe('assembled Cursor harness step', () => {
     ).toContain('Focus: login flow');
     expect(agent).toBeDefined();
   });
+
+  it('promotes a coverage markdown file to the declared coverage-map.md path', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const sourceRoot = join(parent, 'repo');
+    mkdirSync(join(sourceRoot, 'projects/sample/derived/scenarios'), { recursive: true });
+    for (const path of [
+      'harness/profiles.json',
+      'skills/runtime',
+      'core/policies',
+      'core/templates',
+      'scripts/browser-facade-mcp.ts'
+    ]) {
+      const from = join(process.cwd(), path);
+      const to = join(sourceRoot, path);
+      mkdirSync(join(to, '..'), { recursive: true });
+      const { cpSync } = await import('node:fs');
+      cpSync(from, to, { recursive: true });
+    }
+    const profiles = loadHarnessProfiles(
+      join(sourceRoot, 'harness/profiles.json'),
+      join(sourceRoot, 'skills/runtime')
+    );
+    const profile = profiles.find((entry) => entry.id === 'coverage-design')!;
+    const step: WorkflowStep = {
+      id: 'design-coverage',
+      role: 'test-architect',
+      harnessProfileId: 'coverage-design',
+      needs: [],
+      inputs: [],
+      outputs: [
+        { artifact: 'scenarios', path: 'projects/{projectId}/derived/scenarios/coverage-map.md' }
+      ],
+      requiredTools: ['file-read', 'file-write'],
+      mutations: ['format-document'],
+      policyGates: [],
+      retries: 0,
+      timeoutMs: 180000
+    };
+    const agent = new FakeAgentRuntime([]);
+    agent.execute = async (request) => {
+      mkdirSync(join(request.workspace, 'outputs/coverage'), { recursive: true });
+      writeFileSync(
+        join(request.workspace, 'outputs/coverage/plan.md'),
+        '| Scenario | Requirement |\n| --- | --- |\n| JRN-001 | REQ-001 |\n'
+      );
+      return { status: 'succeeded', output: '{}' };
+    };
+
+    const result = await executeAssembledAgentStep({
+      sourceRoot,
+      workspace: join(parent, 'harness'),
+      command: { ...command, intent: 'generate-test-suite' },
+      step,
+      profile,
+      role: ROLE_PROFILES['test-architect'],
+      agent
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(existsSync(join(sourceRoot, 'projects/sample/derived/scenarios/coverage-map.md'))).toBe(
+      true
+    );
+    expect(
+      readFileSync(join(sourceRoot, 'projects/sample/derived/scenarios/coverage-map.md'), 'utf8')
+    ).toContain('JRN-001');
+  });
 });

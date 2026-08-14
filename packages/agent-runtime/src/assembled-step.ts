@@ -154,6 +154,17 @@ export function promoteHarnessOutputs(request: {
       join(request.packRoot, 'derived/scenarios/proposed'),
       'replace'
     );
+    const coverageMap = join(request.packRoot, 'derived/scenarios/coverage-map.md');
+    if (!existsSync(coverageMap)) {
+      const coverageSource = listFiles(join(request.harnessWorkspace, 'outputs/coverage')).find(
+        (file) => file.endsWith('.md')
+      );
+      if (coverageSource) {
+        mkdirSync(dirname(coverageMap), { recursive: true });
+        cpSync(coverageSource, coverageMap, { dereference: true });
+        promoted.push(coverageMap);
+      }
+    }
   } else if (request.step.id === 'generate-tests') {
     copyTree(
       join(request.harnessWorkspace, 'outputs/tests'),

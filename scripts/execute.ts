@@ -686,8 +686,28 @@ class RoutedStepExecutor implements StepExecutor {
         ...(browserEnvironmentFile ? { browserEnvironmentFile } : {}),
         signal: context.signal
       });
-      if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
+      const completeGenerationOnHost = () =>
+        executeTestGenerationStep(
+          workspace,
+          step,
+          command,
+          step.id === 'generate-tests' ? this.generatedTestValidator() : undefined
+        );
+      if (result.status === 'succeeded') {
+        const missingDeclared = outputs.some((output) => !existsSync(join(workspace, output.path)));
+        if (missingDeclared && (step.id === 'design-coverage' || step.id === 'generate-tests')) {
+          return completeGenerationOnHost();
+        }
+        return { status: 'succeeded', outputs } as const;
+      }
       if (result.status === 'blocked') return { status: 'blocked', reason: result.reason } as const;
+      if (
+        result.status === 'failed' &&
+        (step.id === 'design-coverage' || step.id === 'generate-tests') &&
+        /no validated harness outputs/i.test(result.error)
+      ) {
+        return completeGenerationOnHost();
+      }
       if (
         /ENOENT|not found|usage limit|spend limit|not authenticated|api key|unauthorized/i.test(
           result.error
