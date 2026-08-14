@@ -18,10 +18,14 @@ export function requiresQualifiedAgentRuntime(
   environmentLabel: 'mock' | 'staging' | 'production'
 ): boolean {
   if (environmentLabel === 'mock') return false;
-  if (intent === 'quality-pulse' || intent === 'query-project' || intent === 'maintain-schedule') {
-    return false;
-  }
-  return true;
+  // Host-owned workflows do not invoke Cursor; production still has an empty qualification registry.
+  return !(
+    intent === 'quality-pulse' ||
+    intent === 'query-project' ||
+    intent === 'maintain-schedule' ||
+    intent === 'onboard-project' ||
+    intent === 'run-test-suite'
+  );
 }
 
 export function selectAgentExecutionRoute(
