@@ -365,6 +365,7 @@ export interface GitHubPublicationPort {
 
 export type PublicationResult =
   | { status: 'rejected'; reason: string }
+  | { status: 'skipped'; reason: string }
   | { status: 'published'; branch: string; pullRequestUrl: string };
 
 const branchToken = (requestId: string): string =>
@@ -380,6 +381,9 @@ export class ControlledPublisher {
   async publish(request: SemanticPublicationManifest): Promise<PublicationResult> {
     const decision = assessSemanticPublication(request);
     if (!decision.allowed) return { status: 'rejected', reason: decision.reason };
+    if (request.changes.length === 0) {
+      return { status: 'skipped', reason: 'no git-visible changes' };
+    }
 
     const branch = `qali/${branchToken(request.requestId)}`;
     await this.github.createBranch(branch, request.baseBranch);

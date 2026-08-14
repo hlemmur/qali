@@ -43,7 +43,7 @@ flowchart LR
 
 Two jobs with isolated permissions:
 
-1. **`validate-and-execute`** — `contents: read`. For work intents, runs `npm run check`, executes the requested workflow, validates project state, and prepares a publication manifest and patch artifact. `query-project` skips Playwright, Cursor, the repository check, and publication; it only reads the project pack and writes a quality snapshot.
+1. **`validate-and-execute`** — `contents: read`. For work intents, runs `npm run check`, executes the requested workflow, validates project state, and prepares a publication manifest and patch artifact. `query-project` skips Playwright, Cursor, the repository check, and publication; it only reads the project pack and writes a quality snapshot. A quality-pulse (or any run) whose outputs are gitignored produces an empty manifest; publication is then skipped and the job can still succeed.
 2. **`publish-generated-changes`** — runs only when `QALI_PUBLISH_GITHUB_TOKEN` is configured and the intent is not `query-project`. Creates a `qali/*` branch, commit, and ready PR. Never pushes directly to `main`. The authoring job never reviews, approves, or merges that PR.
 
 ### Packages
