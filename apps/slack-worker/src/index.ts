@@ -799,12 +799,17 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             const credentialsJson =
               onboard.ok && onboard.credentials
                 ? JSON.stringify({ [onboard.credentials.name]: onboard.credentials.password })
-                : undefined;
+                : '{}';
+            const testDataJson =
+              onboard.ok && onboard.credentials?.username
+                ? JSON.stringify({ username: onboard.credentials.username })
+                : '{}';
             await github.provisionProjectEnvironment({
               environment: command.project.environment ?? `qali-${command.project.id}`,
               baseUrl: command.parameters.targetUrl,
               allowedOrigins: [command.parameters.origin],
-              ...(credentialsJson ? { credentialsJson } : {})
+              credentialsJson,
+              testDataJson
             });
           }
           const dispatched = await github.dispatch(command, message.body.requestId);

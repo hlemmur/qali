@@ -1,5 +1,6 @@
 import { NormalizedCommandSchema, type NormalizedCommand } from '@qali/contracts';
 import { boundFetch } from './fetch.js';
+import { encryptGitHubSecret } from './github-secret.js';
 import type { DispatchResult, GitHubPort, ProjectEnvironmentProvision } from './types.js';
 
 const encoder = new TextEncoder();
@@ -129,9 +130,7 @@ export class GitHubAppClient implements GitHubPort {
   constructor(
     private readonly config: GitHubAppConfig,
     private readonly request: typeof fetch = boundFetch,
-    private readonly encryptSecret: EnvironmentSecretEncryptor = async () => {
-      throw new Error('GitHub environment secret encryption is not configured');
-    }
+    private readonly encryptSecret: EnvironmentSecretEncryptor = encryptGitHubSecret
   ) {}
 
   private async installationToken(): Promise<string> {
@@ -182,7 +181,8 @@ export class GitHubAppClient implements GitHubPort {
     });
     const variables = [
       { name: 'QALI_TARGET_BASE_URL', value: input.baseUrl },
-      { name: 'QALI_ALLOWED_ORIGINS_JSON', value: JSON.stringify(input.allowedOrigins) }
+      { name: 'QALI_ALLOWED_ORIGINS_JSON', value: JSON.stringify(input.allowedOrigins) },
+      { name: 'QALI_TEST_DATA_JSON', value: input.testDataJson ?? '{}' }
     ];
     for (const variable of variables) {
       const created = await this.request(this.repoUrl(`/environments/${environment}/variables`), {
@@ -204,7 +204,6 @@ export class GitHubAppClient implements GitHubPort {
         throw new Error(`GitHub request failed: ${created.status} ${created.url}`);
       }
     }
-    if (!input.credentialsJson) return;
     const keyResponse = await this.githubJson(
       token,
       this.repoUrl(`/environments/${environment}/secrets/public-key`)
@@ -213,7 +212,7 @@ export class GitHubAppClient implements GitHubPort {
     if (typeof keyData.key !== 'string' || typeof keyData.key_id !== 'string') {
       throw new Error('GitHub environment secret public key was invalid');
     }
-    const encrypted_value = await this.encryptSecret(input.credentialsJson, keyData.key);
+    const encrypted_value = await this.encryptSecret(input.credentialsJson ?? '{}', keyData.key);
     await this.githubJson(
       token,
       this.repoUrl(`/environments/${environment}/secrets/QALI_TEST_CREDENTIALS_JSON`),

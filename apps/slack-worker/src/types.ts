@@ -129,6 +129,7 @@ export interface ProjectEnvironmentProvision {
   baseUrl: string;
   allowedOrigins: string[];
   credentialsJson?: string;
+  testDataJson?: string;
 }
 
 export interface GitHubPort {

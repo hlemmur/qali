@@ -713,7 +713,8 @@ describe('Slack control worker', () => {
       environment: 'qali-example-com',
       baseUrl: 'https://example.com/',
       allowedOrigins: ['https://example.com'],
-      credentialsJson: '{"password":"secret_sauce"}'
+      credentialsJson: '{"password":"secret_sauce"}',
+      testDataJson: '{"username":"standard_user"}'
     });
     expect(github.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -734,6 +735,40 @@ describe('Slack control worker', () => {
     expect(dispatched).not.toContain('secret_sauce');
     expect(notices.join('\n')).not.toContain('secret_sauce');
     expect(store.correlations.get('Ev1')?.commandJson).not.toContain('secret_sauce');
+  });
+
+  it('provisions empty test data and credentials when Slack onboard has no username or password', async () => {
+    const queue: InboundWork[] = [];
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '10' })),
+      provisionProjectEnvironment: vi.fn(async () => undefined)
+    };
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: { classify: async (work) => heuristicClassify(work) },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = structuredClone(eventBody);
+    body.event.text = '<@BOT> onboard https://example.com';
+    await worker.fetch(await slackEvent(body), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.provisionProjectEnvironment).toHaveBeenCalledWith({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com'],
+      credentialsJson: '{}',
+      testDataJson: '{}'
+    });
   });
 
   it('rejects a non-http onboard URL before dispatch', async () => {

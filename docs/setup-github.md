@@ -80,7 +80,7 @@ Under **Repository permissions**:
 | **Secrets**      | Read and write (environment secrets)   |
 | **Variables**    | Read and write (environment variables) |
 
-Leave other permissions as No access. Onboard from Slack can create `qali-<slug>` and write `QALI_TARGET_BASE_URL`, `QALI_ALLOWED_ORIGINS_JSON`, and `QALI_TEST_CREDENTIALS_JSON`. Do not change a live App's permissions from this repository; bump them in the GitHub App settings, then re-install if GitHub asks.
+Leave other permissions as No access. Onboard from Slack can create `qali-<slug>` and write `QALI_TARGET_BASE_URL`, `QALI_ALLOWED_ORIGINS_JSON`, `QALI_TEST_DATA_JSON`, and encrypted `QALI_TEST_CREDENTIALS_JSON` (defaults of `{}` when Slack did not supply username/password). Do not change a live App's permissions from this repository; bump them in the GitHub App settings, then re-install if GitHub asks.
 
 ### 2.3 Subscribe to events
 
