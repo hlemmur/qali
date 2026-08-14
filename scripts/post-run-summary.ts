@@ -43,7 +43,10 @@ function projectRootFromEnv(): { id: string; root: string } {
   }
 }
 
-function findTestRunJson(projectRoot: string): Record<string, unknown> | undefined {
+export function findRunReport(
+  projectRoot: string,
+  intent?: string
+): Record<string, unknown> | undefined {
   const candidates = [
     join(projectRoot, 'derived/reports/test-run.json'),
     join(projectRoot, 'derived/reports/slack-summary.json'),
@@ -51,9 +54,25 @@ function findTestRunJson(projectRoot: string): Record<string, unknown> | undefin
   ];
   for (const candidate of candidates) {
     const json = readJson(candidate);
-    if (json) return json;
+    if (!json) continue;
+    if (candidate.endsWith('test-run.json') && intent && intent !== 'run-test-suite') continue;
+    if (intent && typeof json.intent === 'string' && json.intent !== intent) continue;
+    return json;
   }
   return undefined;
+}
+
+export function generatedTestsPayload(
+  projectRoot: string,
+  projectId: string,
+  intent?: string
+): { count: number; area: string } | undefined {
+  if (intent !== 'generate-test-suite') return undefined;
+  const generatedDirectory = join(projectRoot, 'tests/generated');
+  const generatedCount = existsSync(generatedDirectory)
+    ? readdirSync(generatedDirectory).filter((name) => name.endsWith('.generated.spec.ts')).length
+    : 0;
+  return generatedCount > 0 ? { count: generatedCount, area: projectId } : undefined;
 }
 
 export function reportTests(
@@ -347,7 +366,7 @@ export async function postRunSummary(): Promise<void> {
   }
 
   const project = projectRootFromEnv();
-  const report = findTestRunJson(project.root) ?? {};
+  const report = findRunReport(project.root, process.env.SUMMARY_INTENT) ?? {};
   const snapshot =
     readJson('.qali/quality-snapshot.json') ??
     readJson(join(project.root, 'derived/reports/quality-snapshot.json'));
@@ -454,16 +473,15 @@ export async function postRunSummary(): Promise<void> {
     }
   }
 
-  const generatedDirectory = join(project.root, 'tests/generated');
-  const generatedCount = existsSync(generatedDirectory)
-    ? readdirSync(generatedDirectory).filter((name) => name.endsWith('.generated.spec.ts')).length
-    : 0;
+  const generatedTests = generatedTestsPayload(
+    project.root,
+    project.id,
+    process.env.SUMMARY_INTENT
+  );
   const specUrl =
-    generatedCount > 0 && process.env.GITHUB_REPOSITORY
+    generatedTests && process.env.GITHUB_REPOSITORY
       ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/tree/${process.env.GITHUB_SHA ?? 'main'}/${project.root}/tests/generated`
       : undefined;
-  const generatedTests =
-    generatedCount > 0 ? { count: generatedCount, area: project.id } : undefined;
 
   const body = JSON.stringify({
     requestId,

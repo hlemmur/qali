@@ -71,6 +71,17 @@ describe('agent execution routing', () => {
     expect(selectAgentExecutionRoute(command('generate-test-suite'), true, false)).toBe('cursor');
   });
 
+  it('never selects host explore or generate stubs outside Mock Mode', () => {
+    for (const cliAvailable of [true, false]) {
+      expect(selectAgentExecutionRoute(command('explore-project'), cliAvailable, false)).not.toBe(
+        'deterministic-exploration'
+      );
+      expect(
+        selectAgentExecutionRoute(command('generate-test-suite'), cliAvailable, false)
+      ).not.toBe('deterministic-test-generation');
+    }
+  });
+
   it('blocks production explore and generate when Cursor is unavailable', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), false, false)).toBe(
       'deterministic-fallback'
