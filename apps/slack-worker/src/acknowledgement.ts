@@ -4,6 +4,7 @@ export const WORK_PHASES = {
   checking: 'Checking project and permission',
   lookingUp: 'Looking that up',
   starting: 'Starting the test target',
+  discovering: 'Discovering the project',
   exploring: 'Exploring the product',
   running: 'Running tests',
   generating: 'Generating tests',
@@ -30,7 +31,15 @@ export function inferredEnvironment(command: NormalizedCommand): string {
 }
 
 export function formatChannelAffinity(command: NormalizedCommand): string {
-  return `I'll use \`${command.project.id}\`, ${inferredEnvironment(command)}, ${inferredSuite(command)}.`;
+  const env = inferredEnvironment(command);
+  if (
+    command.intent === 'run-test-suite' ||
+    command.intent === 'generate-test-suite' ||
+    command.intent === 'triage-failure'
+  ) {
+    return `I'll use \`${command.project.id}\`, ${env}, ${inferredSuite(command)}.`;
+  }
+  return `I'll use \`${command.project.id}\`, ${env}.`;
 }
 
 export function initialWorkPhase(intent: Intent): string {
@@ -50,6 +59,8 @@ export function dispatchedWorkPhase(intent: Intent): string {
       return WORK_PHASES.generating;
     case 'triage-failure':
       return WORK_PHASES.triaging;
+    case 'onboard-project':
+      return WORK_PHASES.discovering;
     default:
       return WORK_PHASES.starting;
   }

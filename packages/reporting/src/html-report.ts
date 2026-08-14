@@ -29,6 +29,13 @@ function nextActions(summary: RunSummary): string[] {
   return actions;
 }
 
+function nonTestRunNotice(intent?: string): string {
+  if (intent === 'onboard-project') {
+    return 'This onboard run did not execute Playwright tests. It records project context, journeys, risks, and open questions.';
+  }
+  return 'This run did not execute Playwright tests.';
+}
+
 export function renderHtmlReport(summary: RunSummary): string {
   const status = displayRunStatus(summary);
   const titleBits = [summary.intent, summary.projectId].filter(Boolean);
@@ -90,6 +97,11 @@ export function renderHtmlReport(summary: RunSummary): string {
     ${counts ? `<p>${escapeHtml(counts)}</p>` : '<p>No test counts were recorded for this run.</p>'}
     ${duration ? `<p>Duration: ${escapeHtml(duration)}</p>` : ''}
     ${stages ? `<p>${escapeHtml(stages)}</p>` : ''}
+    ${
+      tests.length || summary.intent === 'run-test-suite'
+        ? ''
+        : `<p>${escapeHtml(nonTestRunNotice(summary.intent))}</p>`
+    }
   </section>
   ${
     tests.length

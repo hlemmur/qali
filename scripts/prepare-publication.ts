@@ -122,6 +122,18 @@ function approvedScenarioRef(
   }
 }
 
+export function authorityRefFromCommand(
+  command: { requestedBy?: unknown },
+  explicit?: string
+): string | undefined {
+  const trimmed = explicit?.trim();
+  if (trimmed) return trimmed;
+  if (typeof command.requestedBy === 'string' && /^U[A-Z0-9]+$/.test(command.requestedBy)) {
+    return `slack-user:${command.requestedBy}`;
+  }
+  return undefined;
+}
+
 export function preparePublicationManifest(
   options: PreparePublicationOptions
 ): SemanticPublicationManifest {
@@ -172,13 +184,21 @@ if (isDirect) {
   if (typeof projectJson.root !== 'string') {
     throw new Error('PROJECT_JSON with a trusted project root is required for publication');
   }
+  let requestedBy: unknown;
+  try {
+    requestedBy = (JSON.parse(process.env.COMMAND_JSON ?? '{}') as { requestedBy?: unknown })
+      .requestedBy;
+  } catch {
+    requestedBy = undefined;
+  }
+  const authorityRef = authorityRefFromCommand({ requestedBy }, process.env.QALI_AUTHORITY_REF);
   const manifest = preparePublicationManifest({
     workspace,
     requestId: process.env.QALI_REQUEST_ID ?? 'local',
     projectRoot: projectJson.root,
     provenanceRef:
       process.env.QALI_PROVENANCE_REF ?? `workflow:${process.env.QALI_REQUEST_ID ?? 'local'}`,
-    ...(process.env.QALI_AUTHORITY_REF ? { authorityRef: process.env.QALI_AUTHORITY_REF } : {}),
+    ...(authorityRef ? { authorityRef } : {}),
     checks: [
       { command: 'npm', args: ['run', 'format:check'] },
       { command: 'npm', args: ['run', 'lint'] },

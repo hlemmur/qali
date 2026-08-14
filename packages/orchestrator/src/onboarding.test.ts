@@ -11,7 +11,8 @@ import {
   executeOnboardingMockStep,
   executeWorkflow,
   loadWorkflowDirectory,
-  prepareOnboardProject
+  prepareOnboardProject,
+  summarizeOnboardingReport
 } from './index.js';
 
 const command: NormalizedCommand = {
@@ -68,6 +69,10 @@ describe('deterministic project onboarding', () => {
     expect(context).not.toMatch(/Node|React|Playwright/);
     expect(questions).toContain('What is the project tech stack?');
     expect(questions).toContain('| open |');
+    expect(summarizeOnboardingReport(projectRoot)).toMatchObject({
+      findings: expect.arrayContaining([expect.stringMatching(/Q-00\d .+tech stack/i)]),
+      evidence: expect.arrayContaining(['sources/project-context.md', 'sources/questions.md'])
+    });
   });
 
   it('derives journeys, risks, strategy, and plan with evidence traceability', async () => {

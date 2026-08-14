@@ -105,6 +105,7 @@ jobs:
         env:
           QALI_REQUEST_ID: ${{ inputs.request_id }}
           PROJECT_JSON: ${{ inputs.project_json }}
+          COMMAND_JSON: ${{ inputs.command_json }}
         run: |
           mkdir -p .qali
           git diff --binary > .qali/generated.patch

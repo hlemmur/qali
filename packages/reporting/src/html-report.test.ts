@@ -42,6 +42,21 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
+  it('explains that onboard did not execute Playwright tests', () => {
+    const html = renderHtmlReport({
+      runId: '99',
+      status: 'failed',
+      intent: 'onboard-project',
+      projectId: 'sauce-demo',
+      stages: { execution: 'passed', publication: 'failed' },
+      errors: ['Work finished, but the review change could not be published.'],
+      evidence: ['sources/project-context.md', 'sources/questions.md']
+    });
+    expect(html).toContain('did not execute Playwright tests');
+    expect(html).not.toContain('<h2>Tests</h2>');
+    expect(html).toContain('project-context.md');
+  });
+
   it('escapes untrusted error text so it cannot inject markup', () => {
     const html = renderHtmlReport({
       runId: '1',

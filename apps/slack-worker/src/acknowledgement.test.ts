@@ -25,19 +25,21 @@ const command = (overrides: Partial<NormalizedCommand> = {}): NormalizedCommand 
 });
 
 describe('channel affinity acknowledgement', () => {
-  it('states the inferred project, environment, and suite', () => {
-    expect(formatChannelAffinity(command())).toBe("I'll use `sauce-demo`, production, smoke.");
+  it('states the inferred project, environment, and suite for test runs', () => {
+    expect(formatChannelAffinity(command({ intent: 'run-test-suite' }))).toBe(
+      "I'll use `sauce-demo`, production, smoke."
+    );
   });
 
-  it('defaults the suite to smoke when the command does not name one', () => {
-    expect(formatChannelAffinity(command({ parameters: {} }))).toBe(
+  it('defaults the suite to smoke when a test run does not name one', () => {
+    expect(formatChannelAffinity(command({ intent: 'run-test-suite', parameters: {} }))).toBe(
       "I'll use `sauce-demo`, production, smoke."
     );
   });
 
   it('pairs affinity with a plain-language phase and elapsed time', () => {
     expect(formatWorkAcknowledgement(command(), WORK_PHASES.exploring, 8_000)).toBe(
-      "I'll use `sauce-demo`, production, smoke.\nExploring the product (8s)"
+      "I'll use `sauce-demo`, production.\nExploring the product (8s)"
     );
   });
 
@@ -52,6 +54,19 @@ describe('channel affinity acknowledgement', () => {
     expect(initialWorkPhase('explore-project')).toBe(WORK_PHASES.checking);
     expect(dispatchedWorkPhase('explore-project')).toBe(WORK_PHASES.exploring);
     expect(dispatchedWorkPhase('run-test-suite')).toBe(WORK_PHASES.running);
+    expect(dispatchedWorkPhase('onboard-project')).toBe(WORK_PHASES.discovering);
     expect(initialWorkPhase('query-project')).toBe(WORK_PHASES.lookingUp);
+  });
+
+  it('does not imply a test suite while onboarding', () => {
+    expect(formatChannelAffinity(command({ intent: 'onboard-project', parameters: {} }))).toBe(
+      "I'll use `sauce-demo`, production."
+    );
+    expect(
+      formatWorkAcknowledgement(
+        command({ intent: 'onboard-project', parameters: {} }),
+        WORK_PHASES.discovering
+      )
+    ).not.toMatch(/smoke|test target|running tests/i);
   });
 });
