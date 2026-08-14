@@ -1,2 +1,6 @@
 # Reviewed upstream assets are hash-pinned and must remain byte-for-byte unchanged.
 skills/runtime/*/SKILL.md
+
+# Runtime execution-report copies written at the Actions workspace root.
+/report.html
+/README.txt
