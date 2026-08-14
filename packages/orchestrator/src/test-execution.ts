@@ -64,6 +64,12 @@ export async function executeTestRunStep(input: {
     ...(webServer ? { webServer } : {})
   });
 
+  const defaultJsonReport = join(workspace, 'test-results/results.json');
+  if (!existsSync(reportPath) && existsSync(defaultJsonReport)) {
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(reportPath, readFileSync(defaultJsonReport));
+  }
+
   let summary: PlaywrightRunEvidence | undefined;
   if (existsSync(reportPath)) {
     summary = summarizePlaywrightRun(JSON.parse(readFileSync(reportPath, 'utf8')), run);
