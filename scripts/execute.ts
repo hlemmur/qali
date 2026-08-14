@@ -41,7 +41,7 @@ import {
   type WorkflowStep
 } from '../packages/contracts/src/index.js';
 import { resolveExecutionTarget } from '../packages/project-config/src/index.js';
-import { renderGeneratedJson } from '../packages/knowledge/src/index.js';
+import { refreshGeneratedMarkers, renderGeneratedJson } from '../packages/knowledge/src/index.js';
 import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
@@ -829,6 +829,7 @@ const result = await executeWorkflow(command, {
   outputValidator: new FileSystemOutputValidator(workspace),
   harnessHash: () => harnessCatalogHash
 });
+refreshGeneratedMarkers(join(workspace, command.project.root));
 console.log(JSON.stringify(result, null, 2));
 appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/agent-log.jsonl'), {
   at: new Date().toISOString(),
