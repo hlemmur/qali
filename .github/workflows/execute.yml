@@ -214,7 +214,7 @@ jobs:
           SUMMARY_REQUEST_ID: ${{ inputs.request_id }}
           SUMMARY_INTENT: ${{ inputs.intent }}
           PROJECT_JSON: ${{ inputs.project_json }}
-          JOB_STATUS: ${{ (needs.validate-and-execute.result != 'success' || needs.publish-generated-changes.result == 'failure' || needs.publish-generated-changes.result == 'cancelled') && 'failure' || 'success' }}
+          JOB_STATUS: ${{ needs.validate-and-execute.result != 'success' && 'failure' || 'success' }}
           EXECUTE_RESULT: ${{ needs.validate-and-execute.result }}
           PUBLISH_RESULT: ${{ needs.publish-generated-changes.result }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   FakePlaywrightRunner,
@@ -11,6 +13,12 @@ import {
 } from './index.js';
 
 describe('Playwright adapter', () => {
+  it('honors PLAYWRIGHT_JSON_OUTPUT_NAME in the repo Playwright config', () => {
+    expect(readFileSync(join(process.cwd(), 'playwright.config.ts'), 'utf8')).toContain(
+      'PLAYWRIGHT_JSON_OUTPUT_NAME'
+    );
+  });
+
   it('normalizes project suite selection without allowing regex injection', () => {
     expect(resolvePlaywrightSuite(undefined)).toEqual({ label: 'all' });
     expect(resolvePlaywrightSuite('all')).toEqual({ label: 'all' });
