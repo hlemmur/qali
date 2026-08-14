@@ -97,7 +97,7 @@ describe('agent runtime', () => {
       '--workspace',
       '/tmp/qali',
       '--sandbox',
-      'enabled',
+      'disabled',
       '--trust',
       '--model',
       'test-model',
@@ -113,7 +113,7 @@ describe('agent runtime', () => {
     expect(options.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
   });
 
-  it('keeps sandbox enabled in CI and ignores attempts to disable it through environment', async () => {
+  it('uses allowlist mode and ignores CURSOR_SANDBOX from the environment', async () => {
     const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"ok"}\n' }));
     const runtime = new CursorCliAgentRuntime({
       spawn,
@@ -121,42 +121,18 @@ describe('agent runtime', () => {
         PATH: '/bin',
         CI: 'true',
         CURSOR_MODEL: 'sonnet-4',
-        CURSOR_SANDBOX: 'disabled'
+        CURSOR_SANDBOX: 'enabled'
       }
     });
     await runtime.execute(request());
     expect(spawn.mock.calls[0]![1]).toEqual(
-      expect.arrayContaining(['--sandbox', 'enabled', '--trust', '--model', 'sonnet-4'])
+      expect.arrayContaining(['--sandbox', 'disabled', '--trust', '--model', 'sonnet-4'])
     );
+    expect(spawn.mock.calls[0]![1]).not.toEqual(expect.arrayContaining(['--sandbox', 'enabled']));
     expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('CURSOR_SANDBOX');
   });
 
-  it('retries once in allowlist mode when the kernel sandbox cannot start', async () => {
-    const spawn = vi.fn<AgentSpawn>((_command, argv) => {
-      const sandbox = argv[argv.indexOf('--sandbox') + 1];
-      if (sandbox === 'enabled') {
-        return child({
-          stderr:
-            "Error: Sandbox mode is enabled but not available on this system. Sandbox failed to start, possibly due to AppArmor configuration.\nRun 'agent sandbox disable' to switch to allowlist mode.",
-          code: 1
-        });
-      }
-      return child({ stdout: '{"result":"explored"}\n' });
-    });
-    const runtime = new CursorCliAgentRuntime({ spawn, env: { PATH: '/bin' } });
-
-    await expect(runtime.execute(request())).resolves.toMatchObject({
-      status: 'succeeded',
-      output: 'explored'
-    });
-    expect(spawn).toHaveBeenCalledTimes(2);
-    expect(spawn.mock.calls[0]![1]).toEqual(expect.arrayContaining(['--sandbox', 'enabled']));
-    expect(spawn.mock.calls[1]![1]).toEqual(
-      expect.arrayContaining(['--sandbox', 'disabled', '--trust'])
-    );
-  });
-
-  it('does not retry unrelated Cursor CLI failures as an allowlist fallback', async () => {
+  it('does not retry unrelated Cursor CLI failures', async () => {
     const spawn = vi.fn<AgentSpawn>(() => child({ stderr: 'bad command', code: 2 }));
     await expect(
       new CursorCliAgentRuntime({ spawn, env: {} }).execute(request())

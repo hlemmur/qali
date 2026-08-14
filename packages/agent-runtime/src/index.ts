@@ -105,26 +105,17 @@ function parseResult(stdout: string): AgentExecutionResult {
   }
 }
 
-export function isCursorKernelSandboxUnavailable(error: string): boolean {
-  return (
-    /sandbox mode is enabled but not available/i.test(error) ||
-    /sandbox failed to start/i.test(error)
-  );
-}
-
-function buildCliArgs(
-  request: AgentExecutionRequest,
-  sandbox: 'enabled' | 'disabled',
-  model?: string
-): string[] {
+function buildCliArgs(request: AgentExecutionRequest, model?: string): string[] {
   const args = [
     '-p',
     '--output-format',
     'json',
     '--workspace',
     request.workspace,
+    // GitHub-hosted Ubuntu cannot start Cursor's kernel sandbox (AppArmor).
+    // Isolation is the assembled harness allowlist, not Landlock.
     '--sandbox',
-    sandbox,
+    'disabled',
     // Host-assembled /tmp/qali-harness-*/run is created by Qali; trust it for unattended CLI.
     '--trust'
   ];
@@ -189,38 +180,21 @@ function runCursorCli(input: {
 export class CursorCliAgentRuntime implements AgentRuntime {
   constructor(private readonly options: CursorCliOptions = {}) {}
 
-  async execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
+  execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
     const timeoutMs = request.timeoutMs ?? request.step.timeoutMs;
     const env = safeEnvironment(this.options.env ?? process.env);
     const model = this.options.model ?? env.CURSOR_MODEL;
-    const spawn = this.options.spawn ?? (nodeSpawn as unknown as AgentSpawn);
-    const setTimer = this.options.setTimer ?? setTimeout;
-    const clearTimer =
-      this.options.clearTimer ?? ((value) => clearTimeout(value as NodeJS.Timeout));
-    const startedAt = Date.now();
-    const run = (sandbox: 'enabled' | 'disabled', remainingMs: number) =>
-      runCursorCli({
-        executable: this.options.executable ?? 'agent',
-        args: buildCliArgs(request, sandbox, model),
-        cwd: request.workspace,
-        env,
-        spawn,
-        timeoutMs: remainingMs,
-        setTimer,
-        clearTimer,
-        ...(request.signal ? { signal: request.signal } : {})
-      });
-
-    const result = await run('enabled', timeoutMs);
-    if (
-      result.status !== 'failed' ||
-      request.signal?.aborted ||
-      !isCursorKernelSandboxUnavailable(result.error)
-    ) {
-      return result;
-    }
-    const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
-    return run('disabled', remainingMs);
+    return runCursorCli({
+      executable: this.options.executable ?? 'agent',
+      args: buildCliArgs(request, model),
+      cwd: request.workspace,
+      env,
+      spawn: this.options.spawn ?? (nodeSpawn as unknown as AgentSpawn),
+      timeoutMs,
+      setTimer: this.options.setTimer ?? setTimeout,
+      clearTimer: this.options.clearTimer ?? ((value) => clearTimeout(value as NodeJS.Timeout)),
+      ...(request.signal ? { signal: request.signal } : {})
+    });
   }
 }
 
