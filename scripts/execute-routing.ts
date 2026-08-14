@@ -24,7 +24,9 @@ export function requiresQualifiedAgentRuntime(
     intent === 'query-project' ||
     intent === 'maintain-schedule' ||
     intent === 'onboard-project' ||
-    intent === 'run-test-suite'
+    intent === 'run-test-suite' ||
+    intent === 'explore-project' ||
+    intent === 'generate-test-suite'
   );
 }
 
@@ -34,10 +36,8 @@ export function selectAgentExecutionRoute(
   mockMode = false
 ): AgentExecutionRoute {
   if (command.intent === 'onboard-project') return 'deterministic-onboarding';
-  if (mockMode && command.intent === 'explore-project') return 'deterministic-exploration';
-  if (mockMode && command.intent === 'generate-test-suite') {
-    return 'deterministic-test-generation';
-  }
+  if (command.intent === 'explore-project') return 'deterministic-exploration';
+  if (command.intent === 'generate-test-suite') return 'deterministic-test-generation';
   if (mockMode && command.intent === 'triage-failure') return 'deterministic-triage';
   if (mockMode && command.intent === 'maintain-knowledge') {
     return 'deterministic-knowledge-maintenance';

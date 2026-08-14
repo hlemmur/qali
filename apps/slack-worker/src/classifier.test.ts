@@ -47,6 +47,20 @@ describe('intent classification fallbacks', () => {
     });
   });
 
+  it('keeps add-tests-for as generate even when Workers AI returns explore', async () => {
+    const primary: IntentClassifier = {
+      classify: async () => ({
+        intent: 'explore-project',
+        projectId: 'sauce-demo',
+        focus: { classification: 'workers-ai' }
+      })
+    };
+    const resilient = new ResilientIntentClassifier(primary);
+    await expect(resilient.classify(work('add tests for login flow'))).resolves.toMatchObject({
+      intent: 'generate-test-suite'
+    });
+  });
+
   it('treats quality questions as read-only queries instead of work', () => {
     expect(heuristicClassify(work("<@BOT> what's our current quality status?"))).toEqual({
       intent: 'query-project',

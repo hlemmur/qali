@@ -327,6 +327,12 @@ class RoutedStepExecutor implements StepExecutor {
           grep: scenarioIds.join('|'),
           ...(this.webServer ? { webServer: this.webServer } : {})
         });
+        const reportPath = join(evidenceDirectory, 'targeted-results.json');
+        if (existsSync(reportPath)) {
+          const summary = parsePlaywrightJsonReport(JSON.parse(readFileSync(reportPath, 'utf8')));
+          this.playwrightSummary = { ...summary, status: run.status };
+          writePlaywrightSlackSummary(command, this.playwrightSummary);
+        }
         return run.status === 'passed'
           ? ({ status: 'passed' as const } as const)
           : ({
@@ -783,7 +789,7 @@ appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/age
     : {})
 });
 if (result.status === 'succeeded') {
-  if (command.intent !== 'run-test-suite') {
+  if (command.intent !== 'run-test-suite' && !existsSync(transientSlackSummaryPath)) {
     writeWorkflowSlackSummary(command, 'passed');
   }
 } else {

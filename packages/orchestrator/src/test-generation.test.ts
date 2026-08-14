@@ -233,6 +233,113 @@ describe('deterministic test generation', () => {
     expect(existsSync(join(projectRoot, 'derived/scenarios/approved'))).toBe(false);
   });
 
+  it('fills named credentials and placeholders from environment instead of literals', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      '| ID | Statement | Status |\n| --- | --- | --- |\n| REQ-001 | Shopper can sign in | confirmed |\n'
+    );
+    writeFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      [
+        '## JRN-001: Sign in and view inventory',
+        '',
+        '- Requirement links: REQ-001',
+        '',
+        '```json qali-playwright',
+        JSON.stringify({
+          path: '/',
+          actions: [
+            {
+              kind: 'fillNamed',
+              locator: 'placeholder',
+              name: 'Username',
+              source: 'testData',
+              field: 'username'
+            },
+            {
+              kind: 'fillNamed',
+              locator: 'placeholder',
+              name: 'Password',
+              source: 'credentials',
+              field: 'password'
+            },
+            { kind: 'click', role: 'button', name: 'Login' }
+          ],
+          assertions: [{ kind: 'visible', role: 'button', name: 'Add to cart' }]
+        }),
+        '```'
+      ].join('\n')
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    const generated = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      command,
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(generated.status).toBe('succeeded');
+    const spec = readFileSync(
+      join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'),
+      'utf8'
+    );
+    expect(spec).toContain("getByPlaceholder('Username')");
+    expect(spec).toContain("getByPlaceholder('Password')");
+    expect(spec).toContain("JSON.parse(process.env.QALI_TEST_DATA_JSON ?? '{}')");
+    expect(spec).toContain("JSON.parse(process.env.QALI_TEST_CREDENTIALS_JSON ?? '{}')");
+    expect(spec).toContain("testData.username ?? ''");
+    expect(spec).toContain("credentials.password ?? ''");
+    expect(spec).not.toContain('secret_sauce');
+    expect(spec).not.toContain('standard_user');
+  });
+
+  it('generates the Sauce Demo login spec from the committed journey pack', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-sauce-generation-'));
+    const sauceCommand: NormalizedCommand = {
+      ...command,
+      project: { ...command.project, id: 'sauce-demo', root: 'projects/sauce-demo' }
+    };
+    const projectRoot = join(workspace, sauceCommand.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'sources/reference/requirements.md'),
+      readFileSync(join(process.cwd(), 'projects/sauce-demo/sources/reference/requirements.md'))
+    );
+    writeFileSync(
+      join(projectRoot, 'sources/reference/journeys.md'),
+      readFileSync(join(process.cwd(), 'projects/sauce-demo/sources/reference/journeys.md'))
+    );
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'generate-test-suite')!;
+
+    const generated = await executeTestGenerationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'generate-tests')!,
+      sauceCommand,
+      new FakeGeneratedTestValidator()
+    );
+
+    expect(generated.status).toBe('succeeded');
+    const spec = readFileSync(
+      join(projectRoot, 'tests/generated/jrn-001.generated.spec.ts'),
+      'utf8'
+    );
+    expect(spec).toContain('// Generated from: JRN-001');
+    expect(spec).toContain("getByPlaceholder('Username')");
+    expect(spec).toContain("getByPlaceholder('Password')");
+    expect(spec).toContain("getByRole('button', { name: 'Login' })");
+    expect(spec).not.toContain('secret_sauce');
+  });
+
   it('uses visual assertions for baselines and labels evidence-only screenshots separately', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-test-generation-'));
     const projectRoot = join(workspace, command.project.root);

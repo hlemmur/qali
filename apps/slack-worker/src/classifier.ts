@@ -223,12 +223,16 @@ export class ResilientIntentClassifier implements IntentClassifier {
   constructor(private readonly primary: IntentClassifier) {}
 
   async classify(work: InboundWork): Promise<ClassifiedIntent> {
+    const heuristic = heuristicClassify(work);
+    if (heuristic.intent === 'generate-test-suite' && /\badd tests for\b/i.test(work.text)) {
+      return heuristic;
+    }
     try {
       return await this.primary.classify(work);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error('qali.classify.fallback', { detail });
-      return heuristicClassify(work);
+      return heuristic;
     }
   }
 }
