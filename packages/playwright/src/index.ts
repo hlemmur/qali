@@ -133,7 +133,9 @@ export function resolvePlaywrightSuite(value: unknown): { label: string; grep?: 
     .replace(/[\r\n]/g, ' ')
     .trim()
     .slice(0, 120);
-  if (!label || label.toLowerCase() === 'all') return { label: 'all' };
+  if (!label || label.toLowerCase() === 'all' || label.toLowerCase() === 'smoke') {
+    return { label: label.toLowerCase() === 'smoke' ? 'smoke' : 'all' };
+  }
   return { label, grep: label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') };
 }
 
