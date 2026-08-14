@@ -120,7 +120,9 @@ export class CursorCliAgentRuntime implements AgentRuntime {
       '--workspace',
       request.workspace,
       '--sandbox',
-      sandbox
+      sandbox,
+      // Host-assembled /tmp/qali-harness-*/run is created by Qali; trust it for unattended CLI.
+      '--trust'
     ];
     if (model) args.push('--model', model);
     args.push(buildAgentPrompt(request));

@@ -98,6 +98,7 @@ describe('agent runtime', () => {
       '/tmp/qali',
       '--sandbox',
       'enabled',
+      '--trust',
       '--model',
       'test-model',
       buildAgentPrompt(request())
@@ -125,7 +126,7 @@ describe('agent runtime', () => {
     });
     await runtime.execute(request());
     expect(spawn.mock.calls[0]![1]).toEqual(
-      expect.arrayContaining(['--sandbox', 'enabled', '--model', 'sonnet-4'])
+      expect.arrayContaining(['--sandbox', 'enabled', '--trust', '--model', 'sonnet-4'])
     );
     expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('CURSOR_SANDBOX');
   });

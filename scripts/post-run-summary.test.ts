@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +6,8 @@ import {
   applyJourneyDescriptions,
   callbackAuthenticationHeaders,
   describeRunStages,
+  findRunReport,
+  generatedTestsPayload,
   prepareFailureScreenshots,
   publishHostedReport,
   reportTests,
@@ -13,6 +15,77 @@ import {
   shouldSkipScreenshot,
   userFacingFailureDetails
 } from './post-run-summary.js';
+
+describe('findRunReport', () => {
+  it('ignores leftover Playwright test-run.json when posting an explore summary', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qali-explore-summary-'));
+    mkdirSync(join(root, 'derived/reports'), { recursive: true });
+    writeFileSync(
+      join(root, 'derived/reports/test-run.json'),
+      JSON.stringify({
+        intent: 'run-test-suite',
+        status: 'passed',
+        total: 1,
+        passed: 1,
+        failed: 0,
+        skipped: 0,
+        tests: [{ title: 'JRN-001 generated scenario', status: 'passed' }]
+      })
+    );
+    writeFileSync(
+      join(root, 'derived/reports/slack-summary.json'),
+      JSON.stringify({
+        intent: 'explore-project',
+        status: 'passed',
+        exploration: { focus: 'login flow', findings: ['Username is required'] }
+      })
+    );
+
+    expect(findRunReport(root, 'explore-project')).toEqual({
+      intent: 'explore-project',
+      status: 'passed',
+      exploration: { focus: 'login flow', findings: ['Username is required'] }
+    });
+  });
+
+  it('ignores leftover Playwright test-run.json even when it has no intent field', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qali-explore-summary-nointent-'));
+    mkdirSync(join(root, 'derived/reports'), { recursive: true });
+    writeFileSync(
+      join(root, 'derived/reports/test-run.json'),
+      JSON.stringify({
+        status: 'passed',
+        total: 1,
+        passed: 1,
+        failed: 0,
+        skipped: 0
+      })
+    );
+    writeFileSync(
+      join(root, 'derived/reports/slack-summary.json'),
+      JSON.stringify({ intent: 'explore-project', status: 'passed' })
+    );
+
+    expect(findRunReport(root, 'explore-project')).toEqual({
+      intent: 'explore-project',
+      status: 'passed'
+    });
+  });
+});
+
+describe('generatedTestsPayload', () => {
+  it('does not count committed generated specs on explore summaries', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qali-explore-generated-'));
+    mkdirSync(join(root, 'tests/generated'), { recursive: true });
+    writeFileSync(join(root, 'tests/generated/jrn-001.generated.spec.ts'), 'export {};\n');
+
+    expect(generatedTestsPayload(root, 'sauce-demo', 'explore-project')).toBeUndefined();
+    expect(generatedTestsPayload(root, 'sauce-demo', 'generate-test-suite')).toEqual({
+      count: 1,
+      area: 'sauce-demo'
+    });
+  });
+});
 
 describe('reportTests', () => {
   it('keeps titled Playwright cases for the hosted HTML report', () => {
