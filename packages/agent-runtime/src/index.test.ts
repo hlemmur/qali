@@ -131,6 +131,39 @@ describe('agent runtime', () => {
     expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('CURSOR_SANDBOX');
   });
 
+  it('retries once in allowlist mode when the kernel sandbox cannot start', async () => {
+    const spawn = vi.fn<AgentSpawn>((_command, argv) => {
+      const sandbox = argv[argv.indexOf('--sandbox') + 1];
+      if (sandbox === 'enabled') {
+        return child({
+          stderr:
+            "Error: Sandbox mode is enabled but not available on this system. Sandbox failed to start, possibly due to AppArmor configuration.\nRun 'agent sandbox disable' to switch to allowlist mode.",
+          code: 1
+        });
+      }
+      return child({ stdout: '{"result":"explored"}\n' });
+    });
+    const runtime = new CursorCliAgentRuntime({ spawn, env: { PATH: '/bin' } });
+
+    await expect(runtime.execute(request())).resolves.toMatchObject({
+      status: 'succeeded',
+      output: 'explored'
+    });
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[0]![1]).toEqual(expect.arrayContaining(['--sandbox', 'enabled']));
+    expect(spawn.mock.calls[1]![1]).toEqual(
+      expect.arrayContaining(['--sandbox', 'disabled', '--trust'])
+    );
+  });
+
+  it('does not retry unrelated Cursor CLI failures as an allowlist fallback', async () => {
+    const spawn = vi.fn<AgentSpawn>(() => child({ stderr: 'bad command', code: 2 }));
+    await expect(
+      new CursorCliAgentRuntime({ spawn, env: {} }).execute(request())
+    ).resolves.toMatchObject({ status: 'failed', error: 'bad command' });
+    expect(spawn).toHaveBeenCalledOnce();
+  });
+
   it('supports a configurable Agent CLI executable', async () => {
     const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"done"}\n' }));
     await new CursorCliAgentRuntime({ executable: '/opt/cursor-agent', spawn, env: {} }).execute(

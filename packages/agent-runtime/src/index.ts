@@ -105,72 +105,122 @@ function parseResult(stdout: string): AgentExecutionResult {
   }
 }
 
+export function isCursorKernelSandboxUnavailable(error: string): boolean {
+  return (
+    /sandbox mode is enabled but not available/i.test(error) ||
+    /sandbox failed to start/i.test(error)
+  );
+}
+
+function buildCliArgs(
+  request: AgentExecutionRequest,
+  sandbox: 'enabled' | 'disabled',
+  model?: string
+): string[] {
+  const args = [
+    '-p',
+    '--output-format',
+    'json',
+    '--workspace',
+    request.workspace,
+    '--sandbox',
+    sandbox,
+    // Host-assembled /tmp/qali-harness-*/run is created by Qali; trust it for unattended CLI.
+    '--trust'
+  ];
+  if (model) args.push('--model', model);
+  args.push(buildAgentPrompt(request));
+  return args;
+}
+
+function runCursorCli(input: {
+  executable: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  spawn: AgentSpawn;
+  timeoutMs: number;
+  signal?: AbortSignal;
+  setTimer: (callback: () => void, timeoutMs: number) => unknown;
+  clearTimer: (timer: unknown) => void;
+}): Promise<AgentExecutionResult> {
+  return new Promise((resolve) => {
+    const child = input.spawn(input.executable, input.args, {
+      cwd: input.cwd,
+      env: input.env,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const cancel = (): void => {
+      child.kill('SIGTERM');
+      finish({ status: 'failed', error: 'cancelled' });
+    };
+    const finish = (result: AgentExecutionResult): void => {
+      if (settled) return;
+      settled = true;
+      input.signal?.removeEventListener('abort', cancel);
+      input.clearTimer(timer);
+      resolve(result);
+    };
+    child.stdout.on('data', (chunk) => (stdout += String(chunk)));
+    child.stderr.on('data', (chunk) => (stderr += String(chunk)));
+    child.on('error', (error) => finish({ status: 'failed', error: error.message }));
+    child.on('close', (code) => {
+      if (code === 0) finish(parseResult(stdout));
+      else
+        finish({
+          status: 'failed',
+          error: stderr.trim() || `Cursor CLI exited with code ${String(code)}`,
+          raw: stdout
+        });
+    });
+    const timer = input.setTimer(() => {
+      child.kill('SIGTERM');
+      finish({ status: 'failed', error: `Agent execution timed out after ${input.timeoutMs}ms` });
+    }, input.timeoutMs);
+    input.signal?.addEventListener('abort', cancel, { once: true });
+    if (input.signal?.aborted) cancel();
+  });
+}
+
 export class CursorCliAgentRuntime implements AgentRuntime {
   constructor(private readonly options: CursorCliOptions = {}) {}
 
-  execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
+  async execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
     const timeoutMs = request.timeoutMs ?? request.step.timeoutMs;
     const env = safeEnvironment(this.options.env ?? process.env);
     const model = this.options.model ?? env.CURSOR_MODEL;
-    const sandbox = 'enabled';
-    const args = [
-      '-p',
-      '--output-format',
-      'json',
-      '--workspace',
-      request.workspace,
-      '--sandbox',
-      sandbox,
-      // Host-assembled /tmp/qali-harness-*/run is created by Qali; trust it for unattended CLI.
-      '--trust'
-    ];
-    if (model) args.push('--model', model);
-    args.push(buildAgentPrompt(request));
-
-    return new Promise((resolve) => {
-      const child = (this.options.spawn ?? (nodeSpawn as unknown as AgentSpawn))(
-        this.options.executable ?? 'agent',
-        args,
-        {
-          cwd: request.workspace,
-          env,
-          shell: false,
-          stdio: ['ignore', 'pipe', 'pipe']
-        }
-      );
-      let stdout = '';
-      let stderr = '';
-      let settled = false;
-      const cancel = (): void => {
-        child.kill('SIGTERM');
-        finish({ status: 'failed', error: 'cancelled' });
-      };
-      const finish = (result: AgentExecutionResult): void => {
-        if (settled) return;
-        settled = true;
-        request.signal?.removeEventListener('abort', cancel);
-        (this.options.clearTimer ?? ((value) => clearTimeout(value as NodeJS.Timeout)))(timer);
-        resolve(result);
-      };
-      child.stdout.on('data', (chunk) => (stdout += String(chunk)));
-      child.stderr.on('data', (chunk) => (stderr += String(chunk)));
-      child.on('error', (error) => finish({ status: 'failed', error: error.message }));
-      child.on('close', (code) => {
-        if (code === 0) finish(parseResult(stdout));
-        else
-          finish({
-            status: 'failed',
-            error: stderr.trim() || `Cursor CLI exited with code ${String(code)}`,
-            raw: stdout
-          });
+    const spawn = this.options.spawn ?? (nodeSpawn as unknown as AgentSpawn);
+    const setTimer = this.options.setTimer ?? setTimeout;
+    const clearTimer =
+      this.options.clearTimer ?? ((value) => clearTimeout(value as NodeJS.Timeout));
+    const startedAt = Date.now();
+    const run = (sandbox: 'enabled' | 'disabled', remainingMs: number) =>
+      runCursorCli({
+        executable: this.options.executable ?? 'agent',
+        args: buildCliArgs(request, sandbox, model),
+        cwd: request.workspace,
+        env,
+        spawn,
+        timeoutMs: remainingMs,
+        setTimer,
+        clearTimer,
+        ...(request.signal ? { signal: request.signal } : {})
       });
-      const timer = (this.options.setTimer ?? setTimeout)(() => {
-        child.kill('SIGTERM');
-        finish({ status: 'failed', error: `Agent execution timed out after ${timeoutMs}ms` });
-      }, timeoutMs);
-      request.signal?.addEventListener('abort', cancel, { once: true });
-      if (request.signal?.aborted) cancel();
-    });
+
+    const result = await run('enabled', timeoutMs);
+    if (
+      result.status !== 'failed' ||
+      request.signal?.aborted ||
+      !isCursorKernelSandboxUnavailable(result.error)
+    ) {
+      return result;
+    }
+    const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
+    return run('disabled', remainingMs);
   }
 }
 

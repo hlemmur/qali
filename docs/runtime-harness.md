@@ -31,7 +31,7 @@ Slice 4 binds workflow steps to these profile IDs. Conditional visual and journe
 - Empty declared directories under `outputs/`.
 - A host-generated `harness-manifest.json` with asset hashes and a deterministic fingerprint.
 
-All generated files and non-output directories are made read-only at the filesystem layer. Declared output directories alone remain writable. Cursor always runs with sandboxing enabled, without `--force`, and receives an environment allowlist rather than inherited Slack, GitHub, publication, target, cloud, or database credentials. The browser MCP reads its secrets from a host-owned external environment file; secret values are never written into the staged workspace.
+All generated files and non-output directories are made read-only at the filesystem layer. Declared output directories alone remain writable. Cursor starts with kernel sandboxing enabled and without `--force`. If the kernel sandbox cannot start (typical on GitHub-hosted Ubuntu because AppArmor blocks unprivileged user namespaces), Qali retries once with `--sandbox disabled` so the CLI uses the assembled `.cursor/cli.json` allowlist (`Shell(*)` denied). Isolation remains the ephemeral workspace, read-only files, tool/MCP allowlist, and secret-filtered environment—not a caller-controlled `CURSOR_SANDBOX` variable. The browser MCP reads its secrets from a host-owned external environment file; secret values are never written into the staged workspace.
 
 Shell commands remain host responsibilities. Deterministic host code runs Playwright, validators, fingerprinting, policy checks, and publication after the agent returns staged artifacts.
 
