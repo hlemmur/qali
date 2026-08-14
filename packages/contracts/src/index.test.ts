@@ -52,6 +52,9 @@ describe('workflow contracts', () => {
         checks: [{ name: 'npm run build', passed: true }]
       })
     ).toThrow();
+    expect(SemanticPublicationManifestSchema.parse({ ...manifest, changes: [] }).changes).toEqual(
+      []
+    );
   });
 
   it('records immutable workflow step attempt identity and outcome', () => {

@@ -88,4 +88,38 @@ describe('publication preparation', () => {
       'projects/shop/derived/reports/report.md'
     ]);
   });
+
+  it('succeeds with no git-visible changes when pulse outputs are gitignored', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-pulse-'));
+    mkdirSync(join(workspace, 'projects/shop/derived/reports'), { recursive: true });
+    writeFileSync(
+      join(workspace, '.gitignore'),
+      ['projects/*/derived/reports/*', '!projects/*/derived/reports/.generated.md'].join('\n')
+    );
+    writeFileSync(join(workspace, 'projects/shop/derived/reports/.generated.md'), 'baseline\n');
+    git(workspace, 'init');
+    git(workspace, 'config', 'user.name', 'Test');
+    git(workspace, 'config', 'user.email', 'test@example.test');
+    git(workspace, 'add', '.');
+    git(workspace, 'commit', '-m', 'baseline');
+    writeFileSync(
+      join(workspace, 'projects/shop/derived/reports/quality-pulse-presentation.json'),
+      '{"title":"pulse"}\n'
+    );
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-PULSE',
+      projectRoot: 'projects/shop',
+      checks: [
+        {
+          command: process.execPath,
+          args: ['-e', "process.stdout.write('ok')"]
+        }
+      ]
+    });
+
+    expect(manifest.changes).toEqual([]);
+    expect(manifest.checks[0]).toMatchObject({ exitCode: 0 });
+  });
 });

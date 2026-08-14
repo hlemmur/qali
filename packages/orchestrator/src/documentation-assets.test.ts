@@ -199,6 +199,12 @@ describe('product documentation assets', () => {
     expect(read('docs/setup-slack.md')).toContain('Open report');
   });
 
+  it('skips GitHub publication when a run has no git-visible changes', () => {
+    expect(read('packages/publication/src/index.ts')).toContain("status: 'skipped'");
+    expect(read('packages/publication/src/index.ts')).toContain('no git-visible changes');
+    expect(read('docs/architecture.md')).toMatch(/empty manifest/i);
+  });
+
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executeScript = read('scripts/execute.ts');
