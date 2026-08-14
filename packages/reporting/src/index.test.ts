@@ -86,7 +86,7 @@ describe('compact run reporting', () => {
     );
   });
 
-  it('offers Open spec and Retract after reverse-approval generation', () => {
+  it('offers View tests in GitHub and Retract after reverse-approval generation', () => {
     const payload = renderSlackRunSummary(
       {
         ...result,
@@ -107,7 +107,7 @@ describe('compact run reporting', () => {
         expect.objectContaining({
           action_id: 'open_spec',
           url: 'https://github.test/hlemmur/qali/tree/main/projects/sample/tests/generated',
-          text: expect.objectContaining({ text: 'Open spec' })
+          text: expect.objectContaining({ text: 'View tests in GitHub' })
         }),
         expect.objectContaining({
           action_id: 'retract_generated_tests',

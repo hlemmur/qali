@@ -1,7 +1,12 @@
 import {
   HTML_REPORT_MAX_CHARS,
   REPORT_ACCESS_TTL_SECONDS,
+  REPORT_ATTACHMENT_MAX_BYTES,
+  REPORT_ATTACHMENT_MAX_COUNT,
+  contentTypeForReportAsset,
   isHostedHtmlReport,
+  parseReportKey,
+  reportAssetObjectKey,
   reportObjectKey,
   signReportAccess,
   verifyReportAccess
@@ -15,6 +20,29 @@ function json(status: number, value: unknown): Response {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function decodeBase64(value: string): Uint8Array | undefined {
+  try {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  } catch {
+    return undefined;
+  }
+}
+
+function attachmentList(value: unknown): Array<{ filename: string; data: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const item = entry as { filename?: unknown; data?: unknown };
+    if (typeof item.filename !== 'string' || typeof item.data !== 'string') return [];
+    return [{ filename: item.filename, data: item.data }];
+  });
 }
 
 export async function uploadHostedReport(
@@ -64,9 +92,33 @@ export async function uploadHostedReport(
   } catch {
     return new Response('Invalid project or run id', { status: 400 });
   }
+  const attachments = attachmentList(payload.attachments);
+  if (attachments.length > REPORT_ATTACHMENT_MAX_COUNT) {
+    return new Response('Too many report attachments', { status: 400 });
+  }
+  const storedAttachments: Array<{ filename: string; bytes: Uint8Array }> = [];
+  for (const attachment of attachments) {
+    try {
+      reportAssetObjectKey(projectId, runId, attachment.filename);
+    } catch {
+      return new Response('Invalid report attachment name', { status: 400 });
+    }
+    const bytes = decodeBase64(attachment.data);
+    if (!bytes || bytes.byteLength === 0 || bytes.byteLength > REPORT_ATTACHMENT_MAX_BYTES) {
+      return new Response('Invalid report attachment payload', { status: 400 });
+    }
+    storedAttachments.push({ filename: attachment.filename, bytes });
+  }
   await env.REPORTS.put(key, html, {
     httpMetadata: { contentType: 'text/html; charset=utf-8' }
   });
+  for (const attachment of storedAttachments) {
+    await env.REPORTS.put(
+      reportAssetObjectKey(projectId, runId, attachment.filename),
+      attachment.bytes,
+      { httpMetadata: { contentType: contentTypeForReportAsset(attachment.filename) } }
+    );
+  }
   const expiresAtSeconds = Math.floor(now.getTime() / 1000) + REPORT_ACCESS_TTL_SECONDS;
   const signed = await signReportAccess({
     baseUrl: new URL(request.url).origin,
@@ -95,9 +147,26 @@ export async function serveHostedReport(request: Request, env: Env, now: Date): 
   if (!allowed) {
     return new Response('Unauthorized', { status: 401 });
   }
+  let parsed: ReturnType<typeof parseReportKey>;
+  try {
+    parsed = parseReportKey(key);
+  } catch {
+    return new Response('Unauthorized', { status: 401 });
+  }
   const object = await env.REPORTS.get(key);
   if (!object) {
     return new Response('Not Found', { status: 404 });
+  }
+  if (parsed.asset) {
+    return new Response(await object.arrayBuffer(), {
+      status: 200,
+      headers: {
+        'content-type': object.httpMetadata?.contentType ?? contentTypeForReportAsset(parsed.asset),
+        'cache-control': 'private, max-age=300',
+        'content-security-policy': "default-src 'none'; base-uri 'none'",
+        'x-content-type-options': 'nosniff'
+      }
+    });
   }
   return new Response(await object.text(), {
     status: 200,
@@ -105,7 +174,7 @@ export async function serveHostedReport(request: Request, env: Env, now: Date): 
       'content-type': object.httpMetadata?.contentType ?? 'text/html; charset=utf-8',
       'cache-control': 'private, max-age=300',
       'content-security-policy':
-        "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'",
+        "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'",
       'x-content-type-options': 'nosniff'
     }
   });

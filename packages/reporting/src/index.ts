@@ -1,12 +1,21 @@
 import { displayRunStatus, isTerminalRunStatus } from './run-status.js';
 
 export { displayRunStatus, isTerminalRunStatus };
-export { renderHtmlReport } from './html-report.js';
+export {
+  renderHtmlReport,
+  describeExecutionCase,
+  formatDurationMs,
+  ARTIFACT_REPORT_README
+} from './html-report.js';
 export {
   HTML_REPORT_MAX_CHARS,
   REPORT_ACCESS_TTL_SECONDS,
+  REPORT_ATTACHMENT_MAX_BYTES,
+  REPORT_ATTACHMENT_MAX_COUNT,
+  contentTypeForReportAsset,
   isHostedHtmlReport,
   parseReportKey,
+  reportAssetObjectKey,
   reportObjectKey,
   signReportAccess,
   verifyReportAccess
@@ -19,6 +28,19 @@ export interface RunCounts {
   skipped: number;
 }
 
+export interface RunTestCase {
+  title: string;
+  status: string;
+  error?: string;
+  durationMs?: number;
+  retries?: number;
+  file?: string;
+  suite?: string;
+  description?: string;
+  screenshotUrl?: string;
+  screenshotPath?: string;
+}
+
 export interface RunSummary {
   runId: string;
   status: string;
@@ -26,6 +48,7 @@ export interface RunSummary {
   intent?: string;
   projectId?: string;
   suiteLabel?: string;
+  environment?: string;
   total?: number;
   passed?: number;
   failed?: number;
@@ -33,11 +56,7 @@ export interface RunSummary {
   durationMs?: number;
   evidence?: string[];
   errors?: string[];
-  tests?: Array<{
-    title: string;
-    status: string;
-    error?: string;
-  }>;
+  tests?: RunTestCase[];
   stages?: {
     execution?: string;
     validation?: string;
@@ -152,7 +171,7 @@ export function renderSlackRunSummary(
     elements.push({
       type: 'button',
       action_id: 'open_spec',
-      text: { type: 'plain_text', text: 'Open spec' },
+      text: { type: 'plain_text', text: 'View tests in GitHub' },
       url: actions.specUrl
     });
   }

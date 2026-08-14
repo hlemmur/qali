@@ -200,6 +200,8 @@ describe('product documentation assets', () => {
     expect(wrangler).toContain('"binding": "REPORTS"');
     expect(read('scripts/post-run-summary.ts')).toContain('/github/report');
     expect(read('.github/workflows/execute.yml')).toContain('.qali/report.html');
+    expect(read('.github/workflows/execute.yml')).toContain('report.html');
+    expect(read('.github/workflows/execute.yml')).toContain('README.txt');
     expect(read('docs/user-guide.md')).toContain('Open report');
     expect(read('docs/setup-cloudflare.md')).toContain('qali-reports');
     expect(read('docs/setup-slack.md')).toContain('Open report');
@@ -207,7 +209,7 @@ describe('product documentation assets', () => {
 
   it('documents reverse-approval generation without a pre-approved scenario gate', () => {
     expect(read('workflows/generate-test-suite.yaml')).not.toContain('approved-scenario-present');
-    expect(read('docs/user-guide.md')).toMatch(/Open spec/i);
+    expect(read('docs/user-guide.md')).toMatch(/View tests in GitHub/i);
     expect(read('docs/user-guide.md')).toMatch(/Retract/i);
     expect(read('docs/user-guide.md')).toMatch(/generation request/i);
     expect(read('docs/developer-guide.md')).toMatch(/generation source/i);

@@ -143,6 +143,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           path: |
+            report.html
+            README.txt
             playwright-report/
             test-results/
             projects/${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.project_json).id || 'sauce-demo' }}/observations/evidence/

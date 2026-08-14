@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { reportObjectKey, signReportAccess, verifyReportAccess } from './report-access.js';
+import {
+  reportAssetObjectKey,
+  reportObjectKey,
+  signReportAccess,
+  verifyReportAccess
+} from './report-access.js';
 
 describe('hosted report access', () => {
   it('builds a stable object key from project and run ids', () => {
     expect(reportObjectKey('sauce-demo', '42')).toBe('sauce-demo/42.html');
+    expect(reportAssetObjectKey('sauce-demo', '42', 'shot-0.png')).toBe('sauce-demo/42/shot-0.png');
+  });
+
+  it('rejects path traversal in attachment keys', () => {
+    expect(() => reportAssetObjectKey('sauce-demo', '42', '../secret.png')).toThrow(/key/i);
+    expect(() => reportAssetObjectKey('sauce-demo', '42', 'shot.exe')).toThrow(/key/i);
   });
 
   it('rejects path traversal in object keys', () => {

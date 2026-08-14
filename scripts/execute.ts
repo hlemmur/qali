@@ -69,7 +69,12 @@ import {
   resolvePlaywrightSuite,
   type PlaywrightEvidenceSummary
 } from '../packages/playwright/src/index.js';
-import { renderRunReport } from '../packages/reporting/src/index.js';
+import {
+  ARTIFACT_REPORT_README,
+  renderHtmlReport,
+  renderRunReport,
+  type RunSummary
+} from '../packages/reporting/src/index.js';
 import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
@@ -83,6 +88,14 @@ const generatedMarkdown = (body: string): string => {
   const hash = createHash('sha256').update(normalized).digest('hex');
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
 };
+
+function writeLocalExecutionReport(summary: RunSummary): void {
+  mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const html = renderHtmlReport(summary);
+  writeFileSync(join(workspace, '.qali/report.html'), html);
+  writeFileSync(join(workspace, 'report.html'), html);
+  writeFileSync(join(workspace, 'README.txt'), ARTIFACT_REPORT_README);
+}
 
 function writeWorkflowSlackSummary(
   command: NormalizedCommand,
@@ -108,6 +121,7 @@ function writeWorkflowSlackSummary(
   };
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
+  writeLocalExecutionReport(summary);
 }
 
 function writePlaywrightSlackSummary(
@@ -151,6 +165,11 @@ function writePlaywrightSlackSummary(
           tests: summary.tests.slice(0, 100).map((test) => ({
             title: test.title,
             status: test.status,
+            ...(test.durationMs !== undefined ? { durationMs: test.durationMs } : {}),
+            ...(test.retries !== undefined ? { retries: test.retries } : {}),
+            ...(test.file ? { file: test.file } : {}),
+            ...(test.suite ? { suite: test.suite } : {}),
+            ...(test.screenshotPath ? { screenshotPath: test.screenshotPath } : {}),
             ...(test.error
               ? {
                   error:
@@ -171,6 +190,7 @@ function writePlaywrightSlackSummary(
   writeFileSync(join(reportDirectory, 'test-run.json'), renderGeneratedJson(report.json));
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(report.json));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(report.json));
+  writeLocalExecutionReport(report.json);
 }
 
 class FileEventStore implements WorkflowEventStore {
@@ -399,6 +419,7 @@ class RoutedStepExecutor implements StepExecutor {
       writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(report.json));
       mkdirSync(join(workspace, '.qali'), { recursive: true });
       writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(report.json));
+      writeLocalExecutionReport(report.json);
       return { status: 'succeeded' as const, outputs };
     }
 

@@ -79,10 +79,10 @@ The result card leads with the information developers usually need:
 - Terminal status
 - Passed, failed, skipped, and total test counts when a test suite ran
 - A short failure summary
-- **Open report** for a hosted HTML recap with counts, the test/scenario list and issues when Playwright ran, findings, and next actions (signed link; no unzipping Markdown)
+- **Open report** for the hosted execution report: KPIs, pass rate, case table, issues, and failure screenshots when Playwright ran (signed link; no unzipping Markdown)
 - GitHub as a fallback for the Actions run and the Playwright HTML artifact (`playwright-report/` in the zip) after a test suite run
 
-Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **Open spec** and **Retract** let you keep or remove the tests from that run without a pre-approval step. Retract only deletes generated specs stamped for that generation request.
+Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **View tests in GitHub** and **Retract** let you keep or remove the tests from that run without a pre-approval step. Retract only deletes generated specs stamped for that generation request.
 
 ### 4. Continue from the same thread
 
@@ -90,16 +90,16 @@ Every request carries Slack, D1, GitHub, workflow-state, evidence, and publicati
 
 ## What each workflow produces
 
-| What you ask for        | What Qali does                                                                                                                                | What you receive                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Onboard project**     | Scaffolds the pack, discovers context/journeys/risks, runs a first bounded explore, writes strategy/plan/scenarios, and seeds `schedule.yaml` | Governed pack, first exploration evidence, schedule seed, hosted HTML recap                                            |
-| **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets                              | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report |
-| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                                             | Coverage map, generated `*.spec.ts` files, Slack recap with Open spec and Retract; no pre-approved scenario required   |
-| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                                                | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary     |
-| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red                              | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                            |
-| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                                             | Reconciliation proposal, contradictions, open questions, authority-gated updates                                       |
-| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                                                     | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof           |
-| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                                                     | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                                 |
+| What you ask for        | What Qali does                                                                                                                                | What you receive                                                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Onboard project**     | Scaffolds the pack, discovers context/journeys/risks, runs a first bounded explore, writes strategy/plan/scenarios, and seeds `schedule.yaml` | Governed pack, first exploration evidence, schedule seed, hosted HTML recap                                                     |
+| **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets                              | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report          |
+| **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                                             | Coverage map, generated `*.spec.ts` files, Slack recap with View tests in GitHub and Retract; no pre-approved scenario required |
+| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                                                | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary              |
+| **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red                              | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                                     |
+| **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                                             | Reconciliation proposal, contradictions, open questions, authority-gated updates                                                |
+| **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                                                     | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof                    |
+| **Quality pulse**       | Aggregates recorded facts before any AI presentation step                                                                                     | Risks, recent runs, failures, coverage, decisions, concise Markdown/Slack presentation                                          |
 
 ## What Qali will not do silently
 
@@ -189,9 +189,13 @@ A green local test does not prove the live integration, and a Slack “passed”
 
 ### Where is the Playwright report?
 
-**Open report** is Qali’s hosted HTML (script-free, signed URL on R2). After a **run test suite**, that page lists each scenario and any issue text. It is not Playwright’s interactive HTML reporter: that reporter is a JavaScript app, so it cannot be served from R2. Playwright writes `playwright-report/` during the same run; GitHub uploads it in the run artifact.
+**Open report** is Qali’s hosted execution report (script-free HTML, signed URL on R2). After a **run test suite**, that page is the human results view: KPIs, pass rate, cases with descriptions, durations, issues, and failure screenshots. It is not Playwright’s interactive HTML reporter: that reporter is a JavaScript app, so it cannot be served from R2.
 
-Onboard, explore, and quality pulse do not execute Playwright. Those hosted pages say so in the summary and list findings/evidence instead of a scenario table. Generate tests first, then run the suite, to get the detailed test list.
+The GitHub Actions zip is forensics, not the user report. Open `report.html` at the zip root for a copy of the same execution report. Open `playwright-report/index.html` locally for traces, the step timeline, and video. `test-results/` holds raw traces and videos. Derived Markdown/JSONL in the zip is machine provenance — do not treat it as the test report.
+
+**View tests in GitHub** (formerly Open spec) opens generated Playwright **source** in the repository. That is not the execution report.
+
+Onboard, explore, and quality pulse do not execute Playwright. Those hosted pages say so in the summary and list findings/evidence instead of a case table. Generate tests first, then run the suite, to get the detailed test list.
 
 ### Do developers need to learn commands?
 
