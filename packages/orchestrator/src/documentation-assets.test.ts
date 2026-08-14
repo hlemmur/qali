@@ -202,6 +202,10 @@ describe('product documentation assets', () => {
     expect(read('.github/workflows/execute.yml')).toContain('.qali/report.html');
     expect(read('.github/workflows/execute.yml')).toContain('report.html');
     expect(read('.github/workflows/execute.yml')).toContain('README.txt');
+    expect(read('.prettierignore')).toMatch(/^\/report\.html$/m);
+    expect(read('.prettierignore')).toMatch(/^\/README\.txt$/m);
+    expect(read('.gitignore')).toMatch(/^\/report\.html$/m);
+    expect(read('.gitignore')).toMatch(/^\/README\.txt$/m);
     expect(read('docs/user-guide.md')).toContain('Open report');
     expect(read('docs/setup-cloudflare.md')).toContain('qali-reports');
     expect(read('docs/setup-slack.md')).toContain('Open report');
