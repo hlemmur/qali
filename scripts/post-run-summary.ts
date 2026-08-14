@@ -115,17 +115,20 @@ export function userFacingFailureDetails(input: {
   publishResult?: string;
 }): string[] {
   const cleaned = input.existingErrors.filter((error) => !KITCHEN_LANGUAGE.test(error));
+  const publicationFailed =
+    input.publishResult === 'failure' ||
+    input.publishResult === 'cancelled' ||
+    (input.executeResult === 'success' &&
+      Boolean(input.publishResult) &&
+      input.publishResult !== 'success');
   if (input.jobStatus !== 'failure' && input.jobStatus !== 'cancelled') {
     return cleaned;
   }
-  if (cleaned.length > 0) return cleaned;
-  if (
-    input.publishResult === 'failure' ||
-    input.publishResult === 'cancelled' ||
-    (input.executeResult === 'success' && input.publishResult && input.publishResult !== 'success')
-  ) {
-    return ['Work finished, but the review change could not be published.'];
+  if (publicationFailed) {
+    const published = 'Work finished, but the review change could not be published.';
+    return cleaned.includes(published) ? cleaned : [...cleaned, published];
   }
+  if (cleaned.length > 0) return cleaned;
   if (input.hasCounts) return cleaned;
   return [
     INTENT_INCOMPLETE[input.intent ?? ''] ?? 'The run did not finish with a complete report.'

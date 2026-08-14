@@ -97,6 +97,22 @@ describe('userFacingFailureDetails', () => {
     ).toEqual(['Work finished, but the review change could not be published.']);
   });
 
+  it('keeps onboard findings when publication fails', () => {
+    expect(
+      userFacingFailureDetails({
+        jobStatus: 'failure',
+        intent: 'onboard-project',
+        hasCounts: false,
+        existingErrors: ['Q-001 What is the project tech stack?'],
+        executeResult: 'success',
+        publishResult: 'failure'
+      })
+    ).toEqual([
+      'Q-001 What is the project tech stack?',
+      'Work finished, but the review change could not be published.'
+    ]);
+  });
+
   it('keeps existing user-facing errors and strips kitchen language', () => {
     expect(
       userFacingFailureDetails({

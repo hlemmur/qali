@@ -187,7 +187,7 @@ A green local test does not prove the live integration, and a Slack “passed”
 
 **Open report** is Qali’s hosted HTML (script-free, signed URL on R2). After a **run test suite**, that page lists each scenario and any issue text. It is not Playwright’s interactive HTML reporter: that reporter is a JavaScript app, so it cannot be served from R2. Playwright writes `playwright-report/` during the same run; GitHub uploads it in the run artifact.
 
-Onboard, explore, and quality pulse do not execute Playwright, so those reports are recaps (counts, findings, evidence paths) without a scenario table. Generate tests first, then run the suite, to get the detailed test list.
+Onboard, explore, and quality pulse do not execute Playwright. Those hosted pages say so in the summary and list findings/evidence instead of a scenario table. Generate tests first, then run the suite, to get the detailed test list.
 
 ### Do developers need to learn commands?
 

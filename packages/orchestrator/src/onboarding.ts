@@ -362,3 +362,33 @@ export async function executeOnboardingMockStep(
 
   return { status: 'failed', error: `Unsupported onboarding step: ${step.id}` };
 }
+
+const ONBOARDING_EVIDENCE_PATHS = [
+  'sources/project-context.md',
+  'sources/questions.md',
+  'sources/reference/discovery.md',
+  'sources/reference/journeys.md',
+  'sources/reference/risks.md',
+  'derived/strategy.md',
+  'derived/plan.md',
+  'derived/reports/risk-assessment.md',
+  'derived/reports/initial-test-plan.md'
+] as const;
+
+export function summarizeOnboardingReport(projectRoot: string): {
+  findings: string[];
+  evidence: string[];
+} {
+  const evidence = ONBOARDING_EVIDENCE_PATHS.filter((relative) =>
+    existsSync(join(projectRoot, relative))
+  );
+  const questionsPath = join(projectRoot, 'sources/questions.md');
+  const findings: string[] = [];
+  if (existsSync(questionsPath)) {
+    for (const line of readFileSync(questionsPath, 'utf8').split('\n')) {
+      const match = /^\|\s*(Q-\d+)\s*\|\s*([^|]+)\|\s*open\s*\|/i.exec(line);
+      if (match?.[1] && match[2]) findings.push(`${match[1]} ${match[2].trim()}`);
+    }
+  }
+  return { findings: findings.slice(0, 12), evidence };
+}

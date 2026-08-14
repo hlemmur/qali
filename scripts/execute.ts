@@ -53,6 +53,7 @@ import {
   executeWorkflow,
   loadWorkflowDirectory,
   prepareOnboardProject,
+  summarizeOnboardingReport,
   routeCommand,
   appendAgentLog,
   PlaywrightTriageRegressionValidator,
@@ -91,6 +92,10 @@ function writeWorkflowSlackSummary(
   const reportDirectory = join(workspace, command.project.root, 'derived/reports');
   mkdirSync(reportDirectory, { recursive: true });
   mkdirSync(join(workspace, '.qali'), { recursive: true });
+  const onboard =
+    command.intent === 'onboard-project'
+      ? summarizeOnboardingReport(join(workspace, command.project.root))
+      : { findings: [], evidence: [] };
   const summary = {
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
@@ -98,7 +103,8 @@ function writeWorkflowSlackSummary(
     status,
     intent: command.intent,
     projectId: command.project.id,
-    ...(errors.length ? { errors } : { errors: [] })
+    errors: [...onboard.findings, ...errors],
+    ...(onboard.evidence.length ? { evidence: onboard.evidence } : {})
   };
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
