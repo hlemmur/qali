@@ -5,9 +5,20 @@
  */
 import { createHmac, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { renderHtmlReport, type RunSummary } from '@qali/reporting';
+import {
+  ARTIFACT_REPORT_README,
+  REPORT_ACCESS_TTL_SECONDS,
+  REPORT_ATTACHMENT_MAX_BYTES,
+  REPORT_ATTACHMENT_MAX_COUNT,
+  describeExecutionCase,
+  renderHtmlReport,
+  reportAssetObjectKey,
+  signReportAccess,
+  type RunSummary,
+  type RunTestCase
+} from '@qali/reporting';
 
 function readJson(path: string): Record<string, unknown> | undefined {
   if (!existsSync(path)) return undefined;
@@ -51,17 +62,101 @@ export function reportTests(
   if (!Array.isArray(report.tests)) return undefined;
   const tests = report.tests.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return [];
-    const value = entry as { title?: unknown; status?: unknown; error?: unknown };
+    const value = entry as {
+      title?: unknown;
+      status?: unknown;
+      error?: unknown;
+      durationMs?: unknown;
+      retries?: unknown;
+      file?: unknown;
+      suite?: unknown;
+      description?: unknown;
+      screenshotPath?: unknown;
+    };
     if (typeof value.title !== 'string' || typeof value.status !== 'string') return [];
-    return [
-      {
-        title: value.title,
-        status: value.status,
-        ...(typeof value.error === 'string' ? { error: value.error } : {})
-      }
-    ];
+    const test: RunTestCase = {
+      title: value.title,
+      status: value.status,
+      ...(typeof value.error === 'string' ? { error: value.error } : {}),
+      ...(typeof value.durationMs === 'number' ? { durationMs: value.durationMs } : {}),
+      ...(typeof value.retries === 'number' ? { retries: value.retries } : {}),
+      ...(typeof value.file === 'string' ? { file: value.file } : {}),
+      ...(typeof value.suite === 'string' ? { suite: value.suite } : {}),
+      ...(typeof value.description === 'string' ? { description: value.description } : {}),
+      ...(typeof value.screenshotPath === 'string' ? { screenshotPath: value.screenshotPath } : {})
+    };
+    return [test];
   });
   return tests.length ? tests : undefined;
+}
+
+export function loadJourneyMarkdown(
+  projectRoot: string,
+  workspace = process.cwd()
+): string | undefined {
+  const path = join(workspace, projectRoot, 'sources/reference/journeys.md');
+  if (!existsSync(path)) return undefined;
+  return readFileSync(path, 'utf8');
+}
+
+export function applyJourneyDescriptions(
+  tests: RunTestCase[],
+  journeysMarkdown?: string
+): RunTestCase[] {
+  if (!journeysMarkdown) return tests;
+  return tests.map((test) => {
+    const described = describeExecutionCase(test.title, journeysMarkdown);
+    return {
+      ...test,
+      description: test.description ?? described.description
+    };
+  });
+}
+
+export function shouldSkipScreenshot(path: string): boolean {
+  return /password/i.test(path);
+}
+
+export async function prepareFailureScreenshots(input: {
+  tests: RunTestCase[];
+  workspace: string;
+  projectId: string;
+  runId: string;
+  workerBase: string;
+  secret: string;
+  expiresAtSeconds: number;
+}): Promise<{ tests: RunTestCase[]; attachments: Array<{ filename: string; data: string }> }> {
+  const attachments: Array<{ filename: string; data: string }> = [];
+  const tests = [...input.tests];
+  for (const [index, test] of tests.entries()) {
+    if (test.status === 'passed' || test.status === 'skipped') continue;
+    const source = test.screenshotPath;
+    if (!source || shouldSkipScreenshot(source)) continue;
+    if (attachments.length >= REPORT_ATTACHMENT_MAX_COUNT) break;
+    const absPath = resolve(input.workspace, source);
+    if (!existsSync(absPath)) continue;
+    const bytes = readFileSync(absPath);
+    if (bytes.byteLength === 0 || bytes.byteLength > REPORT_ATTACHMENT_MAX_BYTES) continue;
+    const extension =
+      basename(absPath)
+        .match(/\.(png|jpe?g|webp)$/i)?.[1]
+        ?.toLowerCase() ?? 'png';
+    const filename = `shot-${attachments.length}.${extension === 'jpeg' ? 'jpg' : extension}`;
+    try {
+      reportAssetObjectKey(input.projectId, input.runId, filename);
+    } catch {
+      continue;
+    }
+    const signed = await signReportAccess({
+      baseUrl: input.workerBase,
+      key: `${input.projectId}/${input.runId}/${filename}`,
+      secret: input.secret,
+      expiresAtSeconds: input.expiresAtSeconds
+    });
+    attachments.push({ filename, data: bytes.toString('base64') });
+    tests[index] = { ...test, screenshotUrl: signed.url };
+  }
+  return { tests, attachments };
 }
 
 function sign(secret: string, body: string): string {
@@ -162,13 +257,15 @@ export async function publishHostedReport(input: {
   nowSeconds: number;
   nonce: string;
   requestId?: string;
+  attachments?: Array<{ filename: string; data: string }>;
   fetchImpl?: typeof fetch;
 }): Promise<string | undefined> {
   const body = JSON.stringify({
     ...(input.requestId ? { requestId: input.requestId } : {}),
     runId: input.runId,
     projectId: input.projectId,
-    html: input.html
+    html: input.html,
+    ...(input.attachments?.length ? { attachments: input.attachments } : {})
   });
   const response = await (input.fetchImpl ?? fetch)(`${input.workerBase}/github/report`, {
     method: 'POST',
@@ -238,7 +335,25 @@ export async function postRunSummary(): Promise<void> {
 
   const runId = process.env.GITHUB_RUN_ID;
   const requestId = process.env.SUMMARY_REQUEST_ID ?? process.env.QALI_REQUEST_ID;
-  const tests = reportTests(report);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  let tests = reportTests(report);
+  let attachments: Array<{ filename: string; data: string }> = [];
+  if (tests) {
+    tests = applyJourneyDescriptions(tests, loadJourneyMarkdown(project.root));
+    if (runId) {
+      const prepared = await prepareFailureScreenshots({
+        tests,
+        workspace: process.cwd(),
+        projectId: project.id,
+        runId,
+        workerBase,
+        secret,
+        expiresAtSeconds: nowSeconds + REPORT_ACCESS_TTL_SECONDS
+      });
+      tests = prepared.tests;
+      attachments = prepared.attachments;
+    }
+  }
   const htmlSummary: RunSummary = {
     runId: runId ?? 'unknown',
     status,
@@ -261,6 +376,8 @@ export async function postRunSummary(): Promise<void> {
   const html = renderHtmlReport(htmlSummary);
   mkdirSync('.qali', { recursive: true });
   writeFileSync('.qali/report.html', html);
+  writeFileSync('report.html', html);
+  writeFileSync('README.txt', ARTIFACT_REPORT_README);
 
   let reportUrl: string | undefined;
   if (runId) {
@@ -271,12 +388,13 @@ export async function postRunSummary(): Promise<void> {
         runId,
         projectId: project.id,
         html,
-        nowSeconds: Math.floor(Date.now() / 1000),
+        nowSeconds,
         nonce:
           process.env.GITHUB_RUN_ID && process.env.GITHUB_RUN_ATTEMPT
             ? `${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT}:report`
             : `${randomUUID()}:report`,
-        ...(requestId ? { requestId } : {})
+        ...(requestId ? { requestId } : {}),
+        ...(attachments.length ? { attachments } : {})
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

@@ -8,6 +8,11 @@ export interface PlaywrightTestCase {
   title: string;
   status: 'passed' | 'failed' | 'skipped';
   error?: string;
+  durationMs?: number;
+  retries?: number;
+  file?: string;
+  suite?: string;
+  screenshotPath?: string;
 }
 
 export interface PlaywrightEvidenceSummary {
@@ -28,44 +33,67 @@ export interface PlaywrightRunEvidence extends PlaywrightEvidenceSummary {
 interface JsonResult {
   status?: string;
   duration?: number;
+  retry?: number;
   error?: { message?: string };
-  attachments?: Array<{ path?: string }>;
+  attachments?: Array<{ name?: string; path?: string }>;
 }
 
-function collectTests(
-  suite: unknown,
-  parentTitle = ''
-): Array<{ title: string; status?: string; results?: JsonResult[] }> {
+interface CollectedTest {
+  title: string;
+  file?: string;
+  suite?: string;
+  status?: string;
+  results?: JsonResult[];
+}
+
+function isImageAttachment(attachment: { name?: string; path?: string }): boolean {
+  const path = attachment.path ?? '';
+  if (!/\.(png|jpe?g|webp)$/i.test(path)) return false;
+  if (/password/i.test(path)) return false;
+  const name = attachment.name ?? '';
+  return name.toLowerCase() !== 'trace';
+}
+
+function collectTests(suite: unknown, parentTitle = '', parentFile?: string): CollectedTest[] {
   if (!suite || typeof suite !== 'object') return [];
   const value = suite as {
     title?: string;
+    file?: string;
     tests?: Array<{ title?: string; status?: string; results?: JsonResult[] }>;
     specs?: Array<{
       title?: string;
+      file?: string;
       tests?: Array<{ title?: string; status?: string; results?: JsonResult[] }>;
     }>;
     suites?: unknown[];
   };
+  const suiteFile = value.file || parentFile;
   const suiteTitle = [parentTitle, value.title]
     .filter((part) => part && part.length > 0)
     .join(' › ');
   const named = (
     title: string,
-    tests: Array<{ title?: string; status?: string; results?: JsonResult[] }>
-  ) =>
+    tests: Array<{ title?: string; status?: string; results?: JsonResult[] }>,
+    file?: string,
+    suite?: string
+  ): CollectedTest[] =>
     tests.map((test) => ({
       ...test,
-      title: [title, test.title].filter((part) => part && part.length > 0).join(' › ') || 'test'
+      title: [title, test.title].filter((part) => part && part.length > 0).join(' › ') || 'test',
+      ...(file ? { file } : {}),
+      ...(suite ? { suite } : {})
     }));
   return [
-    ...named(suiteTitle, value.tests ?? []),
+    ...named(suiteTitle, value.tests ?? [], suiteFile, suiteTitle || undefined),
     ...(value.specs ?? []).flatMap((spec) =>
       named(
         [suiteTitle, spec.title].filter((part) => part && part.length > 0).join(' › '),
-        spec.tests ?? []
+        spec.tests ?? [],
+        spec.file || suiteFile,
+        suiteTitle || undefined
       )
     ),
-    ...(value.suites ?? []).flatMap((child) => collectTests(child, suiteTitle))
+    ...(value.suites ?? []).flatMap((child) => collectTests(child, suiteTitle, suiteFile))
   ];
 }
 
@@ -84,23 +112,47 @@ export function parsePlaywrightJsonReport(input: unknown): PlaywrightEvidenceSum
   };
   for (const test of tests) {
     const final = test.results?.at(-1);
-    summary.durationMs +=
+    const durationMs =
       test.results?.reduce((total, result) => total + (result.duration ?? 0), 0) ?? 0;
+    summary.durationMs += durationMs;
+    const finalStatus = final?.status ?? test.status;
     let status: PlaywrightTestCase['status'] = 'failed';
-    if (test.status === 'expected' && final?.status === 'passed') {
-      summary.passed += 1;
-      status = 'passed';
-    } else if (test.status === 'skipped' || final?.status === 'skipped') {
+    if (test.status === 'skipped' || finalStatus === 'skipped') {
       summary.skipped += 1;
       status = 'skipped';
-    } else {
+    } else if (
+      finalStatus === 'failed' ||
+      finalStatus === 'timedOut' ||
+      finalStatus === 'interrupted' ||
+      test.status === 'unexpected'
+    ) {
       summary.failed += 1;
+    } else {
+      summary.passed += 1;
+      status = 'passed';
     }
-    const error = test.results?.map((result) => result.error?.message).find(Boolean);
+    const error =
+      status === 'failed'
+        ? test.results?.map((result) => result.error?.message).find(Boolean)
+        : undefined;
+    const retries = Math.max(
+      0,
+      ...(test.results?.map((result) => result.retry ?? 0) ?? [0]),
+      (test.results?.length ?? 1) - 1
+    );
+    const screenshotPath =
+      status === 'failed'
+        ? test.results?.flatMap((result) => result.attachments ?? []).find(isImageAttachment)?.path
+        : undefined;
     summary.tests.push({
       title: test.title,
       status,
-      ...(error ? { error } : {})
+      durationMs,
+      retries,
+      ...(error ? { error } : {}),
+      ...(test.file ? { file: test.file } : {}),
+      ...(test.suite ? { suite: test.suite } : {}),
+      ...(screenshotPath ? { screenshotPath } : {})
     });
     for (const result of test.results ?? []) {
       if (result.error?.message) summary.errors.push(result.error.message);

@@ -78,14 +78,65 @@ describe('Playwright adapter', () => {
       evidence: ['test-results/trace.zip', 'test-results/failure.png'],
       errors: ['Expected dashboard'],
       tests: [
-        { title: 'login.spec.ts › shows inventory', status: 'passed' },
+        { title: 'login.spec.ts › shows inventory', status: 'passed', durationMs: 120, retries: 0 },
         {
           title: 'checkout.spec.ts › pays with saved card',
           status: 'failed',
-          error: 'Expected dashboard'
+          error: 'Expected dashboard',
+          durationMs: 80,
+          retries: 0,
+          screenshotPath: 'test-results/failure.png'
         }
       ]
     });
+  });
+
+  it('keeps per-test duration, retries, file, and suite from Playwright JSON', () => {
+    const report = parsePlaywrightJsonReport({
+      suites: [
+        {
+          title: '',
+          file: 'projects/shop/tests/generated/jrn-001.generated.spec.ts',
+          suites: [
+            {
+              title: 'functional-chromium',
+              file: 'projects/shop/tests/generated/jrn-001.generated.spec.ts',
+              specs: [
+                {
+                  title: 'JRN-001 generated scenario',
+                  file: 'projects/shop/tests/generated/jrn-001.generated.spec.ts',
+                  tests: [
+                    {
+                      status: 'flaky',
+                      results: [
+                        {
+                          status: 'failed',
+                          duration: 400,
+                          retry: 0,
+                          error: { message: 'timeout' },
+                          attachments: [{ name: 'screenshot', path: 'test-results/retry.png' }]
+                        },
+                        { status: 'passed', duration: 250, retry: 1, attachments: [] }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+    expect(report.tests).toEqual([
+      {
+        title: 'functional-chromium › JRN-001 generated scenario',
+        status: 'passed',
+        durationMs: 650,
+        retries: 1,
+        file: 'projects/shop/tests/generated/jrn-001.generated.spec.ts',
+        suite: 'functional-chromium'
+      }
+    ]);
   });
 
   it('preserves process failure state when the JSON report has no failed tests', () => {

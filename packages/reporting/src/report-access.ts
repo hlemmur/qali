@@ -3,6 +3,47 @@ const encoder = new TextEncoder();
 
 export const REPORT_ACCESS_TTL_SECONDS = 14 * 24 * 60 * 60;
 export const HTML_REPORT_MAX_CHARS = 512_000;
+export const REPORT_ATTACHMENT_MAX_BYTES = 1_500_000;
+export const REPORT_ATTACHMENT_MAX_COUNT = 8;
+
+const HTML_KEY = /^([a-zA-Z0-9][a-zA-Z0-9._-]*)\/([a-zA-Z0-9][a-zA-Z0-9._-]*)\.html$/;
+const ASSET_KEY =
+  /^([a-zA-Z0-9][a-zA-Z0-9._-]*)\/([a-zA-Z0-9][a-zA-Z0-9._-]*)\/([a-zA-Z0-9][a-zA-Z0-9._-]*\.(?:png|jpe?g|webp))$/;
+
+export function parseReportKey(key: string): {
+  projectId: string;
+  runId: string;
+  asset?: string;
+} {
+  const html = key.match(HTML_KEY);
+  if (html?.[1] && html[2]) {
+    return { projectId: html[1], runId: html[2] };
+  }
+  const asset = key.match(ASSET_KEY);
+  if (asset?.[1] && asset[2] && asset[3]) {
+    return { projectId: asset[1], runId: asset[2], asset: asset[3] };
+  }
+  throw new Error('Invalid report key');
+}
+
+export function reportObjectKey(projectId: string, runId: string): string {
+  if (!SAFE_ID.test(projectId)) throw new Error('Invalid project id for report key');
+  if (!SAFE_ID.test(runId)) throw new Error('Invalid run id for report key');
+  return `${projectId}/${runId}.html`;
+}
+
+export function reportAssetObjectKey(projectId: string, runId: string, filename: string): string {
+  const key = `${projectId}/${runId}/${filename}`;
+  const parsed = parseReportKey(key);
+  if (!parsed.asset) throw new Error('Invalid report attachment key');
+  return key;
+}
+
+export function contentTypeForReportAsset(filename: string): string {
+  if (/\.jpe?g$/i.test(filename)) return 'image/jpeg';
+  if (/\.webp$/i.test(filename)) return 'image/webp';
+  return 'image/png';
+}
 
 function bytesToHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -29,20 +70,6 @@ async function hmacHex(secret: string, message: string): Promise<string> {
   );
   const digest = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
   return bytesToHex(new Uint8Array(digest));
-}
-
-export function parseReportKey(key: string): { projectId: string; runId: string } {
-  const match = key.match(/^([a-zA-Z0-9][a-zA-Z0-9._-]*)\/([a-zA-Z0-9][a-zA-Z0-9._-]*)\.html$/);
-  if (!match?.[1] || !match[2]) {
-    throw new Error('Invalid report key');
-  }
-  return { projectId: match[1], runId: match[2] };
-}
-
-export function reportObjectKey(projectId: string, runId: string): string {
-  if (!SAFE_ID.test(projectId)) throw new Error('Invalid project id for report key');
-  if (!SAFE_ID.test(runId)) throw new Error('Invalid run id for report key');
-  return `${projectId}/${runId}.html`;
 }
 
 export async function signReportAccess(input: {

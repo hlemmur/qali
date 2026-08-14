@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderHtmlReport } from '@qali/reporting';
+import { renderHtmlReport, signReportAccess } from '@qali/reporting';
 import type { QualitySnapshot } from '@qali/contracts';
 import { signHmacForTest } from './security.js';
 import { createWorker } from './index.js';
@@ -49,15 +49,21 @@ class MemoryStore implements ControlStore {
 }
 
 class MemoryR2 {
-  readonly objects = new Map<string, { body: string; contentType?: string }>();
+  readonly objects = new Map<string, { body: Uint8Array; contentType?: string }>();
 
   async put(
     key: string,
-    value: string,
+    value: string | ArrayBuffer | Uint8Array,
     options?: { httpMetadata?: { contentType?: string } }
   ): Promise<{ key: string }> {
+    const body =
+      typeof value === 'string'
+        ? new TextEncoder().encode(value)
+        : value instanceof Uint8Array
+          ? value
+          : new Uint8Array(value);
     this.objects.set(key, {
-      body: value,
+      body,
       ...(options?.httpMetadata?.contentType
         ? { contentType: options.httpMetadata.contentType }
         : {})
@@ -66,15 +72,21 @@ class MemoryR2 {
   }
 
   async get(key: string): Promise<{
-    body: string;
+    body: Uint8Array;
     text: () => Promise<string>;
+    arrayBuffer: () => Promise<ArrayBuffer>;
     httpMetadata?: { contentType?: string };
   } | null> {
     const object = this.objects.get(key);
     if (!object) return null;
     return {
       body: object.body,
-      text: async () => object.body,
+      text: async () => new TextDecoder().decode(object.body),
+      arrayBuffer: async () => {
+        const copy = new Uint8Array(object.body.byteLength);
+        copy.set(object.body);
+        return copy.buffer;
+      },
       ...(object.contentType ? { httpMetadata: { contentType: object.contentType } } : {})
     };
   }
@@ -157,7 +169,7 @@ describe('hosted HTML reports', () => {
     const payload = (await upload.json()) as { reportUrl?: string };
     expect(payload.reportUrl).toContain('/reports/sauce-demo/42.html');
     expect(payload.reportUrl).toContain('sig=');
-    expect(reports.objects.get('sauce-demo/42.html')?.body).toContain(
+    expect(new TextDecoder().decode(reports.objects.get('sauce-demo/42.html')?.body)).toContain(
       'Login did not reach inventory'
     );
 
@@ -167,6 +179,35 @@ describe('hosted HTML reports', () => {
     const page = await served.text();
     expect(page).toContain('Login did not reach inventory');
     expect(page).not.toContain('<script');
+    expect(served.headers.get('content-security-policy')).toMatch(/img-src 'self'/);
+  });
+
+  it('stores failure screenshots next to the HTML and serves them from a signed URL', async () => {
+    const reports = new MemoryR2();
+    const worker = createWorker({ store: new MemoryStore(), now });
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64');
+    const body = JSON.stringify({
+      runId: '42',
+      projectId: 'sauce-demo',
+      html,
+      attachments: [{ filename: 'shot-0.png', data: png }]
+    });
+    const upload = await worker.fetch(
+      await signedReportRequest(body, 'report-42-shot'),
+      envWithReports(reports)
+    );
+    expect(upload.status).toBe(200);
+    expect(reports.objects.get('sauce-demo/42/shot-0.png')?.contentType).toBe('image/png');
+    const signed = await signReportAccess({
+      baseUrl: 'https://worker.test',
+      key: 'sauce-demo/42/shot-0.png',
+      secret: 'callback-secret',
+      expiresAtSeconds: 1_700_000_000 + 14 * 24 * 60 * 60
+    });
+    const served = await worker.fetch(new Request(signed.url), envWithReports(reports));
+    expect(served.status).toBe(200);
+    expect(served.headers.get('content-type')).toBe('image/png');
+    expect(new Uint8Array(await served.arrayBuffer())[0]).toBe(0x89);
   });
 
   it('rejects script-bearing HTML uploads', async () => {
