@@ -294,8 +294,10 @@ describe('deterministic test generation', () => {
     expect(spec).toContain("getByPlaceholder('Password')");
     expect(spec).toContain("JSON.parse(process.env.QALI_TEST_DATA_JSON ?? '{}')");
     expect(spec).toContain("JSON.parse(process.env.QALI_TEST_CREDENTIALS_JSON ?? '{}')");
-    expect(spec).toContain("testData.username ?? ''");
-    expect(spec).toContain("credentials.password ?? ''");
+    expect(spec).toContain('Missing QALI_TEST_DATA_JSON.username');
+    expect(spec).toContain('Missing QALI_TEST_CREDENTIALS_JSON.password');
+    expect(spec).toContain('usernameValue');
+    expect(spec).toContain('passwordValue');
     expect(spec).not.toContain('secret_sauce');
     expect(spec).not.toContain('standard_user');
   });

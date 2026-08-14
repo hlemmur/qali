@@ -291,7 +291,16 @@ export async function executeTestGenerationStep(
               ? `page.getByPlaceholder(${quoted(action.name)})`
               : `page.getByLabel(${quoted(action.name)})`;
           const source = action.source === 'credentials' ? 'credentials' : 'testData';
-          lines.push(`  await ${locator}.fill(String(${source}.${action.field} ?? ''));`);
+          const envName =
+            action.source === 'credentials' ? 'QALI_TEST_CREDENTIALS_JSON' : 'QALI_TEST_DATA_JSON';
+          const valueName = `${action.field}Value`;
+          lines.push(
+            `  const ${valueName} = String(${source}.${action.field} ?? '').trim();`,
+            `  if (!${valueName}) {`,
+            `    throw new Error(${quoted(`Missing ${envName}.${action.field}`)});`,
+            '  }',
+            `  await ${locator}.fill(${valueName});`
+          );
         } else if (action.kind === 'click') {
           lines.push(
             `  await page.getByRole(${quoted(action.role)}, { name: ${quoted(action.name)} }).click();`
