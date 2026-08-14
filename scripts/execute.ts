@@ -51,6 +51,7 @@ import {
   executeTestGenerationStep,
   executeWorkflow,
   loadWorkflowDirectory,
+  prepareOnboardProject,
   routeCommand,
   PlaywrightTriageRegressionValidator,
   type PolicyEnforcer,
@@ -609,6 +610,9 @@ function commandInput(): NormalizedCommand {
 }
 
 const command = commandInput();
+if (command.intent === 'onboard-project') {
+  prepareOnboardProject(workspace, command);
+}
 if (!command.project.executionProfileId) {
   throw new Error('Resolved command is missing project.executionProfileId');
 }

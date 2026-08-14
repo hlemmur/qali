@@ -8,6 +8,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 import { signHmacForTest } from './security.js';
 import { createWorker as createProductionWorker, type WorkerDependencies } from './index.js';
+import { heuristicClassify } from './classifier.js';
 import { SlackWebClient } from './slack.js';
 import type {
   ControlStore,
@@ -502,7 +503,7 @@ describe('Slack control worker', () => {
     expect([...store.rateEvents.keys()].join(',')).not.toContain('_demo');
   });
 
-  it('maps QA Lead IDs and defaults allowed Slack users to Developer before queueing', async () => {
+  it('keeps break-glass users as Developers in product channels and maps them to ops admin in #qali-ops', async () => {
     const queue: InboundWork[] = [];
     const worker = createWorker({
       store: new MemoryStore(),
@@ -514,18 +515,32 @@ describe('Slack control worker', () => {
 
     await worker.fetch(await slackEvent(eventBody), {
       ...baseEnv(queue),
-      SLACK_QA_LEAD_USER_IDS: 'U1'
+      SLACK_QA_LEAD_USER_IDS: 'U1',
+      SLACK_OPS_CHANNEL_IDS: 'C_OPS'
     });
-    expect(queue[0]?.externalRole).toBe('qa-lead-admin');
+    expect(queue[0]?.externalRole).toBe('developer');
+
+    const ops = structuredClone(eventBody);
+    ops.event_id = 'EvOps';
+    ops.event.channel = 'C_OPS';
+    await worker.fetch(await slackEvent(ops), {
+      ...baseEnv(queue),
+      SLACK_QA_LEAD_USER_IDS: 'U1',
+      SLACK_OPS_CHANNEL_IDS: 'C_OPS',
+      SLACK_ALLOWED_CHANNEL_IDS: 'C1'
+    });
+    expect(queue[1]?.externalRole).toBe('qa-lead-admin');
 
     const developer = structuredClone(eventBody);
     developer.event_id = 'Ev2';
     developer.event.user = 'U2';
+    developer.event.channel = 'C_OPS';
     await worker.fetch(await slackEvent(developer), {
       ...baseEnv(queue),
-      SLACK_QA_LEAD_USER_IDS: 'U1'
+      SLACK_QA_LEAD_USER_IDS: 'U1',
+      SLACK_OPS_CHANNEL_IDS: 'C_OPS'
     });
-    expect(queue[1]?.externalRole).toBe('developer');
+    expect(queue[2]?.externalRole).toBe('developer');
   });
 
   it('rejects privileged Developer actions before queueing', async () => {
@@ -622,6 +637,218 @@ describe('Slack control worker', () => {
     expect(store.denials).toEqual([
       { reasonCode: 'command_authorization', requestKind: 'message' }
     ]);
+  });
+
+  it('dispatches Developer onboard-project from a product channel', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const github: GitHubPort = { dispatch: vi.fn(async () => ({ runId: '7' })) };
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async () => ({
+          intent: 'onboard-project',
+          projectId: '_demo',
+          focus: { targetUrl: 'https://www.saucedemo.com' }
+        })
+      },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    await worker.fetch(await slackEvent(eventBody), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'onboard-project',
+        externalRole: 'developer',
+        parameters: expect.objectContaining({ targetUrl: 'https://www.saucedemo.com' })
+      }),
+      'Ev1'
+    );
+  });
+
+  it('onboards from an https URL and keeps named credentials out of Slack and dispatch', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const notices: string[] = [];
+    const classify = vi.fn(async (work: InboundWork) => heuristicClassify(work));
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '9' })),
+      provisionProjectEnvironment: vi.fn(async () => undefined)
+    };
+    const worker = createWorker({
+      store,
+      classifier: { classify },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input.text);
+          return undefined;
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = structuredClone(eventBody);
+    body.event.text =
+      '<@BOT> onboard https://example.com username=standard_user password=secret_sauce credential=password';
+    await worker.fetch(await slackEvent(body), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(classify.mock.calls[0]?.[0].text).not.toContain('secret_sauce');
+    expect(github.provisionProjectEnvironment).toHaveBeenCalledWith({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com'],
+      credentialsJson: '{"password":"secret_sauce"}',
+      testDataJson: '{"username":"standard_user"}'
+    });
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'onboard-project',
+        project: expect.objectContaining({
+          id: 'example-com',
+          root: 'projects/example-com',
+          environment: 'qali-example-com'
+        }),
+        parameters: expect.objectContaining({
+          targetUrl: 'https://example.com/',
+          origin: 'https://example.com'
+        })
+      }),
+      'Ev1'
+    );
+    const dispatched = JSON.stringify(vi.mocked(github.dispatch).mock.calls[0]);
+    expect(dispatched).not.toContain('secret_sauce');
+    expect(notices.join('\n')).not.toContain('secret_sauce');
+    expect(store.correlations.get('Ev1')?.commandJson).not.toContain('secret_sauce');
+  });
+
+  it('provisions empty test data and credentials when Slack onboard has no username or password', async () => {
+    const queue: InboundWork[] = [];
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '10' })),
+      provisionProjectEnvironment: vi.fn(async () => undefined)
+    };
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: { classify: async (work) => heuristicClassify(work) },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = structuredClone(eventBody);
+    body.event.text = '<@BOT> onboard https://example.com';
+    await worker.fetch(await slackEvent(body), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.provisionProjectEnvironment).toHaveBeenCalledWith({
+      environment: 'qali-example-com',
+      baseUrl: 'https://example.com/',
+      allowedOrigins: ['https://example.com'],
+      credentialsJson: '{}',
+      testDataJson: '{}'
+    });
+  });
+
+  it('rejects a non-http onboard URL before dispatch', async () => {
+    const queue: InboundWork[] = [];
+    const store = new MemoryStore();
+    const notices: string[] = [];
+    const github: GitHubPort = { dispatch: vi.fn() };
+    const worker = createWorker({
+      store,
+      classifier: { classify: async (work) => heuristicClassify(work) },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: async (input) => {
+          notices.push(input.text);
+          return undefined;
+        }
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = structuredClone(eventBody);
+    body.event.text = '<@BOT> onboard javascript:alert(1)';
+    await worker.fetch(await slackEvent(body), baseEnv(queue));
+    await worker.queue(
+      { messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv(queue)
+    );
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(notices.join('\n')).toMatch(/http or https/i);
+  });
+
+  it('rejects maintenance from a product channel and allows it from the ops channel for break-glass users', async () => {
+    const run = async (channelId: string, extra: Partial<Env>) => {
+      const queue: InboundWork[] = [];
+      const env = { ...baseEnv(queue), ...extra };
+      const store = new MemoryStore();
+      const github: GitHubPort = { dispatch: vi.fn(async () => ({ runId: '8' })) };
+      const worker = createWorker({
+        store,
+        classifier: {
+          classify: async () => ({
+            intent: 'maintain-knowledge',
+            projectId: '_demo',
+            focus: {}
+          })
+        },
+        github,
+        slack: {
+          postResult: vi.fn(),
+          updateResult: vi.fn(),
+          postThreadNotice: vi.fn(async () => undefined)
+        },
+        now: () => new Date('2023-11-14T22:15:00.000Z')
+      });
+      const body = structuredClone(eventBody);
+      body.event.channel = channelId;
+      await worker.fetch(await slackEvent(body), env);
+      await worker.queue({ messages: [{ body: queue[0]!, ack: vi.fn(), retry: vi.fn() }] }, env);
+      return { github, store, queue };
+    };
+
+    const product = await run('C1', {
+      SLACK_QA_LEAD_USER_IDS: 'U1',
+      SLACK_OPS_CHANNEL_IDS: 'C_OPS'
+    });
+    expect(product.github.dispatch).not.toHaveBeenCalled();
+    expect(product.store.correlations.get('Ev1')?.status).toBe('rejected');
+
+    const ops = await run('C_OPS', {
+      SLACK_QA_LEAD_USER_IDS: 'U1',
+      SLACK_OPS_CHANNEL_IDS: 'C_OPS',
+      SLACK_ALLOWED_CHANNEL_IDS: 'C1'
+    });
+    expect(ops.queue[0]?.externalRole).toBe('qa-lead-admin');
+    expect(ops.github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'maintain-knowledge', externalRole: 'qa-lead-admin' }),
+      'Ev1'
+    );
   });
 
   it('posts a Slack failure notice and stops retrying when queue processing throws', async () => {

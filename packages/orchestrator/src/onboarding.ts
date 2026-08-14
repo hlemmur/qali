@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type {
@@ -7,6 +7,7 @@ import type {
   NormalizedCommand,
   WorkflowStep
 } from '../../contracts/src/index.js';
+import { scaffoldProject } from '../../knowledge/src/index.js';
 import type { StepExecutionResult } from './execution.js';
 
 const FACT_CATEGORIES = [
@@ -108,6 +109,67 @@ function generatedMarkdown(body: string): string {
   const normalized = `\n\n${body.trim()}\n`;
   const hash = createHash('sha256').update(normalized).digest('hex');
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+}
+
+function targetUrlFrom(command: NormalizedCommand): string | undefined {
+  const value = command.parameters.targetUrl ?? command.parameters.origin;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function evidenceFromTarget(command: NormalizedCommand): z.infer<typeof OnboardingEvidenceSchema> {
+  const targetUrl = targetUrlFrom(command) ?? `https://${command.project.id}`;
+  const observedAt = command.receivedAt.slice(0, 10);
+  return {
+    version: 1,
+    projectName: command.project.id,
+    observedAt,
+    facts: [
+      {
+        id: 'FACT-001',
+        category: 'environment',
+        statement: `The live target origin for ${command.project.id} is ${targetUrl}.`,
+        source: targetUrl
+      }
+    ],
+    journeys: [],
+    risks: []
+  };
+}
+
+export interface PrepareOnboardProjectOptions {
+  templateRoot?: string;
+}
+
+export function prepareOnboardProject(
+  workspace: string,
+  command: NormalizedCommand,
+  options: PrepareOnboardProjectOptions = {}
+): void {
+  if (command.intent !== 'onboard-project') return;
+  const projectRoot = join(workspace, command.project.root);
+  if (!existsSync(projectRoot)) {
+    const templateRoot = options.templateRoot ?? join(workspace, 'projects/_template');
+    scaffoldProject(command.project.id, {
+      projectsRoot: join(workspace, 'projects'),
+      templateRoot
+    });
+    const profilePath = join(projectRoot, 'execution-profile.json');
+    if (existsSync(profilePath) && command.project.executionProfileId) {
+      const profile = JSON.parse(readFileSync(profilePath, 'utf8')) as Record<string, unknown>;
+      profile.id = command.project.executionProfileId;
+      profile.projectId = command.project.id;
+      if (command.project.environmentLabel)
+        profile.environmentLabel = command.project.environmentLabel;
+      delete profile.displayBadge;
+      delete profile.webServer;
+      writeFileSync(profilePath, `${JSON.stringify(profile, null, 2)}\n`);
+    }
+  }
+  const evidencePath = join(projectRoot, 'sources/reference/onboarding-evidence.json');
+  if (!existsSync(evidencePath)) {
+    mkdirSync(dirname(evidencePath), { recursive: true });
+    writeFileSync(evidencePath, `${JSON.stringify(evidenceFromTarget(command), null, 2)}\n`);
+  }
 }
 
 export async function executeOnboardingMockStep(

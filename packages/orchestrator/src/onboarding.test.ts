@@ -10,7 +10,8 @@ import {
   FileSystemOutputValidator,
   executeOnboardingMockStep,
   executeWorkflow,
-  loadWorkflowDirectory
+  loadWorkflowDirectory,
+  prepareOnboardProject
 } from './index.js';
 
 const command: NormalizedCommand = {
@@ -216,5 +217,73 @@ describe('deterministic project onboarding', () => {
     expect(readFileSync(join(projectRoot, 'sources/project-context.md'), 'utf8')).not.toContain(
       'Deterministic fallback'
     );
+  });
+
+  it('scaffolds a new pack from the template and writes URL evidence without touching the registry', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboard-scaffold-'));
+    mkdirSync(join(workspace, 'projects'), { recursive: true });
+    writeFileSync(
+      join(workspace, 'projects/registry.json'),
+      JSON.stringify({ version: 1, projects: [{ id: 'sauce-demo' }] })
+    );
+    const beforeRegistry = readFileSync(join(workspace, 'projects/registry.json'), 'utf8');
+    const onboardCommand: NormalizedCommand = {
+      ...command,
+      project: {
+        id: 'example-com',
+        root: 'projects/example-com',
+        environment: 'qali-example-com',
+        environmentLabel: 'production',
+        executionProfileId: 'example-com-production'
+      },
+      parameters: { targetUrl: 'https://example.com/', origin: 'https://example.com' }
+    };
+
+    prepareOnboardProject(workspace, onboardCommand, {
+      templateRoot: join(process.cwd(), 'projects/_template')
+    });
+
+    const projectRoot = join(workspace, 'projects/example-com');
+    expect(existsSync(join(projectRoot, 'execution-profile.json'))).toBe(true);
+    const profile = JSON.parse(readFileSync(join(projectRoot, 'execution-profile.json'), 'utf8'));
+    expect(profile).toMatchObject({
+      id: 'example-com-production',
+      projectId: 'example-com',
+      environmentLabel: 'production'
+    });
+    const evidence = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/onboarding-evidence.json'), 'utf8')
+    );
+    expect(evidence.facts[0]).toMatchObject({
+      category: 'environment',
+      source: 'https://example.com/'
+    });
+    expect(evidence.facts[0].statement).toContain('https://example.com');
+    expect(readFileSync(join(workspace, 'projects/registry.json'), 'utf8')).toBe(beforeRegistry);
+    expect(JSON.stringify(evidence)).not.toMatch(/password|secret_sauce/i);
+  });
+
+  it('reuses an existing pack and only fills missing URL evidence', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboard-reuse-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'sources/reference'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'execution-profile.json'),
+      JSON.stringify({ id: 'sample-production', projectId: 'sample' })
+    );
+    const onboardCommand: NormalizedCommand = {
+      ...command,
+      parameters: { targetUrl: 'https://www.saucedemo.com/', origin: 'https://www.saucedemo.com' }
+    };
+
+    prepareOnboardProject(workspace, onboardCommand);
+
+    expect(JSON.parse(readFileSync(join(projectRoot, 'execution-profile.json'), 'utf8')).id).toBe(
+      'sample-production'
+    );
+    const evidence = JSON.parse(
+      readFileSync(join(projectRoot, 'sources/reference/onboarding-evidence.json'), 'utf8')
+    );
+    expect(evidence.facts[0].source).toBe('https://www.saucedemo.com/');
   });
 });

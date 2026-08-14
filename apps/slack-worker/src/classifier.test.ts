@@ -69,4 +69,21 @@ describe('intent classification fallbacks', () => {
       focus: { classification: 'heuristic-fallback' }
     });
   });
+
+  it('maps an onboard URL onto sauce-demo and a hostname slug', () => {
+    expect(heuristicClassify(work('@Qali onboard https://www.saucedemo.com'))).toEqual({
+      intent: 'onboard-project',
+      projectId: 'sauce-demo',
+      focus: {
+        classification: 'heuristic-fallback',
+        targetUrl: 'https://www.saucedemo.com/',
+        origin: 'https://www.saucedemo.com'
+      }
+    });
+    expect(heuristicClassify(work('onboard https://example.com'))).toMatchObject({
+      intent: 'onboard-project',
+      projectId: 'example-com',
+      focus: { targetUrl: 'https://example.com/', origin: 'https://example.com' }
+    });
+  });
 });

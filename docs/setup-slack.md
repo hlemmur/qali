@@ -67,17 +67,18 @@ npm run control-plane:deploy
 
 ## 2. Configure allowlists and roles
 
-| Variable                    | Purpose                                                                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `SLACK_ALLOWED_USER_IDS`    | Comma-separated Slack user IDs allowed to talk to Qali. Empty = no user filter.                                                     |
-| `SLACK_ALLOWED_TEAM_IDS`    | Restrict to workspace(s).                                                                                                           |
-| `SLACK_ALLOWED_CHANNEL_IDS` | Restrict to channel(s) for mentions.                                                                                                |
-| `SLACK_QA_LEAD_USER_IDS`    | Users mapped to **QA Lead/Admin** — can trigger maintenance and policy workflows. All other allowed users default to **Developer**. |
+| Variable                    | Purpose                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_ALLOWED_USER_IDS`    | Comma-separated Slack user IDs allowed to talk to Qali. Empty = no user filter.                                     |
+| `SLACK_ALLOWED_TEAM_IDS`    | Restrict to workspace(s).                                                                                           |
+| `SLACK_ALLOWED_CHANNEL_IDS` | Restrict to product channel(s) for mentions.                                                                        |
+| `SLACK_OPS_CHANNEL_IDS`     | CSV of ops channel IDs (create `#qali-ops` and paste its ID). Maintenance is allowed only here.                     |
+| `SLACK_QA_LEAD_USER_IDS`    | Break-glass user IDs who may request maintenance **in an ops channel**. They remain Developers in product channels. |
 
 ### Role behavior
 
-- **Developer** — exploration, generate/run suites, triage, quality pulse. Cannot change autonomy, policy, authority, or trigger maintenance workflows.
-- **QA Lead/Admin** — full workflow access including `maintain-knowledge`, `maintain-suite`, and governance parameters.
+- **Developer** (product channels) — onboard from an https URL, exploration, generate/run suites, triage, quality pulse, query. Cannot change autonomy, policy, authority, or trigger maintenance.
+- **Ops** (`#qali-ops`) — `maintain-knowledge` and `maintain-suite` for break-glass users listed in `SLACK_QA_LEAD_USER_IDS`.
 
 Authorization runs in the Worker queue handler **before** GitHub dispatch.
 
@@ -101,14 +102,14 @@ Hosted HTML reports are the human-facing recap. Markdown and JSON stay in Git as
 
 ## Troubleshooting
 
-| Symptom                          | Check                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------ |
-| Manifest URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md) |
-| 403 Forbidden                    | User not in `SLACK_ALLOWED_USER_IDS`                                                       |
-| Request ignored                  | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                          |
-| No GitHub run                    | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                             |
-| Signature failures               | Clock skew; verify `SLACK_SIGNING_SECRET`                                                  |
-| Maintenance rejected             | User is Developer, not QA Lead — add to `SLACK_QA_LEAD_USER_IDS`                           |
+| Symptom                          | Check                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Manifest URL verification failed | Worker deployed? Correct `WORKER_BASE_URL`? See [setup-cloudflare.md](setup-cloudflare.md)              |
+| 403 Forbidden                    | User not in `SLACK_ALLOWED_USER_IDS`                                                                    |
+| Request ignored                  | Bot messages filtered; verify `SLACK_BOT_USER_ID`                                                       |
+| No GitHub run                    | Worker logs, `GITHUB_APP_ID`, installation, workflow file name                                          |
+| Signature failures               | Clock skew; verify `SLACK_SIGNING_SECRET`                                                               |
+| Maintenance rejected             | Ask in `#qali-ops`; add the user to `SLACK_QA_LEAD_USER_IDS` and the channel to `SLACK_OPS_CHANNEL_IDS` |
 
 ## Cost and retention
 

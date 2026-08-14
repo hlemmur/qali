@@ -21,16 +21,17 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 
 ### Teammate rebuild (in progress)
 
-| Slice                                                    | Evidence level            | Notes                                                                                                                  |
-| -------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Stage-aware Slack cards and user-facing failure copy     | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                                                                 |
-| Active-project artifact upload glob                      | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                                                                      |
-| Slack app / FAQ copy (Playwright + E2E teammate)         | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified                                                  |
-| `query-project` + D1 quality snapshot                    | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified                                        |
-| Sauce Demo live Slack target; Mock Mode off product path | Implemented + unit-tested | Live registry is `sauce-demo` only; `_demo` remains a Vitest fixture; not live-verified until a post-merge Slack run   |
-| Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge |
-| Hosted HTML reports + Slack **Open report**              | Implemented + unit-tested | Signed R2 URLs; MD/JSON stay machine truth; live-verify blocked until R2 is enabled on the Cloudflare account          |
-| Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                  |
+| Slice                                                    | Evidence level            | Notes                                                                                                                                                                                       |
+| -------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage-aware Slack cards and user-facing failure copy     | Implemented + unit-tested | Not live-verified until a post-merge Slack run on main                                                                                                                                      |
+| Active-project artifact upload glob                      | Implemented + unit-tested | Stops `_template` from appearing in evidence zips                                                                                                                                           |
+| Slack app / FAQ copy (Playwright + E2E teammate)         | Implemented + unit-tested | Manifest must be re-uploaded to Slack after merge to be live-verified                                                                                                                       |
+| `query-project` + D1 quality snapshot                    | Implemented + unit-tested | Answers status/last-run/coverage/schedule without Playwright; not live-verified                                                                                                             |
+| Sauce Demo live Slack target; Mock Mode off product path | Implemented + unit-tested | Live registry is `sauce-demo` only; `_demo` remains a Vitest fixture; not live-verified until a post-merge Slack run                                                                        |
+| Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge                                                                      |
+| Hosted HTML reports + Slack **Open report**              | Live-verified             | R2 `qali-reports`; Slack **Open report** on quality-pulse run [31752717647](https://github.com/hlemmur/qali/actions/runs/31752717647); signed GET `200` `text/html`; unsigned/expired `401` |
+| Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                                                                                       |
+| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Mock-tested, not live-verified. Still need `SLACK_OPS_CHANNEL_IDS` and GitHub App Environments/Secrets/Variables write                                                                      |
 
 ## Readiness vocabulary
 
@@ -227,7 +228,7 @@ Onboarding and exploration have substantive live evidence. The following are imp
 The following hardening behaviors have automated tests, but the release plan requires live correlated evidence:
 
 - Developer authorization denial before dispatch
-- QA Lead authorization success
+- `#qali-ops` break-glass maintenance authorization
 - Duplicate/replay produces one execution
 - Agent outage/quota produces blocked state without placeholder output
 - Unqualified model rejected before target access

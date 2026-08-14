@@ -37,6 +37,7 @@ The core promise is simple: AI can help with judgment and explanation, but Playw
 
 Mention Qali in an allowed project channel or send it a direct message. Include the project and the outcome you want. Good requests are short and specific:
 
+- `@Qali onboard https://www.saucedemo.com`
 - `@Qali onboard project sauce-demo`
 - `@Qali explore the login journey on sauce-demo`
 - `@Qali generate tests for the approved login scenarios on sauce-demo`
@@ -128,12 +129,12 @@ This makes Qali more than a chat bot: the Slack conversation is the front door t
 
 ## Roles and permissions
 
-| Slack role        | Typical access                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| **Developer**     | Onboard (when enabled), explore, generate/run suites, triage, quality pulse                         |
-| **QA Lead/Admin** | Developer access plus knowledge maintenance, suite maintenance, and governance-sensitive operations |
+| Slack surface                   | Typical access                                                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Product channel** (Developer) | Onboard from an https URL, explore, generate/run suites, triage, quality pulse, query. Governance parameters are rejected.                                       |
+| **`#qali-ops`**                 | Knowledge and suite maintenance. Only break-glass users in `SLACK_QA_LEAD_USER_IDS` may do this, and only from an ops channel listed in `SLACK_OPS_CHANNEL_IDS`. |
 
-Project-level Slack allowlists can restrict teams, channels, users, and roles. Authorization happens before a GitHub workflow is dispatched.
+Project-level Slack allowlists can restrict teams, channels, and users. Authorization happens before a GitHub workflow is dispatched. Ask in `#qali-ops` for maintenance; do not treat any person as a user-facing QA Lead.
 
 ## Quick setup
 
@@ -146,31 +147,15 @@ Project-level Slack allowlists can restrict teams, channels, users, and roles. A
 
 ### Add a project to an existing Qali installation
 
-From the Qali repository:
+In a product channel:
 
-```bash
-cp -R projects/_template projects/my-app
-npm run project:validate -- projects/my-app
+```text
+@Qali onboard https://www.example.com
 ```
 
-Then the operator:
+Optional named credentials in the same message are written to the GitHub Environment secret and are never echoed in Slack acks. The live Sauce Demo URL maps to the existing `sauce-demo` pack instead of creating a duplicate.
 
-1. Adds `my-app` to `projects/registry.json` with its canonical root, allowed Slack scope, GitHub Environment, publication target, enabled workflows, and active execution profile.
-2. Fills `projects/my-app/sources/project-context.md`, reference material, and autonomy policy.
-3. Creates the named GitHub Environment and configures:
-   - `QALI_TARGET_BASE_URL`
-   - `QALI_ALLOWED_ORIGINS_JSON`
-   - `QALI_TEST_CREDENTIALS_JSON` as a secret
-   - `QALI_TEST_DATA_JSON`
-4. Synchronizes settings without printing secret values:
-
-   ```bash
-   npm run control-plane:sync-secrets -- --dry-run --project my-app
-   npm run control-plane:sync-secrets -- --only actions --project my-app
-   ```
-
-5. Runs local validation, then asks Qali in Slack to onboard the project.
-6. Reviews and approves the first scenarios before generating tests.
+Operators can still copy `projects/_template` by hand. New slugs are scaffolded on the host; `projects/registry.json` is not auto-published yet. After a first onboard, review and approve scenarios before generating tests.
 
 See [Project template](project-template.md), [GitHub setup](setup-github.md), [Slack setup](setup-slack.md), and [Cloudflare setup](setup-cloudflare.md) for operator-level installation.
 
@@ -215,7 +200,7 @@ No. QA publication is limited to governed project artifacts and tests. Unrelated
 
 ### Will Qali automatically merge generated tests?
 
-The current first-trial policy is review-only. Qali creates a branch and pull request when publication policy passes; a separate code reviewer reviews and may merge. Auto-merge requires later live evaluation and an explicit QA Lead decision.
+The current first-trial policy is review-only. Qali creates a branch and pull request when publication policy passes; a separate code reviewer reviews and may merge. Auto-merge requires later live evaluation and an explicit ops-channel decision.
 
 ### What happens when Qali is uncertain?
 
@@ -245,7 +230,7 @@ Every meaningful run can be correlated across the Slack thread, D1 request recor
 
 Use this sequence:
 
-1. `@Qali onboard project <id>`
+1. `@Qali onboard https://www.saucedemo.com`
 2. `@Qali explore <critical journey> on <id>`
 3. Review and approve scenarios
 4. `@Qali generate a smoke suite for <id>`

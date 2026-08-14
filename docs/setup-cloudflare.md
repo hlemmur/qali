@@ -111,6 +111,7 @@ Optional role / allowlist configuration (plain `vars` in `wrangler.jsonc`, or se
 - `SLACK_ALLOWED_TEAM_IDS`
 - `SLACK_ALLOWED_CHANNEL_IDS`
 - `SLACK_ALLOWED_USER_IDS`
+- `SLACK_OPS_CHANNEL_IDS`
 - `SLACK_QA_LEAD_USER_IDS`
 
 `GITHUB_WORKFLOW_FILE` defaults to `execute.yml` in config — keep it aligned with `.github/workflows/execute.yml`.

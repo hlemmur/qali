@@ -3,6 +3,7 @@ import type { ExternalRole, NormalizedCommand } from '@qali/contracts';
 export type AuthorizationDecision = { allowed: true } | { allowed: false; reason: string };
 
 const DEVELOPER_INTENTS = new Set<NormalizedCommand['intent']>([
+  'onboard-project',
   'explore-project',
   'generate-test-suite',
   'run-test-suite',
@@ -22,8 +23,19 @@ const csv = (value?: string): Set<string> =>
       .filter(Boolean)
   );
 
-export function externalRoleForUser(userId: string, qaLeadIds?: string): ExternalRole {
-  return csv(qaLeadIds).has(userId) ? 'qa-lead-admin' : 'developer';
+export function externalRoleForUser(
+  userId: string,
+  options: {
+    breakGlassUserIds?: string;
+    opsChannelIds?: string;
+    channelId?: string;
+  } = {}
+): ExternalRole {
+  const channelId = options.channelId;
+  if (!channelId) return 'developer';
+  const isBreakGlass = csv(options.breakGlassUserIds).has(userId);
+  const isOpsChannel = csv(options.opsChannelIds).has(channelId);
+  return isBreakGlass && isOpsChannel ? 'qa-lead-admin' : 'developer';
 }
 
 export function isPrivilegedAction(actionId: string): boolean {

@@ -2,6 +2,7 @@ import { WorkersAiIntentClassifier, ResilientIntentClassifier } from './classifi
 import { handleSlackAction, LINK_ONLY_ACTIONS } from './actions.js';
 import { authorizeCommand, externalRoleForUser, isPrivilegedAction } from './authorization.js';
 import { GitHubAppClient } from './github.js';
+import { applyOnboardTarget, parseOnboardTarget } from './onboard-target.js';
 import { verifyCallbackRequest, verifySignedRequest } from './security.js';
 import { SlackWebClient } from './slack.js';
 import { D1ControlStore } from './store.js';
@@ -112,13 +113,29 @@ const transientQueueFailure = (detail: string): boolean =>
     detail
   );
 
+function channelAllowed(env: Env, channelId: string): boolean {
+  const productChannels = csv(env.SLACK_ALLOWED_CHANNEL_IDS);
+  if (productChannels.size === 0) return true;
+  return productChannels.has(channelId) || csv(env.SLACK_OPS_CHANNEL_IDS).has(channelId);
+}
+
+function roleForSlackUser(env: Env, userId: string, channelId: string) {
+  return externalRoleForUser(userId, {
+    ...(env.SLACK_QA_LEAD_USER_IDS ? { breakGlassUserIds: env.SLACK_QA_LEAD_USER_IDS } : {}),
+    ...(env.SLACK_OPS_CHANNEL_IDS ? { opsChannelIds: env.SLACK_OPS_CHANNEL_IDS } : {}),
+    channelId
+  });
+}
+
 function allowed(env: Env, teamId: string, channelId: string, userId: string): boolean {
   const checks: Array<[Set<string>, string]> = [
     [csv(env.SLACK_ALLOWED_TEAM_IDS), teamId],
-    [csv(env.SLACK_ALLOWED_CHANNEL_IDS), channelId],
     [csv(env.SLACK_ALLOWED_USER_IDS), userId]
   ];
-  return checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value));
+  return (
+    channelAllowed(env, channelId) &&
+    checks.every(([allowlist, value]) => allowlist.size === 0 || allowlist.has(value))
+  );
 }
 
 function allowedHome(env: Env, teamId: string, userId: string): boolean {
@@ -257,7 +274,7 @@ async function slackEvents(
     kind: 'message',
     text: event.text,
     requestedBy: event.user,
-    externalRole: externalRoleForUser(event.user, env.SLACK_QA_LEAD_USER_IDS),
+    externalRole: roleForSlackUser(env, event.user, event.channel),
     receivedAt: now.toISOString(),
     slack: {
       teamId: payload.team_id,
@@ -322,7 +339,7 @@ async function slackInteraction(
     return json(200, { ok: true });
   }
   const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
-  const externalRole = externalRoleForUser(userId, env.SLACK_QA_LEAD_USER_IDS);
+  const externalRole = roleForSlackUser(env, userId, channelId);
   if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
     await store.recordSecurityDenial({
       occurredAt: now.toISOString(),
@@ -678,19 +695,28 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             message.ack();
             continue;
           }
-          const classification = await classifier.classify(message.body);
+          const onboard = parseOnboardTarget(message.body.text);
+          const classifyWork =
+            onboard.ok && onboard.credentials
+              ? { ...message.body, text: onboard.sanitizedText }
+              : message.body;
+          const classification = applyOnboardTarget(
+            await classifier.classify(classifyWork),
+            classifyWork.text
+          );
           const resolved = resolveTrustedCommand(
             classification,
             message.body,
             overrides.projectRegistry ?? DEFAULT_PROJECT_REGISTRY,
-            overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES
+            overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES,
+            { opsChannelIds: [...csv(env.SLACK_OPS_CHANNEL_IDS)] }
           );
           const command = {
             ...resolved,
             parameters: {
               ...resolved.parameters,
               generationRequestId: message.body.requestId
-            }
+            } as Record<string, unknown>
           };
           const executionProfiles = overrides.executionProfiles ?? DEFAULT_EXECUTION_PROFILES;
           const executionProfile = executionProfiles.find(
@@ -764,6 +790,28 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             );
           }
           dispatchAttempted = true;
+          if (
+            command.intent === 'onboard-project' &&
+            github.provisionProjectEnvironment &&
+            typeof command.parameters.targetUrl === 'string' &&
+            typeof command.parameters.origin === 'string'
+          ) {
+            const credentialsJson =
+              onboard.ok && onboard.credentials
+                ? JSON.stringify({ [onboard.credentials.name]: onboard.credentials.password })
+                : '{}';
+            const testDataJson =
+              onboard.ok && onboard.credentials?.username
+                ? JSON.stringify({ username: onboard.credentials.username })
+                : '{}';
+            await github.provisionProjectEnvironment({
+              environment: command.project.environment ?? `qali-${command.project.id}`,
+              baseUrl: command.parameters.targetUrl,
+              allowedOrigins: [command.parameters.origin],
+              credentialsJson,
+              testDataJson
+            });
+          }
           const dispatched = await github.dispatch(command, message.body.requestId);
           dispatchSucceeded = true;
           await store.markDispatched(message.body.requestId, command, dispatched.runId);

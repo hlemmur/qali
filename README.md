@@ -63,10 +63,10 @@ See [docs/project-template.md](docs/project-template.md).
 
 ## Roles
 
-| Slack role                                   | Can request                                                            | Cannot                                                    |
-| -------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------- |
-| **Developer** (default)                      | Exploration, generate/run suites, triage, quality pulse                | Change autonomy, policy, authority, maintenance workflows |
-| **QA Lead/Admin** (`SLACK_QA_LEAD_USER_IDS`) | Everything above plus knowledge/suite maintenance and policy workflows | —                                                         |
+| Slack role                                                     | Can request                                                                                            | Cannot                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| **Developer** (default, product channels such as `#test-qali`) | Onboard from an https URL, explore, generate/run suites, triage, quality pulse, query                  | Change autonomy, policy, or authority; maintain knowledge/suite |
+| **Ops** (`#qali-ops` + `SLACK_OPS_CHANNEL_IDS`)                | Maintenance (`maintain-knowledge`, `maintain-suite`) for break-glass users in `SLACK_QA_LEAD_USER_IDS` | Product-channel governance from outside `#qali-ops`             |
 
 Internal runtime roles (Intake Planner, Explorer, Test Generator, etc.) are invisible to Slack users — they enforce permissions inside workflows.
 

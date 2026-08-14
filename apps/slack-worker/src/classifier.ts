@@ -7,6 +7,7 @@ import {
 } from '@qali/contracts';
 import { z } from 'zod';
 import type { InboundWork, IntentClassifier, WorkersAi } from './types.js';
+import { applyOnboardTarget } from './onboard-target.js';
 
 const ClassificationSchema = z
   .object({
@@ -70,7 +71,7 @@ export function heuristicClassify(work: InboundWork): ClassifiedIntent {
   const rooted = work.text.match(/\bprojects\/(_?[a-z0-9][a-z0-9-]*)\b/i);
   const projectId = rooted?.[1] ?? DEFAULT_PROJECT.id;
   const feature = intent === 'query-project' ? queryFeature(text) : undefined;
-  return ClassifiedIntentSchema.parse({
+  const classified = ClassifiedIntentSchema.parse({
     intent,
     projectId,
     focus: {
@@ -80,6 +81,7 @@ export function heuristicClassify(work: InboundWork): ClassifiedIntent {
         : {})
     }
   });
+  return applyOnboardTarget(classified, work.text);
 }
 
 export class WorkersAiIntentClassifier implements IntentClassifier {

@@ -16,20 +16,40 @@ const command = (
 });
 
 describe('external role authorization', () => {
-  it('maps configured QA Leads and defaults every other allowed user to Developer', () => {
-    expect(externalRoleForUser('U_LEAD', 'U_LEAD,U_ADMIN')).toBe('qa-lead-admin');
-    expect(externalRoleForUser('U_DEV', 'U_LEAD,U_ADMIN')).toBe('developer');
+  it('maps break-glass users to ops admin only when they speak in an ops channel', () => {
+    expect(
+      externalRoleForUser('U_OPS', {
+        breakGlassUserIds: 'U_OPS,U_ADMIN',
+        opsChannelIds: 'C_OPS',
+        channelId: 'C_OPS'
+      })
+    ).toBe('qa-lead-admin');
+    expect(
+      externalRoleForUser('U_OPS', {
+        breakGlassUserIds: 'U_OPS,U_ADMIN',
+        opsChannelIds: 'C_OPS',
+        channelId: 'C_PRODUCT'
+      })
+    ).toBe('developer');
+    expect(
+      externalRoleForUser('U_DEV', {
+        breakGlassUserIds: 'U_OPS',
+        opsChannelIds: 'C_OPS',
+        channelId: 'C_OPS'
+      })
+    ).toBe('developer');
     expect(externalRoleForUser('U_DEV')).toBe('developer');
   });
 
   it.each([
+    'onboard-project',
     'explore-project',
     'generate-test-suite',
     'run-test-suite',
     'triage-failure',
     'quality-pulse',
     'query-project'
-  ] as const)('allows a Developer to request %s', (intent) => {
+  ] as const)('allows a Developer to request %s from a product channel', (intent) => {
     expect(authorizeCommand(command(intent))).toEqual({ allowed: true });
   });
 
@@ -52,7 +72,7 @@ describe('external role authorization', () => {
     ).toMatchObject({ allowed: false });
   });
 
-  it('allows a QA Lead/Admin to request maintenance and policy workflows', () => {
+  it('allows ops-channel break-glass users to request maintenance and policy workflows', () => {
     expect(
       authorizeCommand(
         command('maintain-suite', {

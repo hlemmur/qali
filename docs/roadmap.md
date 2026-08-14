@@ -13,7 +13,7 @@ Delivered and verified locally against the `_demo` fixture (historical 2-day MVP
 | Playwright functional + visual evidence                               | Done   |
 | Cursor CLI agent adapter                                              | Done   |
 | Compact Slack reporting                                               | Done   |
-| External roles (Developer / QA Lead/Admin)                            | Done   |
+| External roles (Developer / `#qali-ops` break-glass)                  | Done   |
 | Controlled publication policy + GitHub adapter                        | Done   |
 | Documentation and `.env.example`                                      | Done   |
 

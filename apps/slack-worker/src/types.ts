@@ -33,6 +33,7 @@ export interface Env {
   SLACK_ALLOWED_CHANNEL_IDS?: string;
   SLACK_ALLOWED_USER_IDS?: string;
   SLACK_QA_LEAD_USER_IDS?: string;
+  SLACK_OPS_CHANNEL_IDS?: string;
   INTENT_MODEL?: string;
   GITHUB_WEBHOOK_SECRET: string;
   QALI_CALLBACK_SECRET: string;
@@ -123,8 +124,17 @@ export interface DispatchResult {
   htmlUrl?: string;
 }
 
+export interface ProjectEnvironmentProvision {
+  environment: string;
+  baseUrl: string;
+  allowedOrigins: string[];
+  credentialsJson?: string;
+  testDataJson?: string;
+}
+
 export interface GitHubPort {
   dispatch(command: NormalizedCommand, requestId: string): Promise<DispatchResult>;
+  provisionProjectEnvironment?(input: ProjectEnvironmentProvision): Promise<void>;
 }
 
 export interface SlackPort {
