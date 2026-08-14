@@ -22,6 +22,7 @@ describe('Playwright adapter', () => {
   it('normalizes project suite selection without allowing regex injection', () => {
     expect(resolvePlaywrightSuite(undefined)).toEqual({ label: 'all' });
     expect(resolvePlaywrightSuite('all')).toEqual({ label: 'all' });
+    expect(resolvePlaywrightSuite('smoke')).toEqual({ label: 'smoke' });
     expect(resolvePlaywrightSuite('checkout.*')).toEqual({
       label: 'checkout.*',
       grep: 'checkout\\.\\*'
