@@ -15,6 +15,8 @@ export * from './knowledge-maintenance.js';
 export * from './suite-maintenance.js';
 export * from './quality-pulse.js';
 export * from './quality-snapshot.js';
+export * from './schedule-maintenance.js';
+export * from './agent-log.js';
 
 export type OpenItemKind = 'question' | 'known-issue-review' | 'review-marker';
 

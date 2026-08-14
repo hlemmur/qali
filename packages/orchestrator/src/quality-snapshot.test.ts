@@ -74,4 +74,40 @@ describe('query-project snapshot', () => {
       JSON.parse(readFileSync(join(workspace, '.qali/quality-snapshot.json'), 'utf8')).projectId
     ).toBe('shop');
   });
+
+  it('prefers the project schedule file over registry schedules and honors pause', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-query-schedule-'));
+    write(workspace, 'projects/shop/sources/questions.md', '# Questions\n');
+    write(
+      workspace,
+      'projects/registry.json',
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: 'shop',
+            schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }]
+          }
+        ]
+      })
+    );
+    write(
+      workspace,
+      'projects/shop/derived/workflow-state/schedule.yaml',
+      [
+        'version: 1',
+        'template: conservative',
+        'paused: true',
+        'jobs:',
+        '  - workflowId: quality-pulse',
+        '    cron: "17 6 * * *"',
+        '    enabled: true',
+        ''
+      ].join('\n')
+    );
+
+    expect(
+      buildQualitySnapshot(workspace, command, new Date('2026-08-13T12:00:00.000Z')).schedules
+    ).toEqual([{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: false }]);
+  });
 });

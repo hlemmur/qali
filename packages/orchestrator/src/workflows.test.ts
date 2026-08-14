@@ -26,7 +26,7 @@ describe('workflow catalog', () => {
     );
   });
 
-  it('loads and validates all nine workflow descriptors', () => {
+  it('loads and validates all ten workflow descriptors', () => {
     const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
 
     expect(workflows.map(({ id }) => id).sort()).toEqual(
@@ -38,6 +38,7 @@ describe('workflow catalog', () => {
         'quality-pulse',
         'query-project',
         'run-test-suite',
+        'schedule-maintenance',
         'suite-maintenance',
         'triage-and-reproduce'
       ].sort()
@@ -113,6 +114,7 @@ describe('workflow catalog', () => {
       'quality-pulse/present': 'human-reporting',
       'quality-pulse/render': 'host-quality-render',
       'query-project/snapshot': 'host-quality-query',
+      'schedule-maintenance/apply': 'host-schedule-maintenance',
       'run-test-suite/execute': 'host-test-execution',
       'run-test-suite/analyze-failures': 'failure-explanation',
       'run-test-suite/report': 'human-reporting',
@@ -286,7 +288,8 @@ describe('deterministic intent routing', () => {
     ['maintain-knowledge', 'knowledge-maintenance'],
     ['maintain-suite', 'suite-maintenance'],
     ['quality-pulse', 'quality-pulse'],
-    ['query-project', 'query-project']
+    ['query-project', 'query-project'],
+    ['maintain-schedule', 'schedule-maintenance']
   ] as const)('routes %s to %s', (intent, workflowId) => {
     const workflows = loadWorkflowDirectory(workflowDirectory, harnessProfileCatalog);
     const routed = routeCommand(

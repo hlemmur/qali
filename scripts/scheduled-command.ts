@@ -3,8 +3,13 @@ import {
   ProjectExecutionProfileSchema,
   ProjectRegistrySchema,
   type Intent,
-  type NormalizedCommand
+  type NormalizedCommand,
+  type ProjectSchedule
 } from '../packages/contracts/src/index.js';
+import {
+  loadProjectSchedule,
+  scheduleAllowsIntent
+} from '../packages/orchestrator/src/project-schedule.js';
 
 export function buildScheduledCommand(input: {
   registry: unknown;
@@ -13,13 +18,13 @@ export function buildScheduledCommand(input: {
   intent: Intent;
   receivedAt: string;
   requestId: string;
+  schedule?: ProjectSchedule;
 }): NormalizedCommand {
   const registry = ProjectRegistrySchema.parse(input.registry);
   const project = registry.projects.find(({ id }) => id === input.projectId);
   if (!project) throw new Error(`Unknown scheduled project: ${input.projectId}`);
-  if (
-    !project.schedules.some(({ workflowId, enabled }) => workflowId === input.intent && enabled)
-  ) {
+  const schedule = input.schedule ?? loadProjectSchedule(project.root);
+  if (!scheduleAllowsIntent(schedule, input.intent)) {
     throw new Error(`Project ${project.id} has no enabled schedule for ${input.intent}`);
   }
   if (!project.enabledWorkflows.includes(input.intent)) {

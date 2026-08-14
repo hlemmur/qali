@@ -179,6 +179,16 @@ export function renderGeneratedJson(value: object): string {
   )}\n`;
 }
 
+export function generatedDocumentBody(content: string): string | undefined {
+  return generatedHeaderPattern.exec(content)?.[2];
+}
+
+export function renderGeneratedDocument(body: string): string {
+  const normalized = body.startsWith('\n') ? body : `\n${body}`;
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+}
+
 export const REQUIRED_PROJECT_PATHS = [
   'execution-profile.json',
   'sources/project-context.md',
@@ -200,6 +210,7 @@ export const REQUIRED_PROJECT_PATHS = [
   'derived/tasks/.generated.md',
   'derived/jobs/.generated.md',
   'derived/workflow-state/.generated.md',
+  'derived/workflow-state/schedule.yaml',
   'tests/README.md'
 ] as const;
 

@@ -6,6 +6,7 @@ import {
   NormalizedCommandSchema,
   ProjectExecutionProfileSchema,
   ProjectRegistrySchema,
+  ProjectScheduleSchema,
   SemanticPublicationManifestSchema,
   ModelQualificationRecordSchema,
   RoleProfileSchema,
@@ -193,6 +194,25 @@ describe('workflow contracts', () => {
     expect(profile.browser.allowedSubmissions).toEqual([{ role: 'button', name: 'Sign in' }]);
     expect(() =>
       ProjectExecutionProfileSchema.parse({ ...profile, displayBadge: undefined })
+    ).toThrow();
+  });
+
+  it('requires a paused flag and at least one schedule job', () => {
+    expect(
+      ProjectScheduleSchema.parse({
+        version: 1,
+        template: 'conservative',
+        paused: false,
+        jobs: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }]
+      }).jobs
+    ).toHaveLength(1);
+    expect(() =>
+      ProjectScheduleSchema.parse({
+        version: 1,
+        template: 'conservative',
+        paused: false,
+        jobs: []
+      })
     ).toThrow();
   });
 

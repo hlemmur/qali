@@ -10,6 +10,7 @@ export const INTENTS = [
   'triage-failure',
   'maintain-knowledge',
   'maintain-suite',
+  'maintain-schedule',
   'quality-pulse',
   'query-project'
 ] as const;
@@ -185,6 +186,29 @@ export const ProjectPublicationSchema = z
   })
   .strict();
 
+export const SCHEDULE_TEMPLATES = ['conservative', 'startup-e2e'] as const;
+export const ScheduleTemplateSchema = z.enum(SCHEDULE_TEMPLATES);
+export type ScheduleTemplate = z.infer<typeof ScheduleTemplateSchema>;
+
+export const ScheduleJobSchema = z
+  .object({
+    workflowId: IntentSchema,
+    cron: z.string().min(1),
+    enabled: z.boolean()
+  })
+  .strict();
+export type ScheduleJob = z.infer<typeof ScheduleJobSchema>;
+
+export const ProjectScheduleSchema = z
+  .object({
+    version: z.literal(1),
+    template: ScheduleTemplateSchema,
+    paused: z.boolean(),
+    jobs: z.array(ScheduleJobSchema).min(1)
+  })
+  .strict();
+export type ProjectSchedule = z.infer<typeof ProjectScheduleSchema>;
+
 export const ProjectSlackScopeSchema = z
   .object({
     teamIds: z.array(z.string().min(1)).default([]),
@@ -202,15 +226,7 @@ export const ProjectRegistryEntrySchema = z
     allowedSlack: ProjectSlackScopeSchema,
     publication: ProjectPublicationSchema,
     enabledWorkflows: z.array(IntentSchema).min(1),
-    schedules: z.array(
-      z
-        .object({
-          workflowId: IntentSchema,
-          cron: z.string().min(1),
-          enabled: z.boolean().default(true)
-        })
-        .strict()
-    ),
+    schedules: z.array(ScheduleJobSchema.extend({ enabled: z.boolean().default(true) })),
     activeExecutionProfile: z.string().regex(/^[a-z][a-z0-9-]*$/)
   })
   .strict()

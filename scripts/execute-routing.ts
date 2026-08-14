@@ -9,6 +9,7 @@ export type AgentExecutionRoute =
   | 'deterministic-suite-maintenance'
   | 'deterministic-quality-pulse'
   | 'deterministic-query-project'
+  | 'deterministic-schedule-maintenance'
   | 'deterministic-fallback'
   | 'cursor';
 
@@ -17,7 +18,9 @@ export function requiresQualifiedAgentRuntime(
   environmentLabel: 'mock' | 'staging' | 'production'
 ): boolean {
   if (environmentLabel === 'mock') return false;
-  if (intent === 'quality-pulse' || intent === 'query-project') return false;
+  if (intent === 'quality-pulse' || intent === 'query-project' || intent === 'maintain-schedule') {
+    return false;
+  }
   return true;
 }
 
@@ -40,5 +43,6 @@ export function selectAgentExecutionRoute(
   }
   if (command.intent === 'quality-pulse') return 'deterministic-quality-pulse';
   if (command.intent === 'query-project') return 'deterministic-query-project';
+  if (command.intent === 'maintain-schedule') return 'deterministic-schedule-maintenance';
   return cursorCliAvailable ? 'cursor' : 'deterministic-fallback';
 }

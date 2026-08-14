@@ -31,7 +31,9 @@ Qali is **not yet ready for the first real customer project** under the acceptan
 | Progressive thread status, App Home, channel affinity    | Implemented + unit-tested | Ack states inferred project/env/suite; Home lists needs-attention/running/recent; re-upload Slack manifest after merge                                                                      |
 | Hosted HTML reports + Slack **Open report**              | Live-verified             | R2 `qali-reports`; Slack **Open report** on quality-pulse run [31752717647](https://github.com/hlemmur/qali/actions/runs/31752717647); signed GET `200` `text/html`; unsigned/expired `401` |
 | Reverse-approval generate + Slack Retract                | Implemented + unit-tested | Generate from journeys without pre-approved scenarios; tests auto-merge; Retract from the same thread                                                                                       |
-| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Mock-tested, not live-verified. Still need `SLACK_OPS_CHANNEL_IDS` and GitHub App Environments/Secrets/Variables write                                                                      |
+| Slack URL onboard, `#qali-ops` maintenance, env secrets  | Implemented + unit-tested | Merged as [#30](https://github.com/hlemmur/qali/pull/30); Worker deploy + `SLACK_OPS_CHANNEL_IDS` still needed for live onboard                                                             |
+| Quality pulse on reviewed main                           | Live-verified             | Slack pulse [31787072573](https://github.com/hlemmur/qali/actions/runs/31787072573) passed execution and publication after generated-marker, Prettier, and empty-publication fixes          |
+| `schedule.yaml`, pause, generated Actions cron           | Implemented + unit-tested | Project schedule file drives `execute.yml` crons; ops-channel pause/resume/upsert; scheduled Slack notify enabled; not live-verified                                                        |
 
 ## Readiness vocabulary
 

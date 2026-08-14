@@ -60,6 +60,12 @@ describe('agent execution routing', () => {
     );
   });
 
+  it('applies schedule pause and cron edits on the host without Cursor', () => {
+    expect(selectAgentExecutionRoute(command('maintain-schedule'), true, false)).toBe(
+      'deterministic-schedule-maintenance'
+    );
+  });
+
   it('uses the Cursor runtime for other agent steps when it is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
   });
@@ -75,6 +81,7 @@ describe('unattended agent qualification gate', () => {
   it('lets host-deterministic intents run on a production profile without Cursor', () => {
     expect(requiresQualifiedAgentRuntime('quality-pulse', 'production')).toBe(false);
     expect(requiresQualifiedAgentRuntime('query-project', 'production')).toBe(false);
+    expect(requiresQualifiedAgentRuntime('maintain-schedule', 'production')).toBe(false);
   });
 
   it('still requires a qualified agent for explore and generate on production', () => {

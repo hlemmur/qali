@@ -89,6 +89,10 @@ describe('complete demo loop', () => {
       resolve('projects/_demo/derived/workflow-state/.generated.md'),
       join(projectRoot, 'derived/workflow-state/.generated.md')
     );
+    cpSync(
+      resolve('projects/_demo/derived/workflow-state/schedule.yaml'),
+      join(projectRoot, 'derived/workflow-state/schedule.yaml')
+    );
     writeFileSync(existingEventPath, '{"id":"preexisting"}\n');
     const playwright = new MaterializingPlaywrightRunner();
 

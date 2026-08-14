@@ -367,6 +367,21 @@
       "tools": [],
       "mutations": ["render-derived-report"],
       "validators": ["quality-snapshot-schema"]
+    },
+    {
+      "id": "host-schedule-maintenance",
+      "kind": "host",
+      "skillIds": [],
+      "policyPaths": [
+        "core/policies/operating-model.md",
+        "core/policies/evidence-and-provenance.md",
+        "core/policies/authority-and-autonomy.md"
+      ],
+      "templatePaths": [],
+      "writableOutputDirectories": ["outputs/workflow-state"],
+      "tools": [],
+      "mutations": ["format-document"],
+      "validators": ["project-schedule-schema"]
     }
   ]
 }

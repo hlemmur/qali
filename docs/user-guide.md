@@ -10,7 +10,9 @@ You do not need to learn Qali's internal agents, skills, workflow files, or comm
 
 > `@Qali what's our current quality status?`
 
-> `@Qali when was the latest full regression?`
+> `@Qali when is the next scheduled pulse?`
+
+> `@Qali pause all test activities`
 
 > `@Qali run the smoke suite on sauce-demo`
 
@@ -46,8 +48,11 @@ Mention Qali in an allowed project channel or send it a direct message. Include 
 - `@Qali show the quality pulse for sauce-demo`
 - `@Qali what's our current quality status?`
 - `@Qali when was the latest full regression?`
+- `@Qali when is the next scheduled pulse?`
+- `@Qali pause all test activities` (ops channel)
+- `@Qali schedule full regression for 04:00` (ops channel)
 
-Questions about status, last run, coverage, schedule, expected results, history, or known issues are answered in the same thread from a stored quality snapshot. They do not start Playwright. If Qali has no snapshot yet, it reads the project pack and comes back with the answer.
+Questions about status, last run, coverage, schedule, expected results, history, or known issues are answered in the same thread from a stored quality snapshot. They do not start Playwright. If Qali has no snapshot yet, it reads the project pack and comes back with the answer. Pause, resume, and “schedule this at 04:00” are ops-channel work; they update `derived/workflow-state/schedule.yaml` and GitHub’s Actions cron list is kept in lockstep with that file.
 
 Qali classifies only the intent, project ID, and a declarative focus. It cannot choose a filesystem root, environment, permissions, publication repository, or autonomy mode from your message. Those are trusted project settings.
 
