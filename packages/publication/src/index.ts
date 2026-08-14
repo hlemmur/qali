@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
+import { parseGeneratedMarker } from '../../knowledge/src/index.js';
 import {
   SemanticPublicationManifestSchema,
   type PublicationChangeClassification,
@@ -65,8 +66,9 @@ function hasValidGeneratedHash(path: string, content: string): boolean {
       return false;
     }
   }
-  const match = /^<!-- qali:generated owner=qali sha256=([a-f0-9]{64}) -->([\s\S]*)$/.exec(content);
-  return Boolean(match && match[1] === sha256(match[2]!));
+  const match = parseGeneratedMarker(content);
+  if (match) return match.hash === sha256(match.body);
+  return false;
 }
 
 const RAW_EVIDENCE_PATTERN =

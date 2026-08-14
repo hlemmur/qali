@@ -1,8 +1,8 @@
-<!-- qali:generated owner=qali sha256=d3c57f85c9d4ca1977f01ca65aaad83826681fe9f5a353b5c4bdd806a50990b2 -->
+# qali:generated owner=qali sha256=416e2718b5a6dd82a211ad7860596fa97eeb032a58c5f9ffcc4e7e4880916601
 version: 1
 template: conservative
 paused: false
 jobs:
   - workflowId: quality-pulse
-    cron: '17 6 * * *'
+    cron: 17 6 * * *
     enabled: true

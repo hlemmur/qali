@@ -7,7 +7,7 @@ import {
   type ProjectSchedule,
   type ScheduleJob
 } from '../../contracts/src/index.js';
-import { generatedDocumentBody, renderGeneratedDocument } from '../../knowledge/src/index.js';
+import { generatedDocumentBody, renderGeneratedYamlDocument } from '../../knowledge/src/index.js';
 
 export const PROJECT_SCHEDULE_RELATIVE_PATH = 'derived/workflow-state/schedule.yaml';
 
@@ -41,7 +41,7 @@ export function parseProjectSchedule(raw: string): ProjectSchedule {
 }
 
 export function renderProjectSchedule(schedule: ProjectSchedule): string {
-  return renderGeneratedDocument(stringifyYaml(ProjectScheduleSchema.parse(schedule)));
+  return renderGeneratedYamlDocument(stringifyYaml(ProjectScheduleSchema.parse(schedule)));
 }
 
 export function loadProjectSchedule(projectRoot: string): ProjectSchedule {

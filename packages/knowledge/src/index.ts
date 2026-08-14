@@ -159,9 +159,29 @@ export interface ScaffoldProjectResult {
 const localPath = (path: string | URL): string =>
   path instanceof URL ? fileURLToPath(path) : path;
 
-const generatedHeader = '<!-- qali:generated owner=qali sha256={{CONTENT_SHA256}} -->';
 const generatedHeaderPattern =
   /^<!-- qali:generated owner=qali sha256=([a-f0-9]{64}) -->([\s\S]*)$/;
+const generatedYamlCommentPattern =
+  /^# qali:generated owner=qali sha256=([a-f0-9]{64})\n([\s\S]*)$/;
+
+type GeneratedMarkerKind = 'html' | 'yaml-comment';
+
+export function parseGeneratedMarker(
+  content: string
+): { kind: GeneratedMarkerKind; hash: string; body: string } | undefined {
+  const html = generatedHeaderPattern.exec(content);
+  if (html) return { kind: 'html', hash: html[1]!, body: html[2]! };
+  const yaml = generatedYamlCommentPattern.exec(content);
+  if (yaml) return { kind: 'yaml-comment', hash: yaml[1]!, body: yaml[2]! };
+  return undefined;
+}
+
+function renderGeneratedMarker(kind: GeneratedMarkerKind, body: string): string {
+  if (kind === 'yaml-comment') return renderGeneratedYamlDocument(body);
+  const normalized = body.startsWith('\n') ? body : `\n${body}`;
+  const hash = createHash('sha256').update(normalized).digest('hex');
+  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+}
 
 const generatedJsonHash = (value: Record<string, unknown>): string =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -180,13 +200,17 @@ export function renderGeneratedJson(value: object): string {
 }
 
 export function generatedDocumentBody(content: string): string | undefined {
-  return generatedHeaderPattern.exec(content)?.[2];
+  return parseGeneratedMarker(content)?.body;
 }
 
 export function renderGeneratedDocument(body: string): string {
-  const normalized = body.startsWith('\n') ? body : `\n${body}`;
+  return renderGeneratedMarker('html', body);
+}
+
+export function renderGeneratedYamlDocument(body: string): string {
+  const normalized = body.endsWith('\n') ? body : `${body}\n`;
   const hash = createHash('sha256').update(normalized).digest('hex');
-  return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
+  return `# qali:generated owner=qali sha256=${hash}\n${normalized}`;
 }
 
 export const REQUIRED_PROJECT_PATHS = [
@@ -245,8 +269,9 @@ function renderProjectTree(directory: string, projectId: string, date: string): 
     let content = readFileSync(path, 'utf8')
       .replaceAll('{{PROJECT_ID}}', projectId)
       .replaceAll('{{DATE}}', date);
-    if (content.startsWith(generatedHeader)) {
-      const body = content.slice(generatedHeader.length);
+    if (content.includes('sha256={{CONTENT_SHA256}}')) {
+      const marker = parseGeneratedMarker(content.replace('{{CONTENT_SHA256}}', '0'.repeat(64)));
+      const body = marker?.body ?? content.slice(content.indexOf('\n'));
       const hash = createHash('sha256').update(body).digest('hex');
       content = content.replace('{{CONTENT_SHA256}}', hash);
     }
@@ -361,7 +386,7 @@ export function validateProjectDirectory(projectRoot: string | URL): ProjectVali
       }
       continue;
     }
-    const match = generatedHeaderPattern.exec(content);
+    const match = parseGeneratedMarker(content);
     if (!match) {
       issues.push({
         code: 'invalid-generated-marker',
@@ -370,8 +395,8 @@ export function validateProjectDirectory(projectRoot: string | URL): ProjectVali
       });
       continue;
     }
-    const expectedHash = createHash('sha256').update(match[2]!).digest('hex');
-    if (match[1] !== expectedHash) {
+    const expectedHash = createHash('sha256').update(match.body).digest('hex');
+    if (match.hash !== expectedHash) {
       issues.push({
         code: 'modified-generated-file',
         path: relativePath,
@@ -428,12 +453,11 @@ export function refreshGeneratedMarkers(projectRoot: string | URL): number {
       }
       continue;
     }
-    const match = generatedHeaderPattern.exec(content);
+    const match = parseGeneratedMarker(content);
     if (!match) continue;
-    const body = match[2]!;
-    const hash = createHash('sha256').update(body).digest('hex');
-    if (match[1] === hash) continue;
-    writeFileSync(path, `<!-- qali:generated owner=qali sha256=${hash} -->${body}`);
+    const next = renderGeneratedMarker(match.kind, match.body);
+    if (next === content) continue;
+    writeFileSync(path, next);
     updated += 1;
   }
   return updated;

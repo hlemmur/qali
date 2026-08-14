@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { format } from 'prettier';
 import { describe, expect, it } from 'vitest';
 import {
   collectScheduleCrons,
@@ -32,7 +33,7 @@ describe('project schedule', () => {
     expect(matchingScheduledJobs(paused, '17 6 * * *')).toEqual([]);
   });
 
-  it('round-trips a generated schedule file and reads the sauce-demo pack', () => {
+  it('round-trips a generated schedule file and reads the sauce-demo pack', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-schedule-'));
     writeProjectSchedule(workspace, scheduleTemplate('conservative'));
     const loaded = loadProjectSchedule(workspace);
@@ -42,7 +43,10 @@ describe('project schedule', () => {
         readFileSync(join(workspace, 'derived/workflow-state/schedule.yaml'), 'utf8')
       )
     ).toEqual(loaded);
-    expect(renderProjectSchedule(loaded)).toContain('qali:generated');
+    const rendered = renderProjectSchedule(loaded);
+    expect(rendered.startsWith('# qali:generated owner=qali sha256=')).toBe(true);
+    expect(rendered).not.toContain('<!--');
+    await expect(format(rendered, { parser: 'yaml' })).resolves.toEqual(expect.any(String));
 
     const sauceDemo = loadProjectSchedule('projects/sauce-demo');
     expect(sauceDemo.template).toBe('conservative');

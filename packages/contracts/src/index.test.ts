@@ -214,6 +214,22 @@ describe('workflow contracts', () => {
         jobs: []
       })
     ).toThrow();
+    expect(() =>
+      ProjectScheduleSchema.parse({
+        version: 1,
+        template: 'conservative',
+        paused: false,
+        jobs: [{ workflowId: 'onboard-project', cron: '17 6 * * *', enabled: true }]
+      })
+    ).toThrow();
+    expect(() =>
+      ProjectScheduleSchema.parse({
+        version: 1,
+        template: 'conservative',
+        paused: false,
+        jobs: [{ workflowId: 'quality-pulse', cron: 'hourly', enabled: true }]
+      })
+    ).toThrow();
   });
 
   it('represents Developer and QA Lead/Admin external request authority', () => {

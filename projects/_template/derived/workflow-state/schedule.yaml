@@ -1,4 +1,4 @@
-<!-- qali:generated owner=qali sha256={{CONTENT_SHA256}} -->
+# qali:generated owner=qali sha256={{CONTENT_SHA256}}
 version: 1
 template: conservative
 paused: false

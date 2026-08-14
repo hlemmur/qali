@@ -9,7 +9,6 @@ import {
 import { parse as parseYaml } from 'yaml';
 import {
   collectScheduleCrons,
-  effectiveScheduleJobs,
   loadProjectSchedule
 } from '../packages/orchestrator/src/project-schedule.js';
 
@@ -41,7 +40,7 @@ for (const project of registry.projects) {
   }
   const schedule = loadProjectSchedule(root);
   schedules.push(schedule);
-  const expectedJobs = effectiveScheduleJobs(schedule);
+  const expectedJobs = schedule.jobs;
   const registryJobs = project.schedules.map((entry) => ({
     workflowId: entry.workflowId,
     cron: entry.cron,
