@@ -440,7 +440,6 @@ export function refreshGeneratedMarkers(projectRoot: string | URL): number {
     if (relativePath.endsWith('.json')) {
       try {
         const parsed = JSON.parse(content) as Record<string, unknown>;
-        if (!parsed._qali) continue;
         const body = { ...parsed };
         delete body._qali;
         const next = renderGeneratedJson(body);
@@ -454,8 +453,10 @@ export function refreshGeneratedMarkers(projectRoot: string | URL): number {
       continue;
     }
     const match = parseGeneratedMarker(content);
-    if (!match) continue;
-    const next = renderGeneratedMarker(match.kind, match.body);
+    const kind: GeneratedMarkerKind =
+      match?.kind ?? (/\.ya?ml$/i.test(relativePath) ? 'yaml-comment' : 'html');
+    const body = match?.body ?? content;
+    const next = renderGeneratedMarker(kind, body);
     if (next === content) continue;
     writeFileSync(path, next);
     updated += 1;

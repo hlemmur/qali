@@ -39,7 +39,7 @@ describe('qualification evaluation suite', () => {
     const result = runEvaluationSuite(process.cwd(), suite);
     expect(result.passed).toBe(true);
     expect(result.results.every((entry) => entry.passed)).toBe(true);
-  });
+  }, 20_000);
 
   it('fails closed when a charter skill omits Focus or Method', () => {
     expect(

@@ -298,6 +298,55 @@ describe('canonical project template', () => {
     }
   });
 
+  it('stamps missing generated markers on agent-written derived reports', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
+    const templateRoot = new URL('../../../projects/_template/', import.meta.url);
+
+    try {
+      const { projectRoot } = scaffoldProject('agent-report-project', {
+        projectsRoot,
+        templateRoot,
+        date: '2026-08-10'
+      });
+      writeFileSync(
+        join(projectRoot, 'derived/reports/exploration.md'),
+        '# Exploration report\n\nFocus: login flow\n'
+      );
+      writeFileSync(
+        join(projectRoot, 'derived/reports/exploration.json'),
+        JSON.stringify({ intent: 'explore-project', focus: 'login flow' }, null, 2)
+      );
+
+      expect(validateProjectDirectory(projectRoot).issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'invalid-generated-marker',
+            path: 'derived/reports/exploration.md'
+          }),
+          expect.objectContaining({
+            code: 'invalid-generated-marker',
+            path: 'derived/reports/exploration.json'
+          })
+        ])
+      );
+
+      expect(refreshGeneratedMarkers(projectRoot)).toBeGreaterThan(0);
+      expect(validateProjectDirectory(projectRoot)).toEqual({ valid: true, issues: [] });
+      expect(readFileSync(join(projectRoot, 'derived/reports/exploration.md'), 'utf8')).toMatch(
+        /^<!-- qali:generated owner=qali sha256=[a-f0-9]{64} -->/
+      );
+      expect(
+        JSON.parse(readFileSync(join(projectRoot, 'derived/reports/exploration.json'), 'utf8'))
+      ).toMatchObject({
+        _qali: { generated: 'owner=qali' },
+        intent: 'explore-project',
+        focus: 'login flow'
+      });
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('validates generated JSON markers and semantic hashes', () => {
     const projectsRoot = mkdtempSync(join(tmpdir(), 'qali-projects-'));
     const templateRoot = new URL('../../../projects/_template/', import.meta.url);
