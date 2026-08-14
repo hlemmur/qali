@@ -24,7 +24,26 @@ describe('intent classification fallbacks', () => {
     expect(heuristicClassify(work('explore checkout and use projects/acme'))).toEqual({
       intent: 'explore-project',
       projectId: 'acme',
-      focus: { classification: 'heuristic-fallback' }
+      focus: { classification: 'heuristic-fallback', feature: 'checkout' }
+    });
+  });
+
+  it('passes depth and feature into explore and generate work', () => {
+    expect(heuristicClassify(work('deep testing of checkout'))).toEqual({
+      intent: 'explore-project',
+      projectId: 'sauce-demo',
+      focus: { classification: 'heuristic-fallback', depth: 'deep', feature: 'checkout' }
+    });
+    expect(heuristicClassify(work('negative testing of login'))).toMatchObject({
+      intent: 'explore-project',
+      focus: { depth: 'negative', feature: 'login' }
+    });
+    expect(heuristicClassify(work('add tests for this issue'))).toMatchObject({
+      intent: 'generate-test-suite'
+    });
+    expect(heuristicClassify(work('generate dashboard tests'))).toMatchObject({
+      intent: 'generate-test-suite',
+      focus: { feature: 'dashboard' }
     });
   });
 

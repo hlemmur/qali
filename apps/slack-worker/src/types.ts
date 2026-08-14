@@ -104,6 +104,11 @@ export interface ControlStore {
   markDispatched(requestId: string, command: NormalizedCommand, runId?: string): Promise<void>;
   findByRunId(runId: string): Promise<Correlation | null>;
   findByRequestId(requestId: string): Promise<Correlation | null>;
+  findLatestByThread(input: {
+    teamId: string;
+    channelId: string;
+    threadTs: string;
+  }): Promise<Correlation | null>;
   markCompleted(
     requestId: string,
     status: string,

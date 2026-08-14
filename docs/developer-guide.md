@@ -328,7 +328,7 @@ Current result cards provide:
 - Rerun
 - Triage on failed counted runs
 
-Link-only and expand actions never dispatch work. Rerun and triage resolve an existing D1 correlation, rebuild a trusted command, create a child request, and dispatch a fresh run.
+Link-only and expand actions never dispatch work. Rerun and triage resolve an existing D1 correlation, rebuild a trusted command, create a child request, and dispatch a fresh run. **Test with Qali** / **Triage with Qali** message shortcuts arrive as `message_action` payloads (`callback_id`); Test dispatches `run-test-suite` with the source message as focus, and Triage looks up the latest run in that thread. The Slack app manifest includes those shortcuts and the `commands` bot scope; re-render and re-upload after merge.
 
 See [Slack agent UX review](slack-agent-ux-review.md) for the recommended next interface iteration.
 

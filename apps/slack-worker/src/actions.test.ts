@@ -327,4 +327,116 @@ describe('Slack action handling', () => {
       expect.stringMatching(/^retract-/)
     );
   });
+
+  it('starts a test suite from the Test with Qali message shortcut', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '110', htmlUrl: 'https://github.test/runs/110' }))
+    };
+    const store = {
+      findLatestByThread: vi.fn(),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({
+          actionId: 'qali_test_message',
+          text: 'checkout is broken on sauce demo'
+        }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'run-test-suite',
+        parameters: expect.objectContaining({
+          source: 'message-shortcut',
+          messageContext: 'checkout is broken on sauce demo'
+        })
+      }),
+      expect.stringMatching(/^qali_test_message-/)
+    );
+  });
+
+  it('triages from the thread correlation when using Triage with Qali', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '111', htmlUrl: 'https://github.test/runs/111' }))
+    };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'run-test-suite',
+      status: 'failure',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1'
+    };
+    const store = {
+      findLatestByThread: vi.fn(async () => correlation),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'qali_triage_message', text: 'this test failed' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'triage-failure',
+        parameters: expect.objectContaining({ sourceRunId: '42', sourceRequestId: 'Ev1' })
+      }),
+      expect.stringMatching(/^qali_triage_message-/)
+    );
+  });
+
+  it('does not dispatch triage when the thread has no Qali run', async () => {
+    const github: GitHubPort = { dispatch: vi.fn() };
+    const store = {
+      findLatestByThread: vi.fn(async () => null),
+      markCompleted: vi.fn()
+    } as unknown as ControlStore;
+    const notices: string[] = [];
+    const slack = {
+      postThreadNotice: vi.fn(async (input) => {
+        notices.push(input.text);
+      })
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'qali_triage_message', text: 'a customer complaint' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-handled');
+    expect(notices[0]).toMatch(/Qali run in this thread/i);
+  });
 });

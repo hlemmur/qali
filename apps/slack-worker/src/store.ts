@@ -188,6 +188,24 @@ export class D1ControlStore implements ControlStore {
     return row ? rowToCorrelation(row) : null;
   }
 
+  async findLatestByThread(input: {
+    teamId: string;
+    channelId: string;
+    threadTs: string;
+  }): Promise<Correlation | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT * FROM correlations
+         WHERE team_id = ? AND channel_id = ? AND thread_ts = ?
+           AND run_id IS NOT NULL AND TRIM(run_id) != ''
+         ORDER BY updated_at DESC
+         LIMIT 1`
+      )
+      .bind(input.teamId, input.channelId, input.threadTs)
+      .first<Record<string, unknown>>();
+    return row ? rowToCorrelation(row) : null;
+  }
+
   async markCompleted(
     requestId: string,
     status: string,

@@ -121,6 +121,24 @@ class MemoryStore implements ControlStore {
     return this.correlations.get(requestId) ?? null;
   }
 
+  async findLatestByThread(input: {
+    teamId: string;
+    channelId: string;
+    threadTs: string;
+  }): Promise<Correlation | null> {
+    return (
+      [...this.correlations.values()]
+        .filter(
+          (row) =>
+            row.teamId === input.teamId &&
+            row.channelId === input.channelId &&
+            row.threadTs === input.threadTs &&
+            Boolean(row.runId)
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
+    );
+  }
+
   async markCompleted(
     requestId: string,
     status: string,
@@ -1008,6 +1026,41 @@ describe('Slack control worker', () => {
       kind: 'action',
       actionId: 'rerun_workflow',
       requestedBy: 'U1'
+    });
+  });
+
+  it('accepts message shortcuts as action work with the source message text', async () => {
+    const queue: InboundWork[] = [];
+    const worker = createWorker({
+      store: new MemoryStore(),
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack: {} as SlackPort,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const payload = {
+      type: 'message_action',
+      callback_id: 'qali_test_message',
+      trigger_id: 'trig.1',
+      team: { id: 'T1' },
+      channel: { id: 'C1' },
+      user: { id: 'U1' },
+      message: { ts: '1700000000.001', text: 'checkout is broken on sauce demo' }
+    };
+
+    expect((await worker.fetch(await slackAction(payload), baseEnv(queue))).status).toBe(200);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({
+      kind: 'action',
+      actionId: 'qali_test_message',
+      text: 'checkout is broken on sauce demo',
+      requestedBy: 'U1',
+      slack: {
+        teamId: 'T1',
+        channelId: 'C1',
+        threadTs: '1700000000.001',
+        requestTs: '1700000000.001'
+      }
     });
   });
 

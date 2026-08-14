@@ -59,6 +59,11 @@ async function resolveCorrelation(
   return null;
 }
 
+const MESSAGE_SHORTCUTS: Record<string, NormalizedCommand['intent']> = {
+  qali_test_message: 'run-test-suite',
+  qali_triage_message: 'triage-failure'
+};
+
 function rebuildCommand(
   correlation: Correlation,
   work: InboundWork,
@@ -216,6 +221,74 @@ export async function handleSlackAction(input: {
     await store.accept(childWork);
     await store.claim(childRequestId);
     const label = actionId === 'triage_failures' ? 'Starting triage…' : 'Rerunning…';
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: label
+    });
+    const dispatched = await github.dispatch(command, childRequestId);
+    await store.markDispatched(childRequestId, command, dispatched.runId);
+    await store.markCompleted(work.requestId, 'action-handled');
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: dispatched.htmlUrl ? `Started: ${dispatched.htmlUrl}` : 'Started a new run.'
+    });
+    return;
+  }
+
+  const shortcutIntent = MESSAGE_SHORTCUTS[actionId];
+  if (shortcutIntent) {
+    let command: NormalizedCommand;
+    if (shortcutIntent === 'triage-failure') {
+      const correlation = await store.findLatestByThread({
+        teamId: work.slack.teamId,
+        channelId: work.slack.channelId,
+        threadTs: work.slack.threadTs
+      });
+      if (!correlation?.runId) {
+        await slack.postThreadNotice({
+          channelId: work.slack.channelId,
+          threadTs: work.slack.threadTs,
+          text: 'Triage needs a Qali run in this thread. Use it on a Qali recap, or mention @Qali to triage the latest failures.'
+        });
+        await store.markCompleted(work.requestId, 'action-handled');
+        return;
+      }
+      command = rebuildCommand(correlation, work, 'triage-failure', registry, profiles);
+    } else {
+      const projectId = registry.projects[0]?.id ?? 'sauce-demo';
+      command = resolveTrustedCommand(
+        {
+          intent: shortcutIntent,
+          projectId,
+          focus: {
+            source: 'message-shortcut',
+            messageContext: work.text.slice(0, 240)
+          }
+        },
+        {
+          requestedBy: work.requestedBy,
+          externalRole: work.externalRole,
+          receivedAt: work.receivedAt,
+          slack: work.slack
+        },
+        registry,
+        profiles
+      );
+    }
+    const childRequestId = `${actionId}-${Date.now().toString(36)}`;
+    const childWork: InboundWork = {
+      ...work,
+      identity: `child:${childRequestId}`,
+      requestId: childRequestId
+    };
+    await store.accept(childWork);
+    await store.claim(childRequestId);
+    const label =
+      shortcutIntent === 'triage-failure'
+        ? 'Starting triage…'
+        : 'Starting tests from this message…';
     await slack.postThreadNotice({
       channelId: work.slack.channelId,
       threadTs: work.slack.threadTs,

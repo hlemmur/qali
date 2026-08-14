@@ -142,6 +142,38 @@ describe('bounded exploratory testing', () => {
     ).toBe(true);
   });
 
+  it('uses depth and feature from command parameters as the charter focus', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-focus-'));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+
+    await executeExplorationStep(
+      workspace,
+      workflow.steps.find(({ id }) => id === 'charter')!,
+      {
+        ...command,
+        parameters: {
+          classification: 'heuristic-fallback',
+          depth: 'deep',
+          feature: 'checkout',
+          generationRequestId: 'Ev1',
+          maxSteps: '4',
+          timeBudgetMs: '5000'
+        }
+      },
+      undefined
+    );
+
+    const charter = readFileSync(
+      join(workspace, command.project.root, 'observations/exploration.md'),
+      'utf8'
+    );
+    expect(charter).toContain('Focus: deep checkout');
+    expect(charter).not.toContain('classification:');
+  });
+
   it('blocks exploration when the configured budget is exhausted before an action', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-'));
     const workflow = loadWorkflowDirectory(
