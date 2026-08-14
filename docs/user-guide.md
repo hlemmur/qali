@@ -41,7 +41,9 @@ Mention Qali in an allowed project channel or send it a direct message. Include 
 
 - `@Qali onboard https://www.saucedemo.com`
 - `@Qali onboard project sauce-demo`
+- `@Qali deep testing of checkout`
 - `@Qali explore the login journey on sauce-demo`
+- `@Qali add tests for this issue`
 - `@Qali generate tests for the approved login scenarios on sauce-demo`
 - `@Qali run the smoke suite on sauce-demo`
 - `@Qali triage the latest sauce-demo failures`
@@ -54,7 +56,9 @@ Mention Qali in an allowed project channel or send it a direct message. Include 
 
 Questions about status, last run, coverage, schedule, expected results, history, or known issues are answered in the same thread from a stored quality snapshot. They do not start Playwright. If Qali has no snapshot yet, it reads the project pack and comes back with the answer. Pause, resume, and “schedule this at 04:00” are ops-channel work; they update `derived/workflow-state/schedule.yaml` and GitHub’s Actions cron list is kept in lockstep with that file.
 
-Qali classifies only the intent, project ID, and a declarative focus. It cannot choose a filesystem root, environment, permissions, publication repository, or autonomy mode from your message. Those are trusted project settings.
+Qali classifies only the intent, project ID, and a declarative focus. Deep, edge-case, or negative testing becomes exploration with `depth` and `feature` when you name them. It cannot choose a filesystem root, environment, permissions, publication repository, or autonomy mode from your message. Those are trusted project settings.
+
+You can also open the overflow menu on a Slack message and choose **Test with Qali** or **Triage with Qali**. Test starts the project suite with that message as context. Triage needs a Qali run already in the thread.
 
 ### 2. Get an immediate acknowledgement
 
@@ -82,7 +86,7 @@ Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards
 
 ### 4. Continue from the same thread
 
-Every request carries Slack, D1, GitHub, workflow-state, evidence, and publication correlation. A rerun creates a new correlated run rather than overwriting the original history. Triage links back to the failed source run.
+Every request carries Slack, D1, GitHub, workflow-state, evidence, and publication correlation. A rerun creates a new correlated run rather than overwriting the original history. Triage links back to the failed source run. Message shortcuts **Test with Qali** and **Triage with Qali** use the same correlation when they run from a Qali thread.
 
 ## What each workflow produces
 
@@ -191,7 +195,7 @@ Onboard, explore, and quality pulse do not execute Playwright. Those hosted page
 
 ### Do developers need to learn commands?
 
-No. Qali accepts normal Slack language. Specific prompts produce better focus, but users do not need to know internal workflow or skill names.
+No. Qali accepts normal Slack language, plus **Test with Qali** and **Triage with Qali** on an existing message. Specific prompts produce better focus (`deep testing of checkout`, `negative testing of login`), but users do not need to know internal workflow or skill names.
 
 ### Does Qali replace a QA engineer?
 

@@ -84,7 +84,7 @@ The present app behaves primarily as a workflow dispatcher with threaded status 
 - Suggested prompts are not dynamically tailored to the mapped project or run state.
 - Progress states are technically correct but too coarse for a long workflow.
 - Completion language can be more specific about which stage failed.
-- Existing messages cannot yet be turned into Qali context through a message shortcut.
+- Existing messages can be turned into Qali work through **Test with Qali** and **Triage with Qali** message shortcuts (re-upload the Slack manifest after merge).
 - Consequential publication does not yet have a Slack-native preview and approval ceremony.
 - Users do not have lightweight “helpful / not helpful” feedback controls on results.
 - Project-channel mapping and default suite behavior are configured by operators rather than explained through a friendly admin onboarding flow.
@@ -186,7 +186,7 @@ Qali should not copy Linear's issue model literally. Its equivalent durable obje
 
 ### P1 — efficient daily use
 
-1. Add **Test with Qali** and **Triage with Qali** message shortcuts.
+1. Add **Test with Qali** and **Triage with Qali** message shortcuts. **Implemented (unit-tested; not live-verified).** Manifest includes both shortcuts and the `commands` bot scope. Re-upload the Slack app manifest, then use the message overflow menu. Triage requires a Qali run in the thread.
 2. Add dynamic prompts based on project, channel, and recent run state.
 3. Use DM for multi-turn planning and channel threads for concise shared progress.
 4. Add project-channel affinity and an operator-friendly mapping flow.

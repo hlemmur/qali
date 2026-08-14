@@ -286,6 +286,50 @@ async function slackEvents(
   return acceptWork(work, env, store);
 }
 
+function interactionFields(payload: Record<string, unknown>): {
+  actionId: string;
+  actionIdentity: string;
+  text: string;
+  actionValue?: string;
+  requestTs: string;
+  threadTs: string;
+} | null {
+  const message = record(payload.message);
+  const container = record(payload.container);
+  const requestTs =
+    (typeof message.ts === 'string' && message.ts) ||
+    (typeof container.message_ts === 'string' && container.message_ts) ||
+    (typeof payload.message_ts === 'string' && payload.message_ts) ||
+    undefined;
+  if (typeof requestTs !== 'string') return null;
+
+  if (payload.type === 'message_action') {
+    const actionId = payload.callback_id;
+    const actionIdentity = payload.trigger_id;
+    if (typeof actionId !== 'string' || typeof actionIdentity !== 'string') return null;
+    return {
+      actionId,
+      actionIdentity,
+      text: typeof message.text === 'string' ? message.text : actionId,
+      requestTs,
+      threadTs: typeof message.thread_ts === 'string' ? message.thread_ts : requestTs
+    };
+  }
+
+  const actions = Array.isArray(payload.actions) ? payload.actions : [];
+  const action = record(actions[0]);
+  const actionIdentity = action.action_ts ?? payload.trigger_id;
+  if (typeof action.action_id !== 'string' || typeof actionIdentity !== 'string') return null;
+  return {
+    actionId: action.action_id,
+    actionIdentity,
+    text: typeof action.value === 'string' ? action.value : action.action_id,
+    ...(typeof action.value === 'string' ? { actionValue: action.value } : {}),
+    requestTs,
+    threadTs: typeof container.thread_ts === 'string' ? container.thread_ts : requestTs
+  };
+}
+
 async function slackInteraction(
   request: Request,
   env: Env,
@@ -312,35 +356,28 @@ async function slackInteraction(
   } catch {
     return new Response('Bad Request', { status: 400 });
   }
-  const actions = Array.isArray(payload.actions) ? payload.actions : [];
-  const action = record(actions[0]);
+  const fields = interactionFields(payload);
   const team = record(payload.team);
   const channel = record(payload.channel);
   const user = record(payload.user);
-  const message = record(payload.message);
-  const container = record(payload.container);
   const teamId = team.id;
   const channelId = channel.id;
   const userId = user.id;
-  const requestTs = message.ts ?? container.message_ts;
-  const actionIdentity = action?.action_ts ?? payload.trigger_id;
   if (
+    !fields ||
     typeof teamId !== 'string' ||
     typeof channelId !== 'string' ||
-    typeof userId !== 'string' ||
-    typeof requestTs !== 'string' ||
-    typeof action.action_id !== 'string' ||
-    typeof actionIdentity !== 'string'
+    typeof userId !== 'string'
   ) {
     return new Response('Bad Request', { status: 400 });
   }
   // URL buttons can still emit interaction payloads; never queue them.
-  if (LINK_ONLY_ACTIONS.has(action.action_id)) {
+  if (LINK_ONLY_ACTIONS.has(fields.actionId)) {
     return json(200, { ok: true });
   }
-  const identity = `slack:action:${teamId}:${channelId}:${userId}:${action.action_id}:${actionIdentity}`;
+  const identity = `slack:action:${teamId}:${channelId}:${userId}:${fields.actionId}:${fields.actionIdentity}`;
   const externalRole = roleForSlackUser(env, userId, channelId);
-  if (externalRole === 'developer' && isPrivilegedAction(action.action_id)) {
+  if (externalRole === 'developer' && isPrivilegedAction(fields.actionId)) {
     await store.recordSecurityDenial({
       occurredAt: now.toISOString(),
       reasonCode: 'privileged_action',
@@ -352,17 +389,17 @@ async function slackInteraction(
     identity,
     requestId: identity,
     kind: 'action',
-    text: typeof action.value === 'string' ? action.value : action.action_id,
-    actionId: action.action_id,
-    ...(typeof action.value === 'string' ? { actionValue: action.value } : {}),
+    text: fields.text,
+    actionId: fields.actionId,
+    ...(fields.actionValue ? { actionValue: fields.actionValue } : {}),
     requestedBy: userId,
     externalRole,
     receivedAt: now.toISOString(),
     slack: {
       teamId,
       channelId,
-      threadTs: typeof container.thread_ts === 'string' ? container.thread_ts : requestTs,
-      requestTs
+      threadTs: fields.threadTs,
+      requestTs: fields.requestTs
     }
   };
   return acceptWork(work, env, store);

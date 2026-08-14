@@ -59,12 +59,20 @@ const cleanFocusValue = (value: unknown): string | undefined => {
 };
 
 function explorationFocus(parameters: NormalizedCommand['parameters']): string {
+  const feature = cleanFocusValue(parameters.feature);
+  const depth = cleanFocusValue(parameters.depth);
+  if (feature && depth) return `${depth} ${feature}`;
+  if (feature) return feature;
+  if (depth) return depth;
   for (const key of ['focus', 'area', 'charter', 'journey', 'suite']) {
     const value = cleanFocusValue(parameters[key]);
     if (value) return value;
   }
   const declarative = Object.entries(parameters)
-    .filter(([key]) => !['maxSteps', 'timeBudgetMs'].includes(key))
+    .filter(
+      ([key]) =>
+        !['maxSteps', 'timeBudgetMs', 'classification', 'generationRequestId'].includes(key)
+    )
     .flatMap(([key, value]) => {
       const cleaned = cleanFocusValue(value);
       return cleaned ? [`${key}: ${cleaned}`] : [];

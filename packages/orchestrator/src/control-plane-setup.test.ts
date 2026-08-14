@@ -24,8 +24,21 @@ describe('control plane setup helpers', () => {
     expect(manifest.oauth_config.scopes.bot).toEqual([
       'app_mentions:read',
       'chat:write',
+      'commands',
       'im:history',
       'im:write'
+    ]);
+    expect(manifest.features.shortcuts).toEqual([
+      expect.objectContaining({
+        name: 'Test with Qali',
+        type: 'message',
+        callback_id: 'qali_test_message'
+      }),
+      expect.objectContaining({
+        name: 'Triage with Qali',
+        type: 'message',
+        callback_id: 'qali_triage_message'
+      })
     ]);
     expect(manifest.settings.event_subscriptions).toEqual({
       request_url: 'https://qali-slack-control.example.workers.dev/slack/events',

@@ -23,6 +23,12 @@ export interface SlackAppManifest {
       messages_tab_enabled: boolean;
       messages_tab_read_only_enabled: boolean;
     };
+    shortcuts: Array<{
+      name: string;
+      type: 'message';
+      callback_id: string;
+      description: string;
+    }>;
   };
   oauth_config: {
     scopes: {
@@ -70,11 +76,25 @@ export function renderSlackAppManifest(workerBaseUrl: string): SlackAppManifest 
         home_tab_enabled: true,
         messages_tab_enabled: true,
         messages_tab_read_only_enabled: false
-      }
+      },
+      shortcuts: [
+        {
+          name: 'Test with Qali',
+          type: 'message',
+          callback_id: 'qali_test_message',
+          description: 'Run the project test suite with this message as context.'
+        },
+        {
+          name: 'Triage with Qali',
+          type: 'message',
+          callback_id: 'qali_triage_message',
+          description: 'Triage a failure from the last Qali run in this thread.'
+        }
+      ]
     },
     oauth_config: {
       scopes: {
-        bot: ['app_mentions:read', 'chat:write', 'im:history', 'im:write']
+        bot: ['app_mentions:read', 'chat:write', 'commands', 'im:history', 'im:write']
       }
     },
     settings: {
