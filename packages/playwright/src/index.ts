@@ -210,9 +210,7 @@ export class SpawnPlaywrightRunner implements PlaywrightRunner {
     const args = [
       join(request.workspace, 'node_modules', '@playwright', 'test', 'cli.js'),
       'test',
-      ...testPaths,
-      '--reporter=json',
-      '--reporter=html'
+      ...testPaths
     ];
     if (request.grep) args.push('--grep', request.grep);
     return new Promise((resolve) => {

@@ -154,9 +154,9 @@ describe('Playwright adapter', () => {
     const [command, args, options] = spawn.mock.calls[0]!;
     expect(command).toBe(process.execPath);
     expect(args[0]).toContain('@playwright/test/cli.js');
-    expect(args).toEqual(
-      expect.arrayContaining(['test', 'projects/_demo/tests', '--reporter=json', '--reporter=html'])
-    );
+    expect(args).toEqual(expect.arrayContaining(['test', 'projects/_demo/tests']));
+    expect(args).not.toContain('--reporter=json');
+    expect(args).not.toContain('--reporter=html');
     expect(options).toMatchObject({ cwd: '/repo', shell: false });
     expect(options.env.QALI_TARGET_BASE_URL).toBe('https://staging.example.test');
     expect(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME).toBe('test-results/report.json');

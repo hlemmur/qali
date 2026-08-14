@@ -144,6 +144,38 @@ describe('deterministic test execution', () => {
     expect(existsSync(reportPath)).toBe(false);
   });
 
+  it('uses the Playwright config JSON report when the named evidence file is missing', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-test-run-default-json-'));
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'run-test-suite')!;
+    mkdirSync(join(workspace, 'test-results'), { recursive: true });
+    writeFileSync(
+      join(workspace, 'test-results/results.json'),
+      JSON.stringify({
+        suites: [{ specs: [{ tests: [{ status: 'expected', results: [{ status: 'passed' }] }] }] }]
+      })
+    );
+    const runner: PlaywrightRunner = {
+      async run() {
+        return { status: 'passed', exitCode: 0 };
+      }
+    };
+
+    const outcome = await executeTestRunStep({
+      workspace,
+      step: workflow.steps.find(({ id }) => id === 'execute')!,
+      command,
+      runner,
+      targetBaseUrl: 'http://127.0.0.1:4173',
+      signal: new AbortController().signal
+    });
+
+    expect(outcome.result.status).toBe('succeeded');
+    expect(outcome.summary).toMatchObject({ status: 'passed', passed: 1, failed: 0 });
+  });
+
   it('runs the test workflow through the production orchestrator in Mock Mode', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-test-run-e2e-'));
     const projectRoot = join(workspace, command.project.root);
