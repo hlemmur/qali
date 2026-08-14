@@ -3,14 +3,20 @@ import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   unlinkSync,
   writeFileSync
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import process from 'node:process';
 import { CursorCliAgentRuntime, agentCliAvailable } from '../packages/agent-runtime/src/index.js';
+import {
+  executeAssembledAgentStep,
+  removeHarnessWorkspace
+} from '../packages/agent-runtime/src/assembled-step.js';
 import { RestrictedBrowserFacade } from '@qali/browser-facade';
 import { PlaywrightBrowserDriver } from '@qali/browser-facade/playwright-driver';
 import { resolveBrowserServiceConfig } from '@qali/browser-facade/service-config';
@@ -19,7 +25,6 @@ import {
   loadHarnessProfiles,
   selectHarnessProfile
 } from '../packages/agent-runtime/src/harness-profiles.js';
-import { loadRuntimeSkillAssets } from '../packages/agent-runtime/src/skill-assets.js';
 import { computeRuntimeQualificationIdentity } from '../packages/agent-runtime/src/qualification-identity.js';
 import {
   loadQualificationRegistry,
@@ -78,6 +83,7 @@ import {
 import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
+import { writeBrowserMcpEnvironmentFile } from './browser-mcp-env.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -109,6 +115,10 @@ function writeWorkflowSlackSummary(
     command.intent === 'onboard-project'
       ? summarizeOnboardingReport(join(workspace, command.project.root))
       : { findings: [], evidence: [] };
+  const explorationPath = join(reportDirectory, 'exploration.json');
+  const explorationSidecar = existsSync(explorationPath)
+    ? (JSON.parse(readFileSync(explorationPath, 'utf8')) as RunSummary['exploration'])
+    : undefined;
   const summary = {
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
@@ -117,7 +127,11 @@ function writeWorkflowSlackSummary(
     intent: command.intent,
     projectId: command.project.id,
     errors: [...onboard.findings, ...errors],
-    ...(onboard.evidence.length ? { evidence: onboard.evidence } : {})
+    ...(onboard.evidence.length ? { evidence: onboard.evidence } : {}),
+    ...(command.intent === 'explore-project' && command.project.environmentLabel !== 'mock'
+      ? { environment: 'explored with Cursor + harness browser-exploration' }
+      : {}),
+    ...(explorationSidecar ? { exploration: explorationSidecar } : {})
   };
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
@@ -278,12 +292,6 @@ class RoutedStepExecutor implements StepExecutor {
   private readonly agent = new CursorCliAgentRuntime();
   private playwrightSummary:
     (PlaywrightEvidenceSummary & { status?: 'passed' | 'failed' }) | undefined;
-  private readonly skills = new Map(
-    loadRuntimeSkillAssets(join(workspace, 'skills/runtime')).map((skill) => [
-      skill.id,
-      skill.content
-    ])
-  );
   private readonly harnessProfiles = new Map(
     loadHarnessProfiles(
       join(workspace, 'harness/profiles.json'),
@@ -647,34 +655,56 @@ class RoutedStepExecutor implements StepExecutor {
         reason: `host harness profile cannot execute through the agent runtime: ${harnessProfile.id}`
       } as const;
     }
-    const result = await this.agent.execute({
-      workspace,
-      role: ROLE_PROFILES[step.role],
-      step,
-      skillInstructions: harnessProfile.skillIds
-        .map((skillId) => this.skills.get(skillId) ?? '')
-        .join('\n\n'),
-      context: JSON.stringify(command.parameters),
-      timeoutMs: step.timeoutMs,
-      permissions: step.requiredTools,
-      signal: context.signal
-    });
-    if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
-    if (result.status === 'blocked') return { status: 'blocked', reason: result.output } as const;
-    if (
-      /ENOENT|not found|usage limit|spend limit|not authenticated|api key|unauthorized/i.test(
-        result.error
-      )
-    ) {
-      if (this.executionMode !== 'mock') {
-        return {
-          status: 'blocked',
-          reason: 'qualified Cursor Agent runtime became unavailable'
-        } as const;
-      }
-      return this.deterministicAgentStep(step, command, outputs);
+    const harnessParent = mkdtempSync(join(tmpdir(), 'qali-harness-'));
+    const harnessWorkspace = join(harnessParent, 'run');
+    let browserEnvironmentFile: string | undefined;
+    if (harnessProfile.tools.includes('browser')) {
+      const evidenceDirectory = resolve(
+        workspace,
+        command.project.root,
+        'observations/evidence/exploration'
+      );
+      mkdirSync(evidenceDirectory, { recursive: true });
+      browserEnvironmentFile = join(harnessParent, 'browser.env');
+      writeBrowserMcpEnvironmentFile({
+        destination: browserEnvironmentFile,
+        executionProfilePath: resolve(workspace, command.project.root, 'execution-profile.json'),
+        evidenceDirectory,
+        profile: this.executionProfile,
+        env: process.env
+      });
     }
-    return { status: 'failed', error: result.error } as const;
+    try {
+      const result = await executeAssembledAgentStep({
+        sourceRoot: workspace,
+        workspace: harnessWorkspace,
+        command,
+        step,
+        profile: harnessProfile,
+        role: ROLE_PROFILES[step.role],
+        agent: this.agent,
+        ...(browserEnvironmentFile ? { browserEnvironmentFile } : {}),
+        signal: context.signal
+      });
+      if (result.status === 'succeeded') return { status: 'succeeded', outputs } as const;
+      if (result.status === 'blocked') return { status: 'blocked', reason: result.reason } as const;
+      if (
+        /ENOENT|not found|usage limit|spend limit|not authenticated|api key|unauthorized/i.test(
+          result.error
+        )
+      ) {
+        if (this.executionMode !== 'mock') {
+          return {
+            status: 'blocked',
+            reason: 'qualified Cursor Agent runtime became unavailable'
+          } as const;
+        }
+        return this.deterministicAgentStep(step, command, outputs);
+      }
+      return { status: 'failed', error: result.error } as const;
+    } finally {
+      removeHarnessWorkspace(harnessParent);
+    }
   }
 }
 

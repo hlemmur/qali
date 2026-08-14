@@ -99,6 +99,39 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
+  it('renders a structured exploration report instead of a generic non-test stub', () => {
+    const html = renderHtmlReport({
+      runId: 'exp-1',
+      status: 'passed',
+      intent: 'explore-project',
+      projectId: 'sauce-demo',
+      exploration: {
+        focus: 'login flow',
+        charter: 'Explore login flow with bounded black-box exploration.',
+        budget: { maxSteps: 24, timeBudgetMs: 720_000, completedSteps: 18 },
+        truncated: false,
+        areas: ['login'],
+        ideas: ['happy path', 'empty credentials'],
+        findings: ['Login form is visible on /'],
+        questions: ['Q-EXP-001 What should happen for locked users?'],
+        assumptions: ['Allowlisted origin is reachable'],
+        screenshotUrls: ['https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&sig=abc']
+      }
+    });
+    expect(html).toContain('What Qali did');
+    expect(html).toContain('login flow');
+    expect(html).toContain('24');
+    expect(html).toContain('Coverage');
+    expect(html).toContain('happy path');
+    expect(html).toContain('Generate smoke tests for login flow');
+    expect(html).toContain('Generate regression tests for login flow');
+    expect(html).not.toContain('This run did not execute Playwright tests.');
+    expect(html).toContain(
+      'src="https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&amp;sig=abc"'
+    );
+    expect(html).not.toContain('<script');
+  });
+
   it('explains that onboard did not execute Playwright tests', () => {
     const html = renderHtmlReport({
       runId: '99',

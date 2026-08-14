@@ -66,15 +66,17 @@ describe('agent execution routing', () => {
     );
   });
 
-  it('uses host Playwright exploration outside Mock Mode even when Cursor is installed', () => {
-    expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe(
-      'deterministic-exploration'
-    );
+  it('routes production explore and generate through Cursor when the CLI is available', () => {
+    expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
+    expect(selectAgentExecutionRoute(command('generate-test-suite'), true, false)).toBe('cursor');
   });
 
-  it('uses host test generation outside Mock Mode even when Cursor is installed', () => {
-    expect(selectAgentExecutionRoute(command('generate-test-suite'), true, false)).toBe(
-      'deterministic-test-generation'
+  it('blocks production explore and generate when Cursor is unavailable', () => {
+    expect(selectAgentExecutionRoute(command('explore-project'), false, false)).toBe(
+      'deterministic-fallback'
+    );
+    expect(selectAgentExecutionRoute(command('generate-test-suite'), false, false)).toBe(
+      'deterministic-fallback'
     );
   });
 
@@ -96,11 +98,11 @@ describe('unattended agent qualification gate', () => {
     expect(requiresQualifiedAgentRuntime('maintain-schedule', 'production')).toBe(false);
     expect(requiresQualifiedAgentRuntime('onboard-project', 'production')).toBe(false);
     expect(requiresQualifiedAgentRuntime('run-test-suite', 'production')).toBe(false);
-    expect(requiresQualifiedAgentRuntime('explore-project', 'production')).toBe(false);
-    expect(requiresQualifiedAgentRuntime('generate-test-suite', 'production')).toBe(false);
   });
 
-  it('still requires a qualified agent for triage and maintenance on production', () => {
+  it('requires a qualified agent for explore, generate, triage, and maintenance on production', () => {
+    expect(requiresQualifiedAgentRuntime('explore-project', 'production')).toBe(true);
+    expect(requiresQualifiedAgentRuntime('generate-test-suite', 'production')).toBe(true);
     expect(requiresQualifiedAgentRuntime('triage-failure', 'production')).toBe(true);
     expect(requiresQualifiedAgentRuntime('maintain-knowledge', 'production')).toBe(true);
     expect(requiresQualifiedAgentRuntime('maintain-suite', 'production')).toBe(true);

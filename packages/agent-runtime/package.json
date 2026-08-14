@@ -9,6 +9,8 @@
     "./harness-workspace": "./src/harness-workspace.ts",
     "./qualification": "./src/qualification.ts",
     "./qualification-identity": "./src/qualification-identity.ts",
+    "./evaluation-suite": "./src/evaluation-suite.ts",
+    "./assembled-step": "./src/assembled-step.ts",
     "./skill-assets": "./src/skill-assets.ts"
   },
   "dependencies": {

@@ -58,7 +58,19 @@ const cleanFocusValue = (value: unknown): string | undefined => {
   return cleaned || undefined;
 };
 
-function explorationFocus(parameters: NormalizedCommand['parameters']): string {
+export function explorationBudget(
+  parameters: NormalizedCommand['parameters'],
+  timeoutMs: number
+): { maxSteps: number; timeBudgetMs: number } {
+  const depth = cleanFocusValue(parameters.depth)?.toLowerCase();
+  const deep = depth === 'deep' || depth === 'negative';
+  return {
+    maxSteps: positiveInteger(parameters.maxSteps, deep ? 40 : 24, 50),
+    timeBudgetMs: positiveInteger(parameters.timeBudgetMs, deep ? 1_500_000 : 720_000, timeoutMs)
+  };
+}
+
+export function explorationFocus(parameters: NormalizedCommand['parameters']): string {
   const feature = cleanFocusValue(parameters.feature);
   const depth = cleanFocusValue(parameters.depth);
   if (feature && depth) return `${depth} ${feature}`;
@@ -116,7 +128,13 @@ export async function executeExplorationStep(
       : '# Questions\n\nNo reviewer-authored questions recorded.\n';
     const reportPath = join(projectRoot, 'derived/reports/exploration.md');
     mkdirSync(dirname(reportPath), { recursive: true });
-    writeFileSync(reportPath, renderExplorationReport(exploration, questions));
+    const sidecar = explorationSidecar(exploration, command, focus);
+    writeFileSync(reportPath, renderExplorationReport(exploration, questions, sidecar));
+    writeFileSync(
+      join(projectRoot, 'derived/reports/exploration.json'),
+      `${JSON.stringify(sidecar, null, 2)}\n`
+    );
+    writeProposedScenarios(projectRoot, focus, sidecar);
     return { status: 'succeeded' as const, outputs };
   }
   if (step.id !== 'explore') {
@@ -125,8 +143,7 @@ export async function executeExplorationStep(
   if (!browser) return { status: 'blocked' as const, reason: 'browser facade is unavailable' };
 
   const startedAt = clock.now();
-  const maxSteps = positiveInteger(command.parameters.maxSteps, 10, 50);
-  const timeBudgetMs = positiveInteger(command.parameters.timeBudgetMs, 300_000, step.timeoutMs);
+  const { maxSteps, timeBudgetMs } = explorationBudget(command.parameters, step.timeoutMs);
   let completedSteps = 0;
   const ensureBudget = () => {
     if (completedSteps >= maxSteps) return 'exploration step budget exhausted';
@@ -203,9 +220,25 @@ export async function executeExplorationStep(
           '',
           `Focus: ${focus}. Accessible nodes observed: ${accessibleNodes}.${truncationReason ? ` Session truncated: ${truncationReason}.` : ''}`,
           '',
-          '| ID | Observation | Status | Evidence | Observed at | Session |',
+          '## Observed',
+          '',
+          `| ID | Observation | Status | Evidence | Observed at | Session |`,
           '| --- | --- | --- | --- | --- | --- |',
-          `| ${observationId} | Browser facade captured ${session.snapshot ? 'the accessible home-page state' : 'a partial home-page session'}${session.navigation ? ` at \`${session.navigation.url}\`` : ''}. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
+          `| ${observationId} | Restricted browser captured the ${focus} focus${session.navigation ? ` at \`${session.navigation.url}\`` : ''}. Ideas tried: happy path, obvious negative, nearby navigation. | observed | \`${evidenceReference}\` | ${observedAt} | bounded-exploration |`,
+          '',
+          '## Inferred',
+          '',
+          `- The ${focus} surface is reachable through the allowlisted origin.`,
+          '',
+          '## Unknown / gaps',
+          '',
+          `- Expected error copy and locked-account behavior still need oracles.`,
+          '',
+          '## Testing ideas',
+          '',
+          `- Happy path for ${focus}`,
+          `- Negative credentials or locked user when visible`,
+          `- Navigation around the ${focus} area`,
           '',
           '## Open Questions',
           '',
@@ -245,8 +278,148 @@ export async function executeExplorationStep(
   return finish();
 }
 
-export function renderExplorationReport(exploration: string, questions: string): string {
+export interface ExplorationReportSidecar {
+  version: 1;
+  intent: 'explore-project';
+  focus: string;
+  charter: string;
+  budget: { maxSteps: number; timeBudgetMs: number; completedSteps?: number };
+  truncated: boolean;
+  areas: string[];
+  ideas: string[];
+  findings: string[];
+  questions: string[];
+  assumptions: string[];
+  evidence: string[];
+}
+
+function explorationSidecar(
+  exploration: string,
+  command: NormalizedCommand,
+  focus: string
+): ExplorationReportSidecar {
+  const completed = /\bcompletedSteps":\s*(\d+)/.exec(exploration);
+  const truncated = /truncated/i.test(exploration);
+  const budget = explorationBudget(command.parameters, 3_600_000);
+  return {
+    version: 1,
+    intent: 'explore-project',
+    focus,
+    charter: `Explore ${focus} with bounded black-box exploration through the restricted browser facade.`,
+    budget: {
+      maxSteps: budget.maxSteps,
+      timeBudgetMs: budget.timeBudgetMs,
+      ...(completed ? { completedSteps: Number(completed[1]) } : {})
+    },
+    truncated,
+    areas: [focus],
+    ideas: ['happy path', 'obvious negative', 'nearby navigation'],
+    findings: [...exploration.matchAll(/\|\s*(OBS-EXP-\d+)\s*\|([^|]+)\|/g)].map((match) =>
+      match[2]!.trim()
+    ),
+    questions: [...exploration.matchAll(/\|\s*(Q-EXP-\d+)\s*\|([^|]+)\|/g)].map(
+      (match) => `${match[1]} ${match[2]!.trim()}`
+    ),
+    assumptions: [`${focus} is reachable on the allowlisted origin`],
+    evidence: [...exploration.matchAll(/`([^`]+\.(?:png|json))`/g)].map((match) => match[1]!)
+  };
+}
+
+function writeProposedScenarios(
+  projectRoot: string,
+  focus: string,
+  sidecar: ExplorationReportSidecar
+): void {
+  const directory = join(projectRoot, 'derived/scenarios/proposed');
+  mkdirSync(directory, { recursive: true });
+  const slug =
+    focus
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'focus';
+  const path = join(directory, `${slug}-smoke.md`);
+  if (existsSync(path)) return;
+  const login = /login/i.test(focus);
+  writeFileSync(
+    path,
+    [
+      '# Smoke Proposal',
+      '',
+      '- Version: v1',
+      '- Status: proposed',
+      `- Primary journey: ${focus}`,
+      '- Suite: smoke',
+      '',
+      '## Assumptions',
+      '',
+      `| Item | Value | Source |`,
+      '| --- | --- | --- |',
+      `| Environment | allowlisted origin | ${sidecar.charter} |`,
+      '',
+      '## Cases',
+      '',
+      '| ID | Observable check | Source | References | Review | Status |',
+      '| --- | --- | --- | --- | --- | --- |',
+      `| SMK-${slug.slice(0, 8).toUpperCase()}-001 | Happy path for ${focus} | observation | | pending | proposed |`,
+      ...(login
+        ? [
+            `| SMK-${slug.slice(0, 8).toUpperCase()}-002 | Locked or invalid login is rejected | observation | | pending | proposed |`
+          ]
+        : []),
+      '',
+      ...(login
+        ? [
+            '## SCN-LOGIN-NEG: Empty login is rejected',
+            '',
+            '- Status: proposed',
+            '- Suite: smoke',
+            '- Traceability: REQ-001',
+            '',
+            '```json qali-playwright',
+            '{',
+            '  "path": "/",',
+            '  "actions": [',
+            '    { "kind": "click", "role": "button", "name": "Login" }',
+            '  ],',
+            '  "assertions": [',
+            '    { "kind": "visible", "role": "heading", "name": "Epic sadface: Username is required" }',
+            '  ]',
+            '}',
+            '```',
+            ''
+          ]
+        : [])
+    ].join('\n')
+  );
+}
+
+export function renderExplorationReport(
+  exploration: string,
+  questions: string,
+  sidecar?: ExplorationReportSidecar
+): string {
+  const extra = sidecar
+    ? [
+        '',
+        '## What Qali did',
+        '',
+        `- Charter: ${sidecar.charter}`,
+        `- Focus: ${sidecar.focus}`,
+        `- Budget: ${sidecar.budget.completedSteps ?? '?'} / ${sidecar.budget.maxSteps} steps, cap ${sidecar.budget.timeBudgetMs}ms`,
+        `- Session: ${sidecar.truncated ? 'truncated' : 'complete'}`,
+        '',
+        '## Coverage',
+        '',
+        ...sidecar.areas.map((area) => `- Area: ${area}`),
+        ...sidecar.ideas.map((idea) => `- Idea: ${idea}`),
+        '',
+        '## Next',
+        '',
+        `- Generate smoke tests for ${sidecar.focus}`,
+        `- Generate regression tests for ${sidecar.focus}`
+      ].join('\n')
+    : '';
   return generatedMarkdown(
-    `# Exploration Report\n\n## Observations\n\n${exploration.trim()}\n\n## Open Questions\n\n${questions.trim()}`
+    `# Exploration Report\n\n## Observations\n\n${exploration.trim()}\n\n## Open Questions\n\n${questions.trim()}${extra}`
   );
 }

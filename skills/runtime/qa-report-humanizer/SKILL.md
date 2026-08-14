@@ -26,6 +26,10 @@ summaries, and status updates so a real engineer can act on them — and guarant
 rewrite invents no numbers, errors, or severities that were not in the source.
 </objective>
 
+## Qali exploration report
+
+For `explore-project`, write `outputs/reports/exploration.md` and `outputs/reports/exploration.json` covering: what Qali did (charter, focus, budget used vs cap, truncated or complete), coverage (areas/pages/ideas), findings (issues, questions, assumptions), evidence screenshot names, and next actions (generate smoke vs generate regression for this focus).
+
 ## Discovery Questions
 
 Check `.agents/qa-project-context.md` first — it carries the team's tone, the tracker, and

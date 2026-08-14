@@ -21,6 +21,8 @@ metadata:
 Create actionable test plans for sprints and releases. A test plan answers four questions: what to test, how deeply, who does it, and when it must be done. The output is a living document that tracks progress, not a bureaucratic artifact filed and forgotten. A plan that schedules 100% of available time fails the moment the first bug is found — buffer and prioritization are what make it survive contact with reality.
 </objective>
 
+Coverage maps MUST include columns `| Scenario |` and `| Requirement |`. Read journeys, risks, proposed explore scenarios, Slack focus, and the exploration report — not journeys only.
+
 ## Quick Route
 
 | Situation | Go to |

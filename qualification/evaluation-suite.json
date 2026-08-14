@@ -1,4 +1,31 @@
 {
   "version": 1,
-  "cases": []
+  "cases": [
+    {
+      "id": "charter-focus-and-method",
+      "kind": "skill-invariant",
+      "description": "Exploration charters must include Focus and Method fields.",
+      "skillId": "exploratory-testing",
+      "mustInclude": ["Focus:", "Method:"]
+    },
+    {
+      "id": "coverage-map-columns",
+      "kind": "skill-invariant",
+      "description": "Coverage maps must include Scenario and Requirement columns.",
+      "skillId": "test-planning",
+      "mustInclude": ["| Scenario |", "| Requirement |"]
+    },
+    {
+      "id": "agent-cli-denies-shell",
+      "kind": "harness-invariant",
+      "description": "Assembled agent workspaces deny shell for every agent profile.",
+      "assertion": "deny-shell"
+    },
+    {
+      "id": "browser-mcp-only-when-allowed",
+      "kind": "harness-invariant",
+      "description": "Browser MCP is present only when the harness profile allows the browser tool.",
+      "assertion": "browser-mcp-matches-profile"
+    }
+  ]
 }

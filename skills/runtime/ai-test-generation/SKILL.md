@@ -24,6 +24,10 @@ LLMs will happily emit fifty plausible-looking tests that assert nothing, target
 **Before starting:** Check for `.agents/qa-project-context.md` in the project root. It carries tech stack, test frameworks, naming conventions, selector strategy, and known risk areas that dramatically improve generated test quality.
 </objective>
 
+## Qali runtime
+
+Author specs into `outputs/tests` only. Tag smoke cases `@smoke` and later suites `@regression`. Read proposed explore scenarios plus Slack focus. If focus is login and the pack only has JRN-001, add at least one additional case (negative or alternate) or fail with "could not design more coverage". Never silently restamp the same spec.
+
 ## Quick Route
 
 The pipeline is the same for every input; only the Step 1 extraction emphasis changes. Jump to the matching row, then run Steps 2-7 unchanged.

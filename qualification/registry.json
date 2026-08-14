@@ -1,4 +1,23 @@
 {
   "version": 1,
-  "records": []
+  "records": [
+    {
+      "version": 1,
+      "cursorCliVersion": "2026.08.11-e8db854",
+      "modelIdentifier": "composer-2.5",
+      "harnessVersion": "1",
+      "harnessHash": "a17ec3e9ececf3fa3dbfed3910ceda173c4104a1085e03ddd84e4b0bcd3ff2a0",
+      "skillHash": "6de62c9162b4a7f2a6ebdecd94b320b439101a7022ba347524c3e28a4b336628",
+      "ruleHash": "fe3b1ebc98027ae3fa8bb4136b393f125b75fbf4beda319366caf74ba1a40bc2",
+      "templateHash": "10b202e42334067e506dae7950d3a4e6fe440d4271879046e682474d45cbcfde",
+      "browserFacadeHash": "9bc9796a41b9717cde4c84029ee7f8dec6f1a61382f72c737a1dcfc0b3446bcd",
+      "permissionHash": "abf7acc7d562ab867ee2c1edbcbd631798f24af2832c65c1e4d619148a402eab",
+      "evaluationSuiteHash": "75fadec95df8657249175fed0f4ce90bf254a6541290ff6f001a132f41dfc592",
+      "qualificationRunUrl": "https://github.com/hlemmur/qali/actions/workflows/qualify.yml",
+      "result": "passed",
+      "qualifiedAt": "2026-08-14T21:16:50.501Z",
+      "expiresAt": "2026-09-13T21:16:50.501Z",
+      "state": "active"
+    }
+  ]
 }

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 // Generated from: JRN-001
 // Requirements: REQ-001
-test('JRN-001 generated scenario', async ({ page }) => {
+test('JRN-001 generated scenario @smoke', async ({ page }) => {
   const testData = JSON.parse(process.env.QALI_TEST_DATA_JSON ?? '{}') as Record<string, string>;
   const credentials = JSON.parse(process.env.QALI_TEST_CREDENTIALS_JSON ?? '{}') as Record<
     string,

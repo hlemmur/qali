@@ -228,9 +228,14 @@ describe('product documentation assets', () => {
   it('does not expose qualification bypass controls to the shared execute workflow', () => {
     const workflow = read('.github/workflows/execute.yml');
     const executeScript = read('scripts/execute.ts');
+    const qualify = read('.github/workflows/qualify.yml');
 
     expect(workflow).not.toContain('QALI_QUALIFICATION_MODE');
     expect(executeScript).not.toContain('process.env.QALI_QUALIFICATION_MODE');
+    expect(qualify).toContain('workflow_dispatch');
+    expect(qualify).toContain('CURSOR_AGENT_VERSION: 2026.08.11-e8db854');
+    expect(qualify).not.toContain('execute.yml');
+    expect(read('package.json')).toContain('"qualify":');
   });
 
   it('pins workflow actions, runtime versions, and the verified Cursor installer', () => {

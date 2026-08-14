@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import type { NormalizedCommand } from '../../contracts/src/index.js';
 import { RestrictedBrowserFacade, type BrowserDriver } from '../../browser-facade/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { executeExplorationStep, type ExplorationBrowser } from './exploration.js';
+import {
+  executeExplorationStep,
+  explorationBudget,
+  type ExplorationBrowser
+} from './exploration.js';
 import {
   FakeEventStore,
   FakePolicyEnforcer,
@@ -66,6 +70,24 @@ class FakeBrowserDriver implements BrowserDriver {
 }
 
 describe('bounded exploratory testing', () => {
+  it('defaults to a 24-step 12-minute budget and a deeper budget for negative exploration', () => {
+    const workflow = loadWorkflowDirectory(
+      join(process.cwd(), 'workflows'),
+      join(process.cwd(), 'harness/profiles.json')
+    ).find(({ id }) => id === 'exploratory-testing')!;
+    expect(
+      explorationBudget({}, workflow.steps.find(({ id }) => id === 'explore')!.timeoutMs)
+    ).toEqual({
+      maxSteps: 24,
+      timeBudgetMs: 720_000
+    });
+    expect(
+      explorationBudget(
+        { depth: 'negative' },
+        workflow.steps.find(({ id }) => id === 'explore')!.timeoutMs
+      )
+    ).toEqual({ maxSteps: 40, timeBudgetMs: 1_500_000 });
+  });
   it('uses the browser facade within the step and time budgets and records evidence', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-'));
     const projectRoot = join(workspace, command.project.root);
@@ -298,6 +320,8 @@ describe('bounded exploratory testing', () => {
     expect(report).toContain('Q-EXP-001');
     expect(report).toContain('OBS-EXP-009');
     expect(report).toContain('Prior observation must remain.');
+    expect(existsSync(join(projectRoot, 'derived/reports/exploration.json'))).toBe(true);
+    expect(existsSync(join(projectRoot, 'derived/scenarios/proposed'))).toBe(true);
   });
 
   it('appends a new exploration session without rewriting prior observations', async () => {

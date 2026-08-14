@@ -66,6 +66,18 @@ export interface RunSummary {
     count: number;
     area?: string;
   };
+  exploration?: {
+    focus?: string;
+    charter?: string;
+    budget?: { maxSteps: number; timeBudgetMs: number; completedSteps?: number };
+    truncated?: boolean;
+    areas?: string[];
+    ideas?: string[];
+    findings?: string[];
+    questions?: string[];
+    assumptions?: string[];
+    screenshotUrls?: string[];
+  };
 }
 
 export interface RunSummaryActions {
