@@ -75,8 +75,8 @@ The result card leads with the information developers usually need:
 - Terminal status
 - Passed, failed, skipped, and total test counts when a test suite ran
 - A short failure summary
-- **Open report** for a hosted HTML recap (signed link; no unzipping Markdown)
-- GitHub as a fallback for the Actions run
+- **Open report** for a hosted HTML recap with counts, the test/scenario list and issues when Playwright ran, findings, and next actions (signed link; no unzipping Markdown)
+- GitHub as a fallback for the Actions run and the Playwright HTML artifact (`playwright-report/` in the zip) after a test suite run
 
 Use **Expand** for duration, evidence paths, and detailed errors. Terminal cards also offer **Rerun**; failed test runs offer **Triage**. After generation, **Open spec** and **Retract** let you keep or remove the tests from that run without a pre-approval step. Retract only deletes generated specs stamped for that generation request.
 
@@ -91,7 +91,7 @@ Every request carries Slack, D1, GitHub, workflow-state, evidence, and publicati
 | **Onboard project**     | Discovers context, journeys, risks, and unknowns; prepares an initial strategy                                   | Governed project context, open questions, journey/risk material, strategy, test plan, proposed smoke scenarios, report |
 | **Explore project**     | Starts the trusted target server when configured, uses the restricted browser facade, enforces time/step budgets | Append-only observations, sanitized session JSON, screenshot evidence, diagnostics, open questions, exploration report |
 | **Generate test suite** | Designs coverage from journeys, risks, and focus, then generates Playwright tests                                | Coverage map, generated `*.spec.ts` files, Slack recap with Open spec and Retract; no pre-approved scenario required   |
-| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                   | Exact counts, status, duration, JSON evidence, reports, Slack summary                                                  |
+| **Run test suite**      | Runs project-aware Playwright without AI in the execution step                                                   | Exact counts, scenario list, status, duration, JSON evidence, hosted HTML, Playwright HTML artifact, Slack summary     |
 | **Triage failure**      | Fingerprints the failure deterministically, explains it, builds a minimal reproduction, validates that it is red | Stable fingerprint, explanation, reproduction evidence, regression candidate, triage report                            |
 | **Maintain knowledge**  | Compares evidence with governed knowledge and retains uncertainty                                                | Reconciliation proposal, contradictions, open questions, authority-gated updates                                       |
 | **Maintain suite**      | Diagnoses reliability and permits only equivalent repairs                                                        | Baseline fingerprint, reliability diagnosis, selector-only repair proposal, unchanged assertion/oracle proof           |
@@ -182,6 +182,12 @@ Qali uses four different confidence levels:
 A green local test does not prove the live integration, and a Slack “passed” card does not prove substantive artifacts. Ask for the evidence level that matches your decision.
 
 ## FAQ
+
+### Where is the Playwright report?
+
+**Open report** is Qali’s hosted HTML (script-free, signed URL on R2). After a **run test suite**, that page lists each scenario and any issue text. It is not Playwright’s interactive HTML reporter: that reporter is a JavaScript app, so it cannot be served from R2. Playwright writes `playwright-report/` during the same run; GitHub uploads it in the run artifact.
+
+Onboard, explore, and quality pulse do not execute Playwright, so those reports are recaps (counts, findings, evidence paths) without a scenario table. Generate tests first, then run the suite, to get the detailed test list.
 
 ### Do developers need to learn commands?
 

@@ -33,6 +33,11 @@ export interface RunSummary {
   durationMs?: number;
   evidence?: string[];
   errors?: string[];
+  tests?: Array<{
+    title: string;
+    status: string;
+    error?: string;
+  }>;
   stages?: {
     execution?: string;
     validation?: string;
@@ -250,6 +255,17 @@ export function renderRunReport(summary: RunSummary): {
     ...(summary.durationMs !== undefined ? ['', `Duration: ${summary.durationMs} ms`] : []),
     ...(summary.evidence?.length
       ? ['', '## Evidence', ...summary.evidence.map((path) => `- \`${path}\``)]
+      : []),
+    ...(summary.tests?.length
+      ? [
+          '',
+          '## Tests',
+          ...summary.tests.map((test) =>
+            test.error
+              ? `- **${test.status}** ${test.title} — ${test.error}`
+              : `- **${test.status}** ${test.title}`
+          )
+        ]
       : []),
     ...(summary.errors?.length
       ? ['', '## Errors', ...summary.errors.map((error) => `- ${error}`)]

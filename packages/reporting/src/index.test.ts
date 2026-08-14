@@ -17,7 +17,11 @@ const result = {
   skipped: 1,
   durationMs: 1250,
   evidence: ['projects/_demo/observations/evidence/test-runs/results.json'],
-  errors: []
+  errors: [],
+  tests: [
+    { title: 'login.spec.ts › shows inventory', status: 'passed' },
+    { title: 'checkout.spec.ts › skips empty cart', status: 'skipped' }
+  ]
 };
 
 describe('compact run reporting', () => {
@@ -195,6 +199,7 @@ describe('compact run reporting', () => {
     expect(report.json).toMatchObject({ runId: 'demo-run', total: 3, passed: 2 });
     expect(report.markdown).toContain('| Passed | 2 |');
     expect(report.markdown).toContain('results.json');
+    expect(report.markdown).toContain('login.spec.ts › shows inventory');
   });
 
   it('separates execution from publication on a terminal card', () => {
