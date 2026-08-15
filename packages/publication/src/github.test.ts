@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GitHubRestPublicationAdapter } from './github.js';
+import { GitHubRestPublicationAdapter, resolvePublicationTokens } from './github.js';
 
 describe('least-privilege GitHub publication adapter', () => {
   it('writes only to a Qali branch and opens a review-only PR without auto-merge', async () => {
@@ -67,6 +67,32 @@ describe('least-privilege GitHub publication adapter', () => {
       requests.some(({ url, method }) => url.includes('/git/refs/heads/main') && method === 'PATCH')
     ).toBe(false);
     expect(requests.some(({ url }) => url.endsWith('/graphql'))).toBe(false);
+  });
+
+  it('retries with the workflow token after a dedicated token returns 401', async () => {
+    const authorizations: string[] = [];
+    const fetcher: typeof fetch = async (_input, init) => {
+      const authorization = new Headers(init?.headers).get('authorization') ?? '';
+      authorizations.push(authorization);
+      if (authorization === 'Bearer dead-token') {
+        return new Response('Bad credentials', { status: 401 });
+      }
+      return Response.json({ object: { sha: 'base-sha' } });
+    };
+    const adapter = new GitHubRestPublicationAdapter({
+      token: 'dead-token',
+      fallbackToken: 'workflow-token',
+      owner: 'acme',
+      repo: 'qali',
+      apiUrl: 'https://github.test',
+      fetcher
+    });
+
+    await adapter.createBranch('qali/req-1', 'main');
+
+    expect(authorizations[0]).toBe('Bearer dead-token');
+    expect(authorizations.slice(1).every((value) => value === 'Bearer workflow-token')).toBe(true);
+    expect(authorizations.length).toBeGreaterThan(1);
   });
 
   it('posts a null blob SHA to retract generated specs and rejects other deletions', async () => {
@@ -165,5 +191,14 @@ describe('least-privilege GitHub publication adapter', () => {
         })
       })
     ]);
+  });
+
+  it('prefers the dedicated publication token and falls back to GITHUB_TOKEN', () => {
+    expect(
+      resolvePublicationTokens({
+        QALI_PUBLISH_GITHUB_TOKEN: ' dedicated ',
+        GITHUB_TOKEN: 'workflow'
+      })
+    ).toEqual(['dedicated', 'workflow']);
   });
 });

@@ -140,6 +140,10 @@ describe('product documentation assets', () => {
     expect(workflow).toContain('publish-generated-changes:');
     expect(workflow).toMatch(/publish-generated-changes:[\s\S]*?environment: qali-publication/);
     expect(workflow).toContain('QALI_PUBLISH_GITHUB_TOKEN');
+    expect(workflow).toMatch(
+      /publish-generated-changes:[\s\S]*?permissions:[\s\S]*?contents: write[\s\S]*?pull-requests: write/
+    );
+    expect(workflow).toContain('GITHUB_TOKEN: ${{ github.token }}');
     const publicationPreparation = workflow
       .split('- name: Prepare controlled publication bundle')[1]
       ?.split('- name: Run scheduled quality pulse')[0];
