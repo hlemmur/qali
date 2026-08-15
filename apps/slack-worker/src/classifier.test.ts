@@ -100,6 +100,21 @@ describe('intent classification fallbacks', () => {
     expect(heuristicClassify(work('ingest this product doc into sources'))).toMatchObject({
       intent: 'maintain-knowledge'
     });
+    expect(heuristicClassify(work('ingest this observation from login'))).toMatchObject({
+      intent: 'explore-project'
+    });
+    expect(heuristicClassify(work('proposed journey: checkout as a guest'))).toMatchObject({
+      intent: 'explore-project'
+    });
+    expect(
+      heuristicClassify(work('add tests for https://github.com/hlemmur/qali/issues/12'))
+    ).toMatchObject({
+      intent: 'generate-test-suite',
+      focus: { issue: 'https://github.com/hlemmur/qali/issues/12' }
+    });
+    expect(heuristicClassify(work('repair the suite for flaky selector'))).toMatchObject({
+      intent: 'maintain-suite'
+    });
   });
 
   it('maps pause, resume, and timed regression requests to maintain-schedule', () => {
