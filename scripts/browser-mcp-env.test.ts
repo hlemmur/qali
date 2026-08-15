@@ -6,10 +6,18 @@ import { ProjectExecutionProfileSchema } from '../packages/contracts/src/index.j
 import { resolveBrowserServiceConfig } from '../packages/browser-facade/src/service-config.js';
 import {
   parseBrowserMcpEnvironmentFile,
+  assembledHarnessEvidenceDirectory,
   writeBrowserMcpEnvironmentFile
 } from './browser-mcp-env.js';
 
 describe('assembled browser MCP environment', () => {
+  it('points MCP evidence at the harness outputs/evidence directory the explore gate inspects', () => {
+    const harnessWorkspace = join(tmpdir(), 'qali-harness-run');
+    expect(assembledHarnessEvidenceDirectory(harnessWorkspace)).toBe(
+      join(harnessWorkspace, 'outputs/evidence')
+    );
+  });
+
   it('writes the execution profile path and allowlisted variables so the MCP entrypoint can resolve config', () => {
     const destination = join(mkdtempSync(join(tmpdir(), 'qali-browser-env-')), 'browser.env');
     const executionProfilePath = resolve('projects/_demo/execution-profile.json');

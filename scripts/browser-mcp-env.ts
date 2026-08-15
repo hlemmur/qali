@@ -1,8 +1,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import type { ProjectExecutionProfile } from '../packages/contracts/src/index.js';
 
 const OPTIONAL_BROWSER_ENV = ['QALI_BROWSER_EXECUTABLE_PATH'] as const;
+
+export function assembledHarnessEvidenceDirectory(harnessWorkspace: string): string {
+  return join(harnessWorkspace, 'outputs/evidence');
+}
 
 export function browserMcpEnvironmentNames(profile: ProjectExecutionProfile): readonly string[] {
   return [

@@ -239,7 +239,7 @@ export function agentReportedMissingBrowserMcp(text: string): boolean {
 
 export function harnessCapturedBrowserEvidence(harnessWorkspace: string): boolean {
   return listFiles(join(harnessWorkspace, 'outputs/evidence')).some((file) =>
-    /\.(png|jpe?g|webp|json)$/i.test(file)
+    /\.(png|jpe?g|webp)$/i.test(file)
   );
 }
 
