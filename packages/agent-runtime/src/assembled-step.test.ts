@@ -228,4 +228,46 @@ describe('assembled Cursor harness step', () => {
     expect(promoted).not.toMatch(/async \(\{\s*\}, use\)/);
     expect(promoted).toContain('async (_fixtures, use)');
   });
+
+  it('strips Playwright skip and fixme tests from promoted generated specs', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const harnessWorkspace = join(parent, 'harness');
+    const packRoot = join(parent, 'pack');
+    mkdirSync(join(harnessWorkspace, 'outputs/tests'), { recursive: true });
+    writeFileSync(
+      join(harnessWorkspace, 'outputs/tests/login.spec.ts'),
+      `import { test } from '@playwright/test';
+
+test('named demo account reaches inventory after login @smoke', async ({ page }) => {
+  await page.goto('/');
+});
+
+test.fixme('username whitespace handling pending GAP-004 confirmation', async () => {});
+test.skip('legacy skipped case', async () => {});
+`
+    );
+
+    promoteHarnessOutputs({
+      harnessWorkspace,
+      packRoot,
+      step: {
+        id: 'generate-tests',
+        role: 'test-generator',
+        harnessProfileId: 'test-generation',
+        needs: [],
+        inputs: [],
+        outputs: [],
+        requiredTools: ['file-write'],
+        mutations: ['create-test'],
+        policyGates: [],
+        retries: 0,
+        timeoutMs: 180000
+      }
+    });
+
+    const promoted = readFileSync(join(packRoot, 'tests/generated/login.spec.ts'), 'utf8');
+    expect(promoted).toContain('@smoke');
+    expect(promoted).not.toMatch(/test\.(?:fixme|skip)\s*\(/);
+  });
 });
