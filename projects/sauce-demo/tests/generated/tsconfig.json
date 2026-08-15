@@ -5,9 +5,9 @@
     "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
+    "types": ["node", "@playwright/test"],
     "noEmit": true,
-    "types": ["node"]
+    "rootDir": "."
   },
   "include": ["e2e/**/*.ts", "playwright.config.ts"]
 }

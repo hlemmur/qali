@@ -1,15 +1,12 @@
 {
-  "name": "sauce-demo-e2e",
+  "name": "sauce-demo-smoke-tests",
   "private": true,
-  "version": "1.0.0",
-  "description": "Qali-generated Playwright suite for Sauce Demo login flow",
   "scripts": {
     "test": "playwright test",
-    "test:smoke": "playwright test --grep @smoke",
-    "test:list": "playwright test --list"
+    "test:smoke": "playwright test --grep @smoke"
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.6.0"
   }
 }

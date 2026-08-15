@@ -11,18 +11,12 @@ export default defineConfig({
   workers: isCI ? '50%' : undefined,
   reporter: isCI
     ? [['github'], ['json', { outputFile: 'test-results/results.json' }]]
-    : [['html', { open: 'on-failure' }]],
+    : [['html', { open: 'never' }]],
   use: {
     baseURL,
     trace: isCI ? 'on-first-retry' : 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: isCI ? 'on-first-retry' : 'off',
     navigationTimeout: 30_000
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
-    }
-  ]
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }]
 });

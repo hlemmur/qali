@@ -1,0 +1,59 @@
+{
+  "generationRequestId": "Ev0BR9U3GY3S",
+  "projectId": "sauce-demo",
+  "feature": "smoke",
+  "mutation": "create-test",
+  "generatedAt": "2026-08-15",
+  "model": "composer",
+  "inputs": {
+    "projectContext": "inputs/project-context/project-context.md",
+    "decisions": "inputs/decisions/decisions.md",
+    "requirements": "inputs/reference/requirements.md",
+    "journeys": "inputs/reference/journeys.md",
+    "testData": "inputs/reference/test-data.md",
+    "risks": "inputs/reference/risks.md",
+    "approvedScenarios": "none",
+    "proposedScenarios": "none",
+    "explorationReport": "none"
+  },
+  "coverageMatrix": [
+    {
+      "requirement": "REQ-001",
+      "journey": "JRN-001",
+      "scenario": "signs in with named demo account and reaches inventory",
+      "category": "happy",
+      "priority": "P0",
+      "oracle": "URL matches inventory; first Add to cart button visible",
+      "file": "e2e/tests/smoke/login.spec.ts"
+    },
+    {
+      "requirement": "REQ-003",
+      "journey": null,
+      "scenario": "rejects locked out account before inventory",
+      "category": "negative",
+      "priority": "P0",
+      "oracle": "stays off inventory; locked-out message visible; no Add to cart buttons",
+      "file": "e2e/tests/smoke/login.spec.ts"
+    },
+    {
+      "requirement": "REQ-002",
+      "journey": "JRN-002",
+      "scenario": "adds a product to the cart from inventory",
+      "category": "happy",
+      "priority": "P0",
+      "oracle": "cart page lists the selected product name",
+      "file": "e2e/tests/smoke/cart.spec.ts"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-001",
+      "statement": "locked_out_user is the Sauce Demo locked account for REQ-003 negative coverage",
+      "status": "inferred"
+    }
+  ],
+  "review": {
+    "status": "pending-human-review",
+    "notes": "Step 7 human review required before merge per ai-test-generation policy."
+  }
+}
