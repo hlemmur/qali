@@ -167,6 +167,53 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
+  it('renders a quality pulse session record instead of an empty KPI stub', () => {
+    const html = renderHtmlReport({
+      runId: 'pulse-1',
+      status: 'passed',
+      intent: 'quality-pulse',
+      projectId: 'sauce-demo',
+      qualitySnapshot: {
+        lastRun: {
+          intent: 'run-test-suite',
+          status: 'failed',
+          finishedAt: '2026-08-15T11:12:00.023Z',
+          counts: { passed: 0, failed: 0, skipped: 0, total: 0 }
+        },
+        coverage: { approvedScenarios: 2, automatedTests: 1, percent: 50 },
+        knownIssues: ['Login error banner copy is brittle'],
+        openQuestions: ['Q-1 locked-user oracle'],
+        schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }]
+      }
+    });
+    expect(html).toContain('Quality pulse');
+    expect(html).toContain('Login error banner copy is brittle');
+    expect(html).toContain('17 6 * * *');
+    expect(html).not.toContain('No test counts were recorded for this run.');
+    expect(html).toContain('Run smoke if the last suite failed');
+  });
+
+  it('renders a triage session record instead of an empty KPI stub', () => {
+    const html = renderHtmlReport({
+      runId: 'triage-1',
+      status: 'passed',
+      intent: 'triage-failure',
+      projectId: 'sauce-demo',
+      triage: {
+        fingerprint: 'abc123',
+        sourceRunId: 'run-9',
+        failureCount: 1,
+        observedStatus: 'failed',
+        candidatePath: 'tests/generated/abc123.spec.ts',
+        titles: ['locked user stays on login']
+      }
+    });
+    expect(html).toContain('Fingerprint');
+    expect(html).toContain('tests/generated/abc123.spec.ts');
+    expect(html).toContain('locked user stays on login');
+    expect(html).not.toContain('No test counts were recorded for this run.');
+  });
+
   it('renders exploration findings that are objects without crashing HTML escape', () => {
     const html = renderHtmlReport({
       runId: 'exp-2',
@@ -196,7 +243,9 @@ describe('hosted HTML report', () => {
     });
     expect(html).toContain('did not execute Playwright tests');
     expect(html).not.toContain('<h2>All results</h2>');
+    expect(html).toContain('What was ingested');
     expect(html).toContain('project-context.md');
+    expect(html).toContain('Explore the main flow');
   });
 
   it('escapes untrusted error text so it cannot inject markup', () => {

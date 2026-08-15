@@ -104,6 +104,37 @@ const generatedMarkdown = (body: string): string => {
   return `<!-- qali:generated owner=qali sha256=${hash} -->${normalized}`;
 };
 
+function loadTriageReportSummary(projectRoot: string): RunSummary['triage'] | undefined {
+  const fingerprintPath = join(projectRoot, 'observations/evidence/reproductions/fingerprint.json');
+  if (!existsSync(fingerprintPath)) return undefined;
+  const fingerprint = JSON.parse(readFileSync(fingerprintPath, 'utf8')) as {
+    fingerprint?: string;
+    sourceRunId?: string;
+    failureCount?: number;
+    failures?: Array<{ title?: string }>;
+  };
+  const reproductionPath = join(
+    projectRoot,
+    'observations/evidence/reproductions/reproduction.json'
+  );
+  const reproduction = existsSync(reproductionPath)
+    ? (JSON.parse(readFileSync(reproductionPath, 'utf8')) as {
+        candidatePath?: string;
+        observedStatus?: string;
+      })
+    : undefined;
+  return {
+    ...(fingerprint.fingerprint ? { fingerprint: fingerprint.fingerprint } : {}),
+    ...(fingerprint.sourceRunId ? { sourceRunId: fingerprint.sourceRunId } : {}),
+    ...(fingerprint.failureCount !== undefined ? { failureCount: fingerprint.failureCount } : {}),
+    titles: (fingerprint.failures ?? [])
+      .map((failure) => failure.title)
+      .filter((title): title is string => Boolean(title)),
+    ...(reproduction?.candidatePath ? { candidatePath: reproduction.candidatePath } : {}),
+    ...(reproduction?.observedStatus ? { observedStatus: reproduction.observedStatus } : {})
+  };
+}
+
 function writeLocalExecutionReport(summary: RunSummary): void {
   mkdirSync(join(workspace, '.qali'), { recursive: true });
   const html = renderHtmlReport(summary);
@@ -132,6 +163,14 @@ function writeWorkflowSlackSummary(
   const generationSidecar = existsSync(generationPath)
     ? (JSON.parse(readFileSync(generationPath, 'utf8')) as RunSummary['generation'])
     : undefined;
+  const snapshotPath = existsSync(join(reportDirectory, 'quality-snapshot.json'))
+    ? join(reportDirectory, 'quality-snapshot.json')
+    : join(workspace, '.qali/quality-snapshot.json');
+  const qualitySnapshot =
+    (command.intent === 'quality-pulse' || command.intent === 'query-project') &&
+    existsSync(snapshotPath)
+      ? (JSON.parse(readFileSync(snapshotPath, 'utf8')) as RunSummary['qualitySnapshot'])
+      : undefined;
   const generatedTests =
     command.intent === 'generate-test-suite'
       ? generatedTestsPayload(
@@ -139,6 +178,10 @@ function writeWorkflowSlackSummary(
           command.project.id,
           command.intent
         )
+      : undefined;
+  const triage =
+    command.intent === 'triage-failure'
+      ? loadTriageReportSummary(join(workspace, command.project.root))
       : undefined;
   const summary = {
     runId: command.parameters.requestId
@@ -154,7 +197,9 @@ function writeWorkflowSlackSummary(
       : {}),
     ...(explorationSidecar ? { exploration: explorationSidecar } : {}),
     ...(generationSidecar ? { generation: generationSidecar } : {}),
-    ...(generatedTests ? { generatedTests } : {})
+    ...(generatedTests ? { generatedTests } : {}),
+    ...(qualitySnapshot ? { qualitySnapshot } : {}),
+    ...(triage ? { triage } : {})
   };
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
