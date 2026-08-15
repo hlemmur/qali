@@ -81,7 +81,9 @@ function generationSourceRef(
   projectRoot: string,
   content: string
 ): string | undefined {
-  const journeyId = /^\/\/ Generated from: (\S+)$/m.exec(content)?.[1];
+  const journeyId =
+    /^\/\/ Generated from: (\S+)$/m.exec(content)?.[1] ??
+    /\bJourney:\s*(JRN-[0-9]+)\b/i.exec(content)?.[1];
   if (!journeyId) return undefined;
   const journeysPath = `${projectRoot}/sources/reference/journeys.md`;
   try {

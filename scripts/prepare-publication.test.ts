@@ -223,4 +223,54 @@ describe('publication preparation', () => {
     ]);
     expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
   });
+
+  it('binds generated specs to a journey id from Scenario comments', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-journey-'));
+    mkdirSync(join(workspace, 'projects/shop/sources/reference'), { recursive: true });
+    writeFileSync(
+      join(workspace, 'projects/shop/sources/reference/journeys.md'),
+      '## JRN-001: Sign in and view inventory\n'
+    );
+    git(workspace, 'init');
+    git(workspace, 'config', 'user.name', 'Test');
+    git(workspace, 'config', 'user.email', 'test@example.test');
+    git(workspace, 'add', '.');
+    git(workspace, 'commit', '-m', 'baseline');
+    const specPath = 'projects/shop/tests/generated/e2e/tests/login/login.spec.ts';
+    mkdirSync(join(workspace, 'projects/shop/tests/generated/e2e/tests/login'), {
+      recursive: true
+    });
+    writeFileSync(
+      join(workspace, specPath),
+      `/**
+ * Scenario: SCN-LGN-001 — Happy path
+ * Requirement: REQ-001 | Journey: JRN-001 | Priority: P0
+ */
+test('SCN-LGN-001 named demo account reaches inventory @smoke', async ({ page }) => {
+  await expect(page).toHaveURL(/inventory/);
+});
+`
+    );
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-GEN',
+      projectRoot: 'projects/shop',
+      provenanceRef: 'workflow:REQ-GEN',
+      checks: [
+        {
+          command: process.execPath,
+          args: ['-e', "process.stdout.write('ok')"]
+        }
+      ]
+    });
+
+    expect(manifest.changes).toEqual([
+      expect.objectContaining({
+        path: specPath,
+        generationSourceRef: 'sources/reference/journeys.md#JRN-001'
+      })
+    ]);
+    expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
+  });
 });
