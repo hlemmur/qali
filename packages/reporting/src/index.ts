@@ -77,6 +77,9 @@ export interface RunSummary {
     questions?: string[];
     assumptions?: string[];
     screenshotUrls?: string[];
+    skills?: string[];
+    profile?: string;
+    timeline?: Array<{ action: string; observation?: string; evidence?: string }>;
   };
 }
 
@@ -145,15 +148,29 @@ export function renderSlackRunSummary(
           summary.generatedTests.area ? ` for ${summary.generatedTests.area}` : ''
         }`
       : undefined;
+  const explorationLine = summary.exploration
+    ? `${summary.exploration.findings?.length ?? 0} findings${
+        summary.exploration.focus ? ` · ${summary.exploration.focus}` : ''
+      }`
+    : undefined;
 
-  const body = [title, countLine, generationLine, stageLine(summary.stages ?? {}), failureLine]
+  const body = [
+    title,
+    countLine,
+    generationLine,
+    explorationLine,
+    stageLine(summary.stages ?? {}),
+    failureLine
+  ]
     .filter(Boolean)
     .join('\n');
   const text = generationLine
     ? `Qali ${status}: ${generationLine}`
-    : countLine
-      ? `Qali ${status}: ${countLine}`
-      : `Qali ${status}`;
+    : explorationLine
+      ? `Qali ${status}: ${explorationLine}`
+      : countLine
+        ? `Qali ${status}: ${countLine}`
+        : `Qali ${status}`;
   const blocks: Array<Record<string, unknown>> = [
     {
       type: 'section',

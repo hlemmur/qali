@@ -6,17 +6,17 @@
       "cursorCliVersion": "2026.08.11-e8db854",
       "modelIdentifier": "composer-2.5",
       "harnessVersion": "1",
-      "harnessHash": "a17ec3e9ececf3fa3dbfed3910ceda173c4104a1085e03ddd84e4b0bcd3ff2a0",
+      "harnessHash": "6e78af83d82de958ca0576e46c318a7b10807826e8412053291332dfb0b1bae5",
       "skillHash": "6de62c9162b4a7f2a6ebdecd94b320b439101a7022ba347524c3e28a4b336628",
       "ruleHash": "fe3b1ebc98027ae3fa8bb4136b393f125b75fbf4beda319366caf74ba1a40bc2",
       "templateHash": "10b202e42334067e506dae7950d3a4e6fe440d4271879046e682474d45cbcfde",
-      "browserFacadeHash": "9bc9796a41b9717cde4c84029ee7f8dec6f1a61382f72c737a1dcfc0b3446bcd",
-      "permissionHash": "52353ba272f4b8a48fd6eb7cd773a1c3ba76749867c4ec9ac021860239066b92",
+      "browserFacadeHash": "c9d6f9051e6d88bd8ee38f45f9da765a7c62d7fd6c20fae163290f4df9068a62",
+      "permissionHash": "3c20f565331e7720561e2d3c75dc300d7e5c7147505d70bec855d0842dca708f",
       "evaluationSuiteHash": "75fadec95df8657249175fed0f4ce90bf254a6541290ff6f001a132f41dfc592",
       "qualificationRunUrl": "https://github.com/hlemmur/qali/actions/workflows/qualify.yml",
       "result": "passed",
-      "qualifiedAt": "2026-08-15T00:06:15.663Z",
-      "expiresAt": "2026-09-14T00:06:15.663Z",
+      "qualifiedAt": "2026-08-15T09:53:12.474Z",
+      "expiresAt": "2026-09-14T09:53:12.474Z",
       "state": "active"
     }
   ]

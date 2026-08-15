@@ -46,6 +46,7 @@ import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
   executeExplorationStep,
+  materializeExplorationSidecar,
   executeKnowledgeMaintenanceStep,
   executeQualityPulseStep,
   executeQueryProjectStep,
@@ -861,6 +862,9 @@ appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/age
     : {})
 });
 if (result.status === 'succeeded') {
+  if (command.intent === 'explore-project') {
+    materializeExplorationSidecar(join(workspace, command.project.root), command);
+  }
   if (command.intent !== 'run-test-suite' && !existsSync(transientSlackSummaryPath)) {
     writeWorkflowSlackSummary(command, 'passed');
   }

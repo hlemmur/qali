@@ -49,7 +49,8 @@ export function computeRuntimeQualificationIdentity(request: {
     templateHash: hashInputs(request.repositoryRoot, ['core/templates']),
     browserFacadeHash: hashInputs(request.repositoryRoot, [
       'packages/browser-facade/src',
-      'scripts/browser-facade-mcp.ts'
+      'scripts/browser-facade-mcp.ts',
+      'scripts/qali-browser-mcp-launch.ts'
     ]),
     permissionHash: hashInputs(request.repositoryRoot, [
       'harness/profiles.json',

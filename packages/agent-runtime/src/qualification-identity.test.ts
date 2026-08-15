@@ -21,6 +21,7 @@ function fixture(): string {
     'core/templates/report.md': '# Template\n',
     'packages/browser-facade/src/index.ts': 'export const browser = true;\n',
     'scripts/browser-facade-mcp.ts': 'export {};\n',
+    'scripts/qali-browser-mcp-launch.ts': 'export {};\n',
     'workflows/example.yaml': 'version: 1\n',
     'packages/agent-runtime/src/index.ts': 'export const sandbox = true;\n',
     'packages/agent-runtime/src/qualification.ts': 'export const matcher = true;\n',

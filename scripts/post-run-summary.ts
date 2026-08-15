@@ -178,6 +178,66 @@ export async function prepareFailureScreenshots(input: {
   return { tests, attachments };
 }
 
+export async function prepareExplorationScreenshots(input: {
+  exploration: NonNullable<RunSummary['exploration']>;
+  workspace: string;
+  projectRoot: string;
+  projectId: string;
+  runId: string;
+  workerBase: string;
+  secret: string;
+  expiresAtSeconds: number;
+}): Promise<{
+  exploration: NonNullable<RunSummary['exploration']>;
+  attachments: Array<{ filename: string; data: string }>;
+}> {
+  const attachments: Array<{ filename: string; data: string }> = [];
+  const evidenceDirectory = join(
+    input.workspace,
+    input.projectRoot,
+    'observations/evidence/exploration'
+  );
+  if (!existsSync(evidenceDirectory)) {
+    return { exploration: input.exploration, attachments };
+  }
+  const files = readdirSync(evidenceDirectory, { recursive: true, encoding: 'utf8' })
+    .map((name) => String(name))
+    .filter((name) => /\.(png|jpe?g|webp)$/i.test(name) && !shouldSkipScreenshot(name));
+  const screenshotUrls: string[] = [...(input.exploration.screenshotUrls ?? [])];
+  for (const relative of files) {
+    if (attachments.length >= REPORT_ATTACHMENT_MAX_COUNT) break;
+    const absPath = join(evidenceDirectory, relative);
+    if (!existsSync(absPath)) continue;
+    const bytes = readFileSync(absPath);
+    if (bytes.byteLength === 0 || bytes.byteLength > REPORT_ATTACHMENT_MAX_BYTES) continue;
+    const extension =
+      basename(absPath)
+        .match(/\.(png|jpe?g|webp)$/i)?.[1]
+        ?.toLowerCase() ?? 'png';
+    const filename = `explore-${attachments.length}.${extension === 'jpeg' ? 'jpg' : extension}`;
+    try {
+      reportAssetObjectKey(input.projectId, input.runId, filename);
+    } catch {
+      continue;
+    }
+    const signed = await signReportAccess({
+      baseUrl: input.workerBase,
+      key: `${input.projectId}/${input.runId}/${filename}`,
+      secret: input.secret,
+      expiresAtSeconds: input.expiresAtSeconds
+    });
+    attachments.push({ filename, data: bytes.toString('base64') });
+    screenshotUrls.push(signed.url);
+  }
+  return {
+    exploration: {
+      ...input.exploration,
+      ...(screenshotUrls.length ? { screenshotUrls } : {})
+    },
+    attachments
+  };
+}
+
 function sign(secret: string, body: string): string {
   const digest = createHmac('sha256', secret).update(body).digest('hex');
   return `sha256=${digest}`;
@@ -329,6 +389,28 @@ function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] 
         }
       : {}),
     ...(typeof sidecar.truncated === 'boolean' ? { truncated: sidecar.truncated } : {}),
+    ...(typeof sidecar.profile === 'string' ? { profile: sidecar.profile } : {}),
+    ...(Array.isArray(sidecar.skills)
+      ? { skills: sidecar.skills.filter((entry): entry is string => typeof entry === 'string') }
+      : {}),
+    ...(Array.isArray(sidecar.timeline)
+      ? {
+          timeline: sidecar.timeline.flatMap((entry) => {
+            if (!entry || typeof entry !== 'object') return [];
+            const value = entry as { action?: unknown; observation?: unknown; evidence?: unknown };
+            if (typeof value.action !== 'string') return [];
+            return [
+              {
+                action: value.action,
+                ...(typeof value.observation === 'string'
+                  ? { observation: value.observation }
+                  : {}),
+                ...(typeof value.evidence === 'string' ? { evidence: value.evidence } : {})
+              }
+            ];
+          })
+        }
+      : {}),
     ...(Array.isArray(sidecar.areas)
       ? { areas: sidecar.areas.filter((entry): entry is string => typeof entry === 'string') }
       : {}),
@@ -419,6 +501,24 @@ export async function postRunSummary(): Promise<void> {
       attachments = prepared.attachments;
     }
   }
+  let exploration =
+    process.env.SUMMARY_INTENT === 'explore-project'
+      ? loadExplorationSummary(project.root)
+      : undefined;
+  if (exploration && runId) {
+    const prepared = await prepareExplorationScreenshots({
+      exploration,
+      workspace: process.cwd(),
+      projectRoot: project.root,
+      projectId: project.id,
+      runId,
+      workerBase,
+      secret,
+      expiresAtSeconds: nowSeconds + REPORT_ACCESS_TTL_SECONDS
+    });
+    exploration = prepared.exploration;
+    attachments = [...attachments, ...prepared.attachments];
+  }
   const htmlSummary: RunSummary = {
     runId: runId ?? 'unknown',
     status,
@@ -437,12 +537,7 @@ export async function postRunSummary(): Promise<void> {
       : {}),
     ...(tests ? { tests } : {}),
     ...(counts ?? {}),
-    ...(process.env.SUMMARY_INTENT === 'explore-project'
-      ? (() => {
-          const exploration = loadExplorationSummary(project.root);
-          return exploration ? { exploration } : {};
-        })()
-      : {})
+    ...(exploration ? { exploration } : {})
   };
   const html = renderHtmlReport(htmlSummary);
   mkdirSync('.qali', { recursive: true });

@@ -291,6 +291,9 @@ export interface ExplorationReportSidecar {
   questions: string[];
   assumptions: string[];
   evidence: string[];
+  skills: string[];
+  profile: string;
+  timeline: Array<{ action: string; observation?: string; evidence?: string }>;
 }
 
 function explorationSidecar(
@@ -321,8 +324,29 @@ function explorationSidecar(
       (match) => `${match[1]} ${match[2]!.trim()}`
     ),
     assumptions: [`${focus} is reachable on the allowlisted origin`],
-    evidence: [...exploration.matchAll(/`([^`]+\.(?:png|json))`/g)].map((match) => match[1]!)
+    evidence: [...exploration.matchAll(/`([^`]+\.(?:png|json))`/g)].map((match) => match[1]!),
+    skills: ['exploratory-testing', 'agentic-browser-testing'],
+    profile: 'browser-exploration',
+    timeline: [...exploration.matchAll(/^\| (\d{2}:\d{2}|\S+) \| ([^|]+) \| ([^|]+) \|/gm)]
+      .slice(0, 20)
+      .map((match) => ({
+        action: match[2]!.trim(),
+        observation: match[3]!.trim()
+      }))
   };
+}
+
+export function materializeExplorationSidecar(
+  projectRoot: string,
+  command: NormalizedCommand
+): void {
+  const explorationPath = join(projectRoot, 'observations/exploration.md');
+  if (!existsSync(explorationPath)) return;
+  const focus = explorationFocus(command.parameters);
+  const sidecar = explorationSidecar(readFileSync(explorationPath, 'utf8'), command, focus);
+  const reportDirectory = join(projectRoot, 'derived/reports');
+  mkdirSync(reportDirectory, { recursive: true });
+  writeFileSync(join(reportDirectory, 'exploration.json'), `${JSON.stringify(sidecar, null, 2)}\n`);
 }
 
 function writeProposedScenarios(

@@ -270,4 +270,147 @@ test.skip('legacy skipped case', async () => {});
     expect(promoted).toContain('@smoke');
     expect(promoted).not.toMatch(/test\.(?:fixme|skip)\s*\(/);
   });
+
+  it('blocks explore when the agent reports that qali-browser is missing', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const sourceRoot = join(parent, 'repo');
+    mkdirSync(join(sourceRoot, 'projects/sample/sources'), { recursive: true });
+    writeFileSync(join(sourceRoot, 'projects/sample/sources/project-context.md'), '# Context\n');
+    for (const path of [
+      'harness/profiles.json',
+      'skills/runtime',
+      'core/policies',
+      'core/templates',
+      'scripts/browser-facade-mcp.ts',
+      'scripts/qali-browser-mcp-launch.ts'
+    ]) {
+      const from = join(process.cwd(), path);
+      const to = join(sourceRoot, path);
+      mkdirSync(join(to, '..'), { recursive: true });
+      const { cpSync } = await import('node:fs');
+      cpSync(from, to, { recursive: true });
+    }
+    const profiles = loadHarnessProfiles(
+      join(sourceRoot, 'harness/profiles.json'),
+      join(sourceRoot, 'skills/runtime')
+    );
+    const profile = profiles.find((entry) => entry.id === 'browser-exploration')!;
+    const step: WorkflowStep = {
+      id: 'explore',
+      role: 'explorer',
+      harnessProfileId: 'browser-exploration',
+      needs: ['charter'],
+      inputs: [],
+      outputs: [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/exploration'
+        }
+      ],
+      requiredTools: ['file-read', 'file-write', 'browser'],
+      mutations: ['append-observation', 'append-evidence'],
+      policyGates: [],
+      retries: 0,
+      timeoutMs: 3600000
+    };
+    const agent = new FakeAgentRuntime();
+    agent.execute = async (request) => {
+      mkdirSync(join(request.workspace, 'outputs/observations'), { recursive: true });
+      writeFileSync(
+        join(request.workspace, 'outputs/observations/exploration.md'),
+        '## Notes\n\nRead sources only.\n'
+      );
+      return {
+        status: 'succeeded',
+        output: 'browser_navigate failed: MCP server does not exist: qali-browser'
+      };
+    };
+
+    const result = await executeAssembledAgentStep({
+      sourceRoot,
+      workspace: join(parent, 'harness'),
+      command,
+      step,
+      profile,
+      role: ROLE_PROFILES.explorer,
+      agent,
+      browserEnvironmentFile: join(parent, 'browser.env')
+    });
+
+    expect(result.status).toBe('blocked');
+    if (result.status === 'blocked') {
+      expect(result.reason).toMatch(/qali-browser|browser evidence|MCP/i);
+    }
+  });
+
+  it('blocks explore when the agent writes notes but captures no browser evidence', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const sourceRoot = join(parent, 'repo');
+    mkdirSync(join(sourceRoot, 'projects/sample/sources'), { recursive: true });
+    writeFileSync(join(sourceRoot, 'projects/sample/sources/project-context.md'), '# Context\n');
+    for (const path of [
+      'harness/profiles.json',
+      'skills/runtime',
+      'core/policies',
+      'core/templates',
+      'scripts/browser-facade-mcp.ts',
+      'scripts/qali-browser-mcp-launch.ts'
+    ]) {
+      const from = join(process.cwd(), path);
+      const to = join(sourceRoot, path);
+      mkdirSync(join(to, '..'), { recursive: true });
+      const { cpSync } = await import('node:fs');
+      cpSync(from, to, { recursive: true });
+    }
+    const profiles = loadHarnessProfiles(
+      join(sourceRoot, 'harness/profiles.json'),
+      join(sourceRoot, 'skills/runtime')
+    );
+    const profile = profiles.find((entry) => entry.id === 'browser-exploration')!;
+    const step: WorkflowStep = {
+      id: 'explore',
+      role: 'explorer',
+      harnessProfileId: 'browser-exploration',
+      needs: ['charter'],
+      inputs: [],
+      outputs: [
+        {
+          artifact: 'evidence',
+          path: 'projects/{projectId}/observations/evidence/exploration'
+        }
+      ],
+      requiredTools: ['file-read', 'file-write', 'browser'],
+      mutations: ['append-observation', 'append-evidence'],
+      policyGates: [],
+      retries: 0,
+      timeoutMs: 3600000
+    };
+    const agent = new FakeAgentRuntime();
+    agent.execute = async (request) => {
+      mkdirSync(join(request.workspace, 'outputs/observations'), { recursive: true });
+      writeFileSync(
+        join(request.workspace, 'outputs/observations/exploration.md'),
+        '## Notes\n\nInvented from sources.\n'
+      );
+      return { status: 'succeeded', output: '{}' };
+    };
+
+    const result = await executeAssembledAgentStep({
+      sourceRoot,
+      workspace: join(parent, 'harness'),
+      command,
+      step,
+      profile,
+      role: ROLE_PROFILES.explorer,
+      agent,
+      browserEnvironmentFile: join(parent, 'browser.env')
+    });
+
+    expect(result.status).toBe('blocked');
+    if (result.status === 'blocked') {
+      expect(result.reason).toMatch(/browser evidence/i);
+    }
+  });
 });

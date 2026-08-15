@@ -79,7 +79,7 @@
     },
     {
       "id": "browser-exploration",
-      "skillIds": ["agentic-browser-testing", "test-data-management"],
+      "skillIds": ["exploratory-testing", "agentic-browser-testing", "test-data-management"],
       "policyPaths": [
         "core/policies/operating-model.md",
         "core/policies/evidence-and-provenance.md",
