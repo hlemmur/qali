@@ -10,6 +10,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
+import ts from 'typescript';
 import type { NormalizedCommand, RoleProfile, WorkflowStep } from '@qali/contracts';
 import type { AgentRuntime } from './index.js';
 import { assembleHarnessWorkspace, type HarnessProfile } from './harness-workspace.js';
@@ -83,11 +84,52 @@ function rewritePlaywrightEmptyFixturePatterns(source: string): string {
   return source.replace(/\(\s*\{\s*\}\s*,\s*use\b/g, '(_fixtures, use');
 }
 
+function isUnrunPlaywrightCall(node: ts.CallExpression): boolean {
+  const names: string[] = [];
+  let expression: ts.Expression = node.expression;
+  while (ts.isPropertyAccessExpression(expression)) {
+    names.unshift(expression.name.text);
+    expression = expression.expression;
+  }
+  if (ts.isIdentifier(expression)) names.unshift(expression.text);
+  if (names[0] !== 'test' && names[0] !== 'describe') return false;
+  return names.includes('skip') || names.includes('fixme');
+}
+
+function stripUnrunPlaywrightTests(source: string): string {
+  const file = ts.createSourceFile(
+    'generated.spec.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => {
+    const visit = (node: ts.Node): ts.Node | undefined => {
+      if (
+        ts.isExpressionStatement(node) &&
+        ts.isCallExpression(node.expression) &&
+        isUnrunPlaywrightCall(node.expression)
+      ) {
+        return undefined;
+      }
+      return ts.visitEachChild(node, visit, context);
+    };
+    return (sourceFile) => ts.visitEachChild(sourceFile, visit, context);
+  };
+  const transformed = ts.transform(file, [transformer]).transformed[0];
+  if (!transformed) return source;
+  return ts.createPrinter().printFile(transformed);
+}
+
 function sanitizePromotedGeneratedTests(generatedDirectory: string): void {
   for (const file of listFiles(generatedDirectory)) {
     if (!file.endsWith('.ts')) continue;
     const before = readFileSync(file, 'utf8');
-    const after = rewritePlaywrightEmptyFixturePatterns(before);
+    let after = rewritePlaywrightEmptyFixturePatterns(before);
+    if (file.endsWith('.spec.ts')) {
+      after = stripUnrunPlaywrightTests(after);
+    }
     if (after !== before) writeFileSync(file, after);
   }
 }

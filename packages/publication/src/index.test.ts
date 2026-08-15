@@ -464,6 +464,39 @@ describe('controlled GitHub publisher', () => {
     expect(pullRequestBody).toContain('Review-only publication');
   });
 
+  it('still publishes when auto-merge is unavailable after the PR is created', async () => {
+    const github: GitHubPublicationPort = {
+      createBranch: async () => undefined,
+      commit: async () => undefined,
+      createPullRequest: async () => ({
+        number: 18,
+        nodeId: 'PR_node',
+        url: 'https://github.test/pr/18'
+      }),
+      enableAutoMerge: async () => {
+        throw new Error('Auto merge is not allowed for this repository');
+      }
+    };
+
+    await expect(
+      new ControlledPublisher(github).publish({
+        ...semanticManifest([
+          createSemanticPublicationChange({
+            path: 'projects/shop/observations/exploration.md',
+            before: null,
+            after: '# Observation\n',
+            provenanceRef: 'run:42'
+          })
+        ]),
+        reviewOnly: false
+      })
+    ).resolves.toEqual({
+      status: 'published',
+      branch: 'qali/req-42',
+      pullRequestUrl: 'https://github.test/pr/18'
+    });
+  });
+
   it('skips GitHub when there are no git-visible changes to publish', async () => {
     const github: GitHubPublicationPort = {
       createBranch: async () => {

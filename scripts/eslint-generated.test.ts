@@ -29,4 +29,23 @@ export const test = base.extend({
     );
     expect(errors).toEqual([]);
   });
+
+  it('accepts inline import() type annotations under tests/generated', async () => {
+    const eslint = new ESLint({ cwd: repositoryRoot });
+    const results = await eslint.lintText(
+      `type LoginPage = import('../pages/login.page').LoginPage;
+export type GeneratedLoginPage = LoginPage;
+`,
+      {
+        filePath: join(
+          repositoryRoot,
+          'projects/sauce-demo/tests/generated/e2e/tests/auth/login.validation.spec.ts'
+        )
+      }
+    );
+    const errors = results.flatMap((result) =>
+      result.messages.filter((message) => message.severity === 2)
+    );
+    expect(errors).toEqual([]);
+  });
 });
