@@ -71,25 +71,43 @@ describe('ephemeral harness workspace', () => {
       }
     });
 
-    expect(files(workspace).sort()).toEqual([
-      '.agents/skills/agentic-browser-testing/SKILL.md',
-      '.agents/skills/exploratory-testing/SKILL.md',
-      '.cursor/cli.json',
-      '.cursor/mcp.json',
-      '.cursor/rules/authority-and-autonomy.mdc',
-      '.cursor/rules/evidence-and-provenance.mdc',
-      '.cursor/rules/operating-model.mdc',
-      'AGENTS.md',
-      'harness-manifest.json',
-      'inputs/project-context.md',
-      'templates/session-log.md'
-    ]);
+    expect(files(workspace).sort()).toEqual(
+      [
+        '.agents/skills/agentic-browser-testing/SKILL.md',
+        '.agents/skills/exploratory-testing/SKILL.md',
+        '.cursor/cli.json',
+        '.cursor/mcp.json',
+        '.cursor/rules/authority-and-autonomy.mdc',
+        '.cursor/rules/evidence-and-provenance.mdc',
+        '.cursor/rules/operating-model.mdc',
+        'AGENTS.md',
+        'harness-manifest.json',
+        'inputs/project-context.md',
+        'mcp.json',
+        'templates/session-log.md'
+      ].sort()
+    );
     expect(existsSync(join(workspace, 'outputs/observations'))).toBe(true);
     expect(existsSync(join(workspace, 'outputs/evidence'))).toBe(true);
     expect(result.manifest.profileId).toBe('exploration');
     expect(result.manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
-    expect(readFileSync(join(workspace, '.cursor/mcp.json'), 'utf8')).toContain(
-      '/run/secrets/qali-browser.env'
+    const mcp = JSON.parse(readFileSync(join(workspace, '.cursor/mcp.json'), 'utf8')) as {
+      mcpServers: { 'qali-browser': { command: string; args: string[]; envFile?: string } };
+    };
+    expect(mcp.mcpServers['qali-browser'].envFile).toBeUndefined();
+    expect(mcp.mcpServers['qali-browser'].args).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/qali-browser-mcp-launch\.ts$/),
+        '/run/secrets/qali-browser.env',
+        expect.stringMatching(/browser-facade-mcp\.ts$/)
+      ])
+    );
+    expect(readFileSync(join(workspace, 'mcp.json'), 'utf8')).toBe(
+      readFileSync(join(workspace, '.cursor/mcp.json'), 'utf8')
+    );
+    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toContain('qali-browser');
+    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toContain(
+      'do not invent observations from sources alone'
     );
     expect(readFileSync(join(workspace, '.cursor/cli.json'), 'utf8')).toContain('Shell(*)');
     expect(existsSync(join(workspace, 'projects/_demo'))).toBe(false);

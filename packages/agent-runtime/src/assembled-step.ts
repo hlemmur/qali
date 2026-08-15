@@ -233,6 +233,22 @@ export function promoteHarnessOutputs(request: {
   return promoted;
 }
 
+export function agentReportedMissingBrowserMcp(text: string): boolean {
+  return /mcp server does not exist/i.test(text);
+}
+
+export function harnessCapturedBrowserEvidence(harnessWorkspace: string): boolean {
+  return listFiles(join(harnessWorkspace, 'outputs/evidence')).some((file) =>
+    /\.(png|jpe?g|webp)$/i.test(file)
+  );
+}
+
+function agentTranscript(result: { output?: string; error?: string; raw?: unknown }): string {
+  return [result.output, result.error, typeof result.raw === 'string' ? result.raw : '']
+    .filter(Boolean)
+    .join('\n');
+}
+
 export async function executeAssembledAgentStep(request: {
   sourceRoot: string;
   workspace: string;
@@ -285,6 +301,16 @@ export async function executeAssembledAgentStep(request: {
   });
   if (result.status === 'blocked') return { status: 'blocked', reason: result.output };
   if (result.status === 'failed') return { status: 'failed', error: result.error };
+  if (
+    request.step.requiredTools.includes('browser') &&
+    agentReportedMissingBrowserMcp(agentTranscript(result))
+  ) {
+    return {
+      status: 'blocked',
+      reason:
+        'qali-browser MCP was not available; exploration cannot invent observations from sources'
+    };
+  }
   const promoted = promoteHarnessOutputs({
     harnessWorkspace,
     packRoot: join(request.sourceRoot, request.command.project.root),
@@ -292,6 +318,12 @@ export async function executeAssembledAgentStep(request: {
   });
   if (promoted.length === 0) {
     return { status: 'failed', error: 'agent produced no validated harness outputs' };
+  }
+  if (request.step.id === 'explore' && !harnessCapturedBrowserEvidence(harnessWorkspace)) {
+    return {
+      status: 'blocked',
+      reason: 'exploration did not capture browser evidence'
+    };
   }
   return { status: 'succeeded', outputs, promoted };
 }

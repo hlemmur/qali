@@ -137,6 +137,9 @@ describe('harness profile catalog', () => {
   it('assembles the exact selected skills and browser configuration for every profile', () => {
     const profiles = loadHarnessProfiles('harness/profiles.json', 'skills/runtime');
     expect(profiles.map(({ id }) => id)).toEqual(expectedIds);
+    expect(profiles.find((profile) => profile.id === 'browser-exploration')?.skillIds).toEqual(
+      expect.arrayContaining(['exploratory-testing', 'agentic-browser-testing'])
+    );
     const parent = mkdtempSync(join(tmpdir(), 'qali-all-harnesses-'));
     temporaryDirectories.push(parent);
 
@@ -164,7 +167,7 @@ describe('harness profile catalog', () => {
           (path) => `.cursor/rules/${path.split('/').at(-1)!.replace(/\.md$/, '')}.mdc`
         ),
         ...profile.templatePaths.map((path) => `templates/${path.split('/').at(-1)!}`),
-        ...(profile.tools.includes('browser') ? ['.cursor/mcp.json'] : [])
+        ...(profile.tools.includes('browser') ? ['.cursor/mcp.json', 'mcp.json'] : [])
       ].sort();
       const actualFiles = (function list(directory: string): string[] {
         return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

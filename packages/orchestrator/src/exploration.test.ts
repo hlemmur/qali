@@ -321,6 +321,13 @@ describe('bounded exploratory testing', () => {
     expect(report).toContain('OBS-EXP-009');
     expect(report).toContain('Prior observation must remain.');
     expect(existsSync(join(projectRoot, 'derived/reports/exploration.json'))).toBe(true);
+    expect(
+      JSON.parse(readFileSync(join(projectRoot, 'derived/reports/exploration.json'), 'utf8'))
+    ).toMatchObject({
+      intent: 'explore-project',
+      skills: expect.arrayContaining(['exploratory-testing', 'agentic-browser-testing']),
+      profile: 'browser-exploration'
+    });
     expect(existsSync(join(projectRoot, 'derived/scenarios/proposed'))).toBe(true);
   });
 

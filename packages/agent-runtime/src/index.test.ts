@@ -103,6 +103,7 @@ describe('agent runtime', () => {
       'test-model',
       buildAgentPrompt(request())
     ]);
+    expect(argv).not.toContain('--approve-mcps');
     expect(options.env).toEqual({ PATH: '/bin', CURSOR_MODEL: 'test-model' });
     expect(options.shell).toBe(false);
     expect(options.env).not.toHaveProperty('GITHUB_TOKEN');
@@ -111,6 +112,21 @@ describe('agent runtime', () => {
     expect(options.env).not.toHaveProperty('QALI_TEST_DATA_JSON');
     expect(options.env).not.toHaveProperty('DATABASE_URL');
     expect(options.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
+  });
+
+  it('auto-approves harness MCP servers when the step requires the browser', async () => {
+    const spawn = vi.fn<AgentSpawn>(() => child({ stdout: '{"result":"done"}\n' }));
+    await new CursorCliAgentRuntime({ spawn, env: { PATH: '/bin' } }).execute(
+      request({
+        step: {
+          ...request().step,
+          requiredTools: ['file-read', 'file-write', 'browser']
+        }
+      })
+    );
+    const argv = spawn.mock.calls[0]![1];
+    expect(argv).toEqual(expect.arrayContaining(['--approve-mcps']));
+    expect(argv[argv.indexOf('--trust') + 1]).toBe('--approve-mcps');
   });
 
   it('uses allowlist mode and ignores CURSOR_SANDBOX from the environment', async () => {

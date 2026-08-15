@@ -218,4 +218,20 @@ describe('compact run reporting', () => {
     expect(body).not.toMatch(/GitHub Actions/i);
     expect(payload.text).toContain('failed');
   });
+
+  it('summarizes exploration findings instead of test counts', () => {
+    const payload = renderSlackRunSummary({
+      runId: 'exp-1',
+      status: 'passed',
+      intent: 'explore-project',
+      projectId: 'sauce-demo',
+      exploration: {
+        focus: 'login flow',
+        findings: ['Login form is visible', 'Empty password stays on login']
+      }
+    });
+    expect(payload.text).toContain('2 findings');
+    expect(JSON.stringify(payload.blocks)).toContain('login flow');
+    expect(JSON.stringify(payload.blocks)).not.toContain('No test counts');
+  });
 });

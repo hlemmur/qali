@@ -115,7 +115,12 @@ describe('hosted HTML report', () => {
         findings: ['Login form is visible on /'],
         questions: ['Q-EXP-001 What should happen for locked users?'],
         assumptions: ['Allowlisted origin is reachable'],
-        screenshotUrls: ['https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&sig=abc']
+        screenshotUrls: ['https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&sig=abc'],
+        skills: ['exploratory-testing', 'agentic-browser-testing'],
+        profile: 'browser-exploration',
+        timeline: [
+          { action: 'Navigate /', observation: 'Login form visible', evidence: 'login.png' }
+        ]
       }
     });
     expect(html).toContain('What Qali did');
@@ -126,6 +131,9 @@ describe('hosted HTML report', () => {
     expect(html).toContain('Generate smoke tests for login flow');
     expect(html).toContain('Generate regression tests for login flow');
     expect(html).not.toContain('This run did not execute Playwright tests.');
+    expect(html).not.toContain('No test counts were recorded for this run.');
+    expect(html).toContain('Timeline');
+    expect(html).toContain('agentic-browser-testing');
     expect(html).toContain(
       'src="https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&amp;sig=abc"'
     );

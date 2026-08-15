@@ -119,6 +119,7 @@ function buildCliArgs(request: AgentExecutionRequest, model?: string): string[] 
     // Host-assembled /tmp/qali-harness-*/run is created by Qali; trust it for unattended CLI.
     '--trust'
   ];
+  if (request.step.requiredTools.includes('browser')) args.push('--approve-mcps');
   if (model) args.push('--model', model);
   args.push(buildAgentPrompt(request));
   return args;

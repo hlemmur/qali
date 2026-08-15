@@ -46,6 +46,7 @@ import {
   FileSystemOutputValidator,
   ROLE_PROFILES,
   executeExplorationStep,
+  materializeExplorationSidecar,
   executeKnowledgeMaintenanceStep,
   executeQualityPulseStep,
   executeQueryProjectStep,
@@ -83,7 +84,10 @@ import {
 import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
-import { writeBrowserMcpEnvironmentFile } from './browser-mcp-env.js';
+import {
+  assembledHarnessEvidenceDirectory,
+  writeBrowserMcpEnvironmentFile
+} from './browser-mcp-env.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -659,17 +663,11 @@ class RoutedStepExecutor implements StepExecutor {
     const harnessWorkspace = join(harnessParent, 'run');
     let browserEnvironmentFile: string | undefined;
     if (harnessProfile.tools.includes('browser')) {
-      const evidenceDirectory = resolve(
-        workspace,
-        command.project.root,
-        'observations/evidence/exploration'
-      );
-      mkdirSync(evidenceDirectory, { recursive: true });
       browserEnvironmentFile = join(harnessParent, 'browser.env');
       writeBrowserMcpEnvironmentFile({
         destination: browserEnvironmentFile,
         executionProfilePath: resolve(workspace, command.project.root, 'execution-profile.json'),
-        evidenceDirectory,
+        evidenceDirectory: assembledHarnessEvidenceDirectory(harnessWorkspace),
         profile: this.executionProfile,
         env: process.env
       });
@@ -861,6 +859,9 @@ appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/age
     : {})
 });
 if (result.status === 'succeeded') {
+  if (command.intent === 'explore-project') {
+    materializeExplorationSidecar(join(workspace, command.project.root), command);
+  }
   if (command.intent !== 'run-test-suite' && !existsSync(transientSlackSummaryPath)) {
     writeWorkflowSlackSummary(command, 'passed');
   }

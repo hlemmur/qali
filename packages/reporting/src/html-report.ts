@@ -207,7 +207,9 @@ export function renderHtmlReport(summary: RunSummary): string {
   <div class="bar" role="img" aria-label="Passed ${passed}, failed ${failed}, skipped ${skipped}">
     ${barSegment(passed, total, 'pass')}${barSegment(failed, total, 'fail')}${barSegment(skipped, total, 'skip')}
   </div>`
-    : `<section>
+    : summary.exploration
+      ? ''
+      : `<section>
     <h2>Summary</h2>
     <p>No test counts were recorded for this run.</p>
     ${
@@ -287,6 +289,12 @@ export function renderHtmlReport(summary: RunSummary): string {
     <ul>
       ${exploration.charter ? `<li>Charter: ${escapeHtml(exploration.charter)}</li>` : ''}
       ${exploration.focus ? `<li>Focus: ${escapeHtml(exploration.focus)}</li>` : ''}
+      ${exploration.profile ? `<li>Profile: ${escapeHtml(exploration.profile)}</li>` : ''}
+      ${
+        (exploration.skills ?? []).length
+          ? `<li>Skills: ${escapeHtml((exploration.skills ?? []).join(', '))}</li>`
+          : ''
+      }
       ${
         exploration.budget
           ? `<li>Budget: ${exploration.budget.completedSteps ?? '—'} / ${exploration.budget.maxSteps} steps · cap ${escapeHtml(formatDurationMs(exploration.budget.timeBudgetMs))}${exploration.truncated ? ' · truncated' : ' · complete'}</li>`
@@ -294,6 +302,20 @@ export function renderHtmlReport(summary: RunSummary): string {
       }
     </ul>
   </section>
+  ${
+    (exploration.timeline ?? []).length
+      ? `<section>
+    <h2>Timeline</h2>
+    <ul>${(exploration.timeline ?? [])
+      .map((entry) => {
+        const observation = entry.observation ? ` — ${escapeHtml(entry.observation)}` : '';
+        const evidence = entry.evidence ? ` (${escapeHtml(entry.evidence)})` : '';
+        return `<li>${escapeHtml(entry.action)}${observation}${evidence}</li>`;
+      })
+      .join('')}</ul>
+  </section>`
+      : ''
+  }
   <section>
     <h2>Coverage</h2>
     <ul>
