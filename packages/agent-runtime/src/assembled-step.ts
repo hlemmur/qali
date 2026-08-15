@@ -234,7 +234,9 @@ export function promoteHarnessOutputs(request: {
 }
 
 export function agentReportedMissingBrowserMcp(text: string): boolean {
-  return /mcp server does not exist/i.test(text);
+  return /mcp server does not exist|mcp server ["']?qali-browser["']? not found|qali-browser not listed/i.test(
+    text
+  );
 }
 
 export function harnessCapturedBrowserEvidence(harnessWorkspace: string): boolean {

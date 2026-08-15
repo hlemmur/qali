@@ -14,7 +14,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { NormalizedCommand, WorkflowStep } from '@qali/contracts';
 import { FakeAgentRuntime } from './index.js';
 import { loadHarnessProfiles } from './harness-profiles.js';
-import { executeAssembledAgentStep, promoteHarnessOutputs } from './assembled-step.js';
+import {
+  executeAssembledAgentStep,
+  promoteHarnessOutputs,
+  agentReportedMissingBrowserMcp
+} from './assembled-step.js';
 import { ROLE_PROFILES } from '../../orchestrator/src/workflows.js';
 
 const temporaryDirectories: string[] = [];
@@ -43,6 +47,12 @@ const command: NormalizedCommand = {
 };
 
 describe('assembled Cursor harness step', () => {
+  it('treats catalog-not-found wording as a missing qali-browser MCP', () => {
+    expect(agentReportedMissingBrowserMcp('Error: MCP server "qali-browser" not found')).toBe(true);
+    expect(agentReportedMissingBrowserMcp('qali-browser not listed')).toBe(true);
+    expect(agentReportedMissingBrowserMcp('wrote session notes')).toBe(false);
+  });
+
   it('copies validated staged outputs into the pack and never inlines skills as the only channel', async () => {
     const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
     temporaryDirectories.push(parent);

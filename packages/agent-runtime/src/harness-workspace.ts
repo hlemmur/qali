@@ -10,6 +10,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { createRequire } from 'node:module';
 import {
   AgentHarnessManifestSchema,
   MutationClassSchema,
@@ -259,9 +260,12 @@ export function assembleHarnessWorkspace(request: AssemblyRequest): {
       'browser launcher'
     );
     if (!browserEnvironmentFile) throw new Error('Browser tool requires MCP configuration');
+    const moduleRoot = existsSync(join(request.sourceRoot, 'node_modules/tsx'))
+      ? request.sourceRoot
+      : process.cwd();
     const launcherArgs = [
       '--import',
-      'tsx',
+      createRequire(join(moduleRoot, 'package.json')).resolve('tsx'),
       launcherScript,
       browserEnvironmentFile,
       serviceScript
@@ -269,8 +273,9 @@ export function assembleHarnessWorkspace(request: AssemblyRequest): {
     const mcp = {
       mcpServers: {
         'qali-browser': {
-          command: 'node',
-          args: [...launcherArgs]
+          command: process.execPath,
+          args: [...launcherArgs],
+          cwd: moduleRoot
         }
       }
     };
