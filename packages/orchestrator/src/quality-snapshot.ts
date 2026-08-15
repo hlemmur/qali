@@ -171,6 +171,19 @@ export function buildQualitySnapshot(
   });
 }
 
+export function persistQualitySnapshot(
+  workspace: string,
+  command: NormalizedCommand,
+  snapshot: QualitySnapshot
+): void {
+  const payload = `${JSON.stringify(snapshot, null, 2)}\n`;
+  const reportPath = join(workspace, command.project.root, 'derived/reports/quality-snapshot.json');
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, payload);
+  mkdirSync(join(workspace, '.qali'), { recursive: true });
+  writeFileSync(join(workspace, '.qali/quality-snapshot.json'), payload);
+}
+
 export async function executeQueryProjectStep(
   workspace: string,
   step: WorkflowStep,

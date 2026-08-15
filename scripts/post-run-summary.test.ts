@@ -8,6 +8,7 @@ import {
   describeRunStages,
   findRunReport,
   generatedTestsPayload,
+  hostedSessionFields,
   prepareFailureScreenshots,
   publishHostedReport,
   reportTests,
@@ -372,5 +373,25 @@ describe('failure screenshots and journey copy', () => {
     expect(prepared.attachments).toHaveLength(1);
     expect(prepared.attachments[0]?.filename).toBe('shot-0.png');
     expect(prepared.tests[0]?.screenshotUrl).toContain('/reports/sauce-demo/42/shot-0.png');
+  });
+});
+
+describe('hostedSessionFields', () => {
+  it('forwards generation, triage, and quality snapshot from slack-summary.json', () => {
+    expect(
+      hostedSessionFields({
+        intent: 'triage-failure',
+        generation: { focus: 'login', files: [{ path: 'tests/generated/a.spec.ts', title: 'A' }] },
+        triage: { fingerprint: 'abc', candidatePath: 'tests/generated/abc.spec.ts' },
+        qualitySnapshot: {
+          coverage: { approvedScenarios: 2, automatedTests: 1, percent: 50 },
+          knownIssues: ['brittle banner']
+        }
+      })
+    ).toMatchObject({
+      generation: { focus: 'login' },
+      triage: { fingerprint: 'abc' },
+      qualitySnapshot: { knownIssues: ['brittle banner'] }
+    });
   });
 });

@@ -127,6 +127,27 @@ export function materializeGenerationSidecar(
   );
 }
 
+export function hostedSessionFields(
+  report: Record<string, unknown>
+): Partial<Pick<RunSummary, 'generation' | 'generatedTests' | 'qualitySnapshot' | 'triage'>> {
+  const objectValue = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const generation = objectValue(report.generation) as RunSummary['generation'] | undefined;
+  const generatedTests = objectValue(report.generatedTests) as
+    RunSummary['generatedTests'] | undefined;
+  const qualitySnapshot = objectValue(report.qualitySnapshot) as
+    RunSummary['qualitySnapshot'] | undefined;
+  const triage = objectValue(report.triage) as RunSummary['triage'] | undefined;
+  return {
+    ...(generation ? { generation } : {}),
+    ...(generatedTests ? { generatedTests } : {}),
+    ...(qualitySnapshot ? { qualitySnapshot } : {}),
+    ...(triage ? { triage } : {})
+  };
+}
+
 export function reportTests(
   report: Record<string, unknown>
 ): NonNullable<RunSummary['tests']> | undefined {
@@ -571,6 +592,10 @@ export async function postRunSummary(): Promise<void> {
     exploration = prepared.exploration;
     attachments = [...attachments, ...prepared.attachments];
   }
+  const session = hostedSessionFields(report);
+  const qualitySnapshot =
+    session.qualitySnapshot ??
+    (snapshot ? (snapshot as NonNullable<RunSummary['qualitySnapshot']>) : undefined);
   const htmlSummary: RunSummary = {
     runId: runId ?? 'unknown',
     status,
@@ -589,7 +614,11 @@ export async function postRunSummary(): Promise<void> {
       : {}),
     ...(tests ? { tests } : {}),
     ...(counts ?? {}),
-    ...(exploration ? { exploration } : {})
+    ...(exploration ? { exploration } : {}),
+    ...(session.generation ? { generation: session.generation } : {}),
+    ...(session.generatedTests ? { generatedTests: session.generatedTests } : {}),
+    ...(session.triage ? { triage: session.triage } : {}),
+    ...(qualitySnapshot ? { qualitySnapshot } : {})
   };
   const html = renderHtmlReport(htmlSummary);
   mkdirSync('.qali', { recursive: true });

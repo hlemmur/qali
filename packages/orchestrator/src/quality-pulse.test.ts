@@ -193,6 +193,17 @@ describe('quality pulse', () => {
     expect(report).toContain('- Coverage: 4/5 approved scenarios automated (80%)');
     expect(report).toContain('- Open decisions: 2 (1 questions, 1 proposed decisions)');
     expect(report).toContain('observations/evidence/test-runs/run-1.json');
+    const snapshot = JSON.parse(
+      readFileSync(
+        join(workspace, command.project.root, 'derived/reports/quality-snapshot.json'),
+        'utf8'
+      )
+    );
+    expect(snapshot).toMatchObject({
+      version: 1,
+      projectId: 'shop',
+      coverage: { approvedScenarios: expect.any(Number), automatedTests: expect.any(Number) }
+    });
   });
 
   it('writes presentation JSON with a valid Qali generated marker', async () => {

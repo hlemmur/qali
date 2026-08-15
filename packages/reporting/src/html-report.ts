@@ -66,6 +66,23 @@ function nextActions(summary: RunSummary): string[] {
       'Open the GitHub run'
     ];
   }
+  if (summary.intent === 'quality-pulse') {
+    return [
+      'Run smoke if the last suite failed',
+      'Explore an open coverage gap',
+      'Open the GitHub run'
+    ];
+  }
+  if (summary.intent === 'onboard-project') {
+    return ['Explore the main flow with the restricted browser', 'Open the GitHub run'];
+  }
+  if (summary.intent === 'triage-failure') {
+    return [
+      'Review the regression candidate spec',
+      'Retract or generate if the fingerprint is wrong',
+      'Open the GitHub run'
+    ];
+  }
   const actions = ['Open the GitHub run'];
   if (status === 'failed') {
     actions.push('Ask Qali to triage the failures');
@@ -214,7 +231,13 @@ export function renderHtmlReport(summary: RunSummary): string {
   <div class="bar" role="img" aria-label="Passed ${passed}, failed ${failed}, skipped ${skipped}">
     ${barSegment(passed, total, 'pass')}${barSegment(failed, total, 'fail')}${barSegment(skipped, total, 'skip')}
   </div>`
-    : summary.exploration || summary.generation || summary.generatedTests
+    : summary.exploration ||
+        summary.generation ||
+        summary.generatedTests ||
+        summary.qualitySnapshot ||
+        summary.intent === 'onboard-project' ||
+        summary.intent === 'triage-failure' ||
+        summary.intent === 'quality-pulse'
       ? ''
       : `<section>
     <h2>Summary</h2>
@@ -401,6 +424,54 @@ export function renderHtmlReport(summary: RunSummary): string {
   </section>`
       : '';
 
+  const pulse = summary.qualitySnapshot;
+  const pulseBlock = pulse
+    ? `<section>
+    <h2>Quality pulse</h2>
+    <ul>
+      ${pulse.lastRun ? `<li>Last run: ${escapeHtml(pulse.lastRun.intent)} ${escapeHtml(pulse.lastRun.status)} at ${escapeHtml(pulse.lastRun.finishedAt)}</li>` : ''}
+      ${pulse.coverage ? `<li>Coverage: ${pulse.coverage.automatedTests}/${pulse.coverage.approvedScenarios} automated (${pulse.coverage.percent}%)</li>` : ''}
+      ${(pulse.knownIssues ?? []).map((item) => `<li>Risk: ${escapeHtml(item)}</li>`).join('')}
+      ${(pulse.openQuestions ?? []).map((item) => `<li>Gap: ${escapeHtml(item)}</li>`).join('')}
+      ${(pulse.schedules ?? [])
+        .filter((job) => job.enabled)
+        .map(
+          (job) =>
+            `<li>Schedule: ${escapeHtml(job.workflowId)} at <code>${escapeHtml(job.cron)}</code></li>`
+        )
+        .join('')}
+    </ul>
+  </section>`
+    : '';
+
+  const onboardBlock =
+    summary.intent === 'onboard-project'
+      ? `<section>
+    <h2>What was ingested</h2>
+    <p>${escapeHtml(nonTestRunNotice('onboard-project'))}</p>
+    ${
+      evidence.length
+        ? `<ul>${evidence.map((path) => `<li><code>${escapeHtml(path)}</code></li>`).join('')}</ul>`
+        : '<p>No onboard artifacts were recorded.</p>'
+    }
+  </section>`
+      : '';
+
+  const triage = summary.triage;
+  const triageBlock = triage
+    ? `<section>
+    <h2>Triage</h2>
+    <ul>
+      ${triage.fingerprint ? `<li>Fingerprint: <code>${escapeHtml(triage.fingerprint)}</code></li>` : ''}
+      ${triage.sourceRunId ? `<li>Source run: <code>${escapeHtml(triage.sourceRunId)}</code></li>` : ''}
+      ${triage.failureCount !== undefined ? `<li>Failed tests: ${triage.failureCount}</li>` : ''}
+      ${triage.observedStatus ? `<li>Observed state: ${escapeHtml(triage.observedStatus)}</li>` : ''}
+      ${triage.candidatePath ? `<li>Candidate spec: <code>${escapeHtml(triage.candidatePath)}</code></li>` : ''}
+      ${(triage.titles ?? []).map((title) => `<li>Case: ${escapeHtml(title)}</li>`).join('')}
+    </ul>
+  </section>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -462,6 +533,9 @@ export function renderHtmlReport(summary: RunSummary): string {
   ${kpi}
   ${explorationBlock}
   ${generationBlock}
+  ${pulseBlock}
+  ${onboardBlock}
+  ${triageBlock}
   ${failuresBlock}
   ${tableBlock}
   <section>
@@ -483,7 +557,7 @@ export function renderHtmlReport(summary: RunSummary): string {
     }
   </section>
   ${
-    evidence.length
+    evidence.length && summary.intent !== 'onboard-project'
       ? `<section>
     <h2>Evidence</h2>
     <ul>${evidence.map((path) => `<li><code>${escapeHtml(path)}</code></li>`).join('')}</ul>

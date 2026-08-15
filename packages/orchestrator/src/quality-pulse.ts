@@ -2,10 +2,15 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { z } from 'zod';
-import type { NormalizedCommand, WorkflowStep } from '../../contracts/src/index.js';
+import {
+  QualitySnapshotSchema,
+  type NormalizedCommand,
+  type WorkflowStep
+} from '../../contracts/src/index.js';
 import { renderGeneratedJson } from '../../knowledge/src/index.js';
 import { parsePlaywrightJsonReport } from '../../playwright/src/index.js';
 import type { StepExecutionResult } from './execution.js';
+import { buildQualitySnapshot, persistQualitySnapshot } from './quality-snapshot.js';
 
 interface SourceFile {
   path: string;
@@ -204,6 +209,36 @@ export async function executeQualityPulseStep(
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, generatedMarkdown(body));
     }
+    persistQualitySnapshot(
+      workspace,
+      command,
+      QualitySnapshotSchema.parse({
+        ...buildQualitySnapshot(workspace, command),
+        lastRun: {
+          intent: 'quality-pulse',
+          finishedAt: facts.generatedAt,
+          status: facts.runs.failed > 0 ? 'failed' : 'passed',
+          counts: {
+            total: facts.runs.total,
+            passed: facts.runs.passed,
+            failed: facts.runs.failed,
+            skipped: facts.runs.skipped
+          }
+        },
+        coverage: {
+          approvedScenarios: facts.coverage.approvedScenarios,
+          automatedTests: facts.coverage.automatedScenarios,
+          percent: facts.coverage.percent
+        },
+        knownIssues: [
+          ...(facts.risks.open ? [`${facts.risks.open} open risks`] : []),
+          ...(facts.failures.count ? [`${facts.failures.count} observed failures`] : [])
+        ],
+        openQuestions: facts.openDecisions.questions
+          ? [`${facts.openDecisions.questions} open questions`]
+          : []
+      })
+    );
     return { status: 'succeeded', outputs };
   }
   const canonicalRun = source(projectRoot, 'observations/evidence/test-runs/results.json');
@@ -297,5 +332,28 @@ export async function executeQualityPulseStep(
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, generatedJson(facts));
   }
+  persistQualitySnapshot(
+    workspace,
+    command,
+    QualitySnapshotSchema.parse({
+      ...buildQualitySnapshot(workspace, command),
+      lastRun: {
+        intent: 'quality-pulse',
+        finishedAt: facts.generatedAt,
+        status: facts.runs.failed > 0 ? 'failed' : 'passed',
+        counts: {
+          total: facts.runs.total,
+          passed: facts.runs.passed,
+          failed: facts.runs.failed,
+          skipped: facts.runs.skipped
+        }
+      },
+      coverage: {
+        approvedScenarios: facts.coverage.approvedScenarios,
+        automatedTests: facts.coverage.automatedScenarios,
+        percent: facts.coverage.percent
+      }
+    })
+  );
   return { status: 'succeeded', outputs };
 }

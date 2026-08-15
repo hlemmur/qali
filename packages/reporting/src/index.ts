@@ -89,6 +89,26 @@ export interface RunSummary {
     profile?: string;
     timeline?: Array<{ action: string; observation?: string; evidence?: string }>;
   };
+  qualitySnapshot?: {
+    lastRun?: {
+      intent: string;
+      status: string;
+      finishedAt: string;
+      counts?: { passed: number; failed: number; skipped: number; total: number };
+    };
+    coverage?: { approvedScenarios: number; automatedTests: number; percent: number };
+    knownIssues?: string[];
+    openQuestions?: string[];
+    schedules?: Array<{ workflowId: string; cron: string; enabled: boolean }>;
+  };
+  triage?: {
+    fingerprint?: string;
+    sourceRunId?: string;
+    failureCount?: number;
+    candidatePath?: string;
+    observedStatus?: string;
+    titles?: string[];
+  };
 }
 
 export interface RunSummaryActions {
