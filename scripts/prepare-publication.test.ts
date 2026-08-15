@@ -39,6 +39,21 @@ describe('publication preparation', () => {
     });
 
     expect(manifest.reviewOnly).toBe(false);
+    expect(
+      preparePublicationManifest({
+        workspace,
+        requestId: 'REQ-42',
+        projectRoot: 'projects/shop',
+        provenanceRef: 'run:42',
+        reviewOnly: true,
+        checks: [
+          {
+            command: process.execPath,
+            args: ['-e', "process.stdout.write('semantic check passed')"]
+          }
+        ]
+      }).reviewOnly
+    ).toBe(true);
     expect(manifest.checks).toEqual([
       expect.objectContaining({ exitCode: 0, stdout: 'semantic check passed', stderr: '' })
     ]);
