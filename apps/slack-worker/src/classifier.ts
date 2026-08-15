@@ -121,6 +121,25 @@ function scheduleFocus(text: string): Record<string, unknown> {
 
 function classifyIntent(text: string): Intent {
   if (/\bonboard\b/.test(text)) return 'onboard-project';
+  if (
+    /\bpause (?:all )?(?:test|testing|qa|pulse|schedule)/.test(text) ||
+    /\bresume (?:all )?(?:test|testing|qa|pulse|schedule)/.test(text) ||
+    /\bschedule (?:a |the )?(?:full )?regression\b/.test(text) ||
+    /\bschedule (?:an? )?(?:exploration|pulse)\b/.test(text)
+  ) {
+    return 'maintain-schedule';
+  }
+  if (
+    (QUESTION.test(text) ||
+      QUERY_HINT.test(text) ||
+      /\bmore details\b|\btell me more\b|\bexplain (?:that|this|more)\b/.test(text)) &&
+    !/\b(?:can|could|would) you\s+(?:please\s+)?(?:run|explore|generat)/.test(text)
+  ) {
+    return 'query-project';
+  }
+  if (/\bingest\b|\bproduct doc\b|\binto sources\b/.test(text)) {
+    return 'maintain-knowledge';
+  }
   if (/\bexplor/.test(text)) return 'explore-project';
   if (
     /\b(?:deep|edge cases?|negative)\b.*\b(?:test|testing)\b/.test(text) ||

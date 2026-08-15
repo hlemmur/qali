@@ -88,6 +88,18 @@ describe('intent classification fallbacks', () => {
       focus: { topic: 'expected', feature: 'login' }
     });
     expect(heuristicClassify(work('can you run the smoke suite?')).intent).toBe('run-test-suite');
+    expect(heuristicClassify(work('should we run the smoke suite?')).intent).toBe('query-project');
+    expect(heuristicClassify(work('what is the next charter?'))).toMatchObject({
+      intent: 'query-project',
+      focus: { topic: 'schedule' }
+    });
+    expect(heuristicClassify(work('more details on the last run'))).toMatchObject({
+      intent: 'query-project',
+      focus: { topic: 'history' }
+    });
+    expect(heuristicClassify(work('ingest this product doc into sources'))).toMatchObject({
+      intent: 'maintain-knowledge'
+    });
   });
 
   it('maps pause, resume, and timed regression requests to maintain-schedule', () => {
