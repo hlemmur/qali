@@ -24,6 +24,7 @@ export interface PreparePublicationOptions {
   projectRoot: string;
   provenanceRef?: string;
   authorityRef?: string;
+  reviewOnly?: boolean;
   checks: PublicationCheckCommand[];
 }
 
@@ -161,7 +162,9 @@ export function preparePublicationManifest(
         ...(generationSource ? { generationSourceRef: generationSource } : {})
       });
     });
-  const reviewOnly = changes.some((change) => change.classification === 'governed-source');
+  const reviewOnly =
+    options.reviewOnly === true ||
+    changes.some((change) => change.classification === 'governed-source');
   return SemanticPublicationManifestSchema.parse({
     version: 1,
     requestId: options.requestId,
@@ -180,7 +183,10 @@ const isDirect =
 
 if (isDirect) {
   const workspace = process.cwd();
-  const projectJson = JSON.parse(process.env.PROJECT_JSON ?? '{}') as { root?: unknown };
+  const projectJson = JSON.parse(process.env.PROJECT_JSON ?? '{}') as {
+    root?: unknown;
+    publication?: { reviewOnly?: unknown };
+  };
   if (typeof projectJson.root !== 'string') {
     throw new Error('PROJECT_JSON with a trusted project root is required for publication');
   }
@@ -199,6 +205,7 @@ if (isDirect) {
     provenanceRef:
       process.env.QALI_PROVENANCE_REF ?? `workflow:${process.env.QALI_REQUEST_ID ?? 'local'}`,
     ...(authorityRef ? { authorityRef } : {}),
+    ...(projectJson.publication?.reviewOnly === true ? { reviewOnly: true } : {}),
     checks: [
       { command: 'npm', args: ['run', 'format:check'] },
       { command: 'npm', args: ['run', 'lint'] },

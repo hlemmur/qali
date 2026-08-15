@@ -440,7 +440,11 @@ export class ControlledPublisher {
       ].join('\n')
     });
     if (!request.reviewOnly) {
-      await this.github.enableAutoMerge?.(pullRequest.nodeId);
+      try {
+        await this.github.enableAutoMerge?.(pullRequest.nodeId);
+      } catch {
+        // Repo may disallow auto-merge; the review PR is still the publication result.
+      }
     }
     return { status: 'published', branch, pullRequestUrl: pullRequest.url };
   }

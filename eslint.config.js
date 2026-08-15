@@ -24,9 +24,12 @@ export default tseslint.config(
   {
     files: ['projects/**/tests/generated/**/*.ts'],
     rules: {
-      // Playwright fixtures commonly use `async ({}, use)` when they do not
-      // consume other fixtures. Live generation must still pass repo lint.
-      'no-empty-pattern': 'off'
+      // Live Cursor generation uses Playwright fixture empty patterns and
+      // inline `import()` types that repo TypeScript ESLint otherwise forbids.
+      'no-empty-pattern': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off'
     }
   }
 );
