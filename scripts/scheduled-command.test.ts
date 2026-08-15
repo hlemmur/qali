@@ -42,9 +42,48 @@ describe('scheduled command', () => {
         projectId: 'sauce-demo',
         intent: 'run-test-suite',
         receivedAt: '2026-08-13T10:00:00.000Z',
-        requestId: 'scheduled-123'
+        requestId: 'scheduled-123',
+        schedule: {
+          version: 1,
+          template: 'conservative',
+          paused: false,
+          jobs: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }]
+        }
       })
     ).toThrow(/enabled schedule/i);
+  });
+
+  it('schedules smoke runs with the suite parameter from the job', () => {
+    const registry = JSON.parse(readFileSync('projects/registry.json', 'utf8'));
+    const profile = JSON.parse(readFileSync('projects/sauce-demo/execution-profile.json', 'utf8'));
+
+    expect(
+      buildScheduledCommand({
+        registry,
+        profiles: [profile],
+        projectId: 'sauce-demo',
+        intent: 'run-test-suite',
+        receivedAt: '2026-08-13T10:00:00.000Z',
+        requestId: 'scheduled-smoke',
+        schedule: {
+          version: 1,
+          template: 'conservative',
+          paused: false,
+          jobs: [
+            {
+              workflowId: 'run-test-suite',
+              cron: '17 5 * * *',
+              enabled: true,
+              suite: 'smoke'
+            }
+          ]
+        },
+        suite: 'smoke'
+      })
+    ).toMatchObject({
+      intent: 'run-test-suite',
+      parameters: { requestId: 'scheduled-smoke', trigger: 'schedule', suite: 'smoke' }
+    });
   });
 
   it('rejects scheduled work when the project schedule is paused', () => {

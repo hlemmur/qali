@@ -44,7 +44,8 @@ for (const project of registry.projects) {
   const registryJobs = project.schedules.map((entry) => ({
     workflowId: entry.workflowId,
     cron: entry.cron,
-    enabled: entry.enabled
+    enabled: entry.enabled,
+    ...(entry.suite ? { suite: entry.suite } : {})
   }));
   if (JSON.stringify(expectedJobs) !== JSON.stringify(registryJobs)) {
     throw new Error(

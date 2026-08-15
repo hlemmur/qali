@@ -34,6 +34,18 @@
           "workflowId": "quality-pulse",
           "cron": "17 6 * * *",
           "enabled": true
+        },
+        {
+          "workflowId": "run-test-suite",
+          "cron": "17 5 * * *",
+          "enabled": true,
+          "suite": "smoke"
+        },
+        {
+          "workflowId": "run-test-suite",
+          "cron": "17 4 * * 0",
+          "enabled": true,
+          "suite": "regression"
         }
       ],
       "activeExecutionProfile": "sauce-demo-production"
