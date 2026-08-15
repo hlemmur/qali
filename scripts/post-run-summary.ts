@@ -127,6 +127,29 @@ export function materializeGenerationSidecar(
   );
 }
 
+export function slackRunSummaryCallbackFields(summary: RunSummary): {
+  generation?: { focus: string };
+  generatedTests?: { count: number; area?: string; titles?: string[] };
+} {
+  const generation =
+    typeof summary.generation?.focus === 'string' && summary.generation.focus.trim()
+      ? { focus: summary.generation.focus }
+      : undefined;
+  const generatedTests = summary.generatedTests
+    ? {
+        count: summary.generatedTests.count,
+        ...(summary.generatedTests.area ? { area: summary.generatedTests.area } : {}),
+        ...(summary.generatedTests.titles?.length
+          ? { titles: summary.generatedTests.titles.slice(0, 5) }
+          : {})
+      }
+    : undefined;
+  return {
+    ...(generation ? { generation } : {}),
+    ...(generatedTests ? { generatedTests } : {})
+  };
+}
+
 export function hostedSessionFields(
   report: Record<string, unknown>
 ): Partial<Pick<RunSummary, 'generation' | 'generatedTests' | 'qualitySnapshot' | 'triage'>> {
@@ -707,7 +730,7 @@ export async function postRunSummary(): Promise<void> {
     htmlUrl: githubRunUrl ?? process.env.GITHUB_RUN_URL,
     ...(reportUrl ? { reportUrl } : {}),
     ...(specUrl ? { specUrl } : {}),
-    ...(generatedTests ? { generatedTests } : {}),
+    ...slackRunSummaryCallbackFields(htmlSummary),
     intent: process.env.SUMMARY_INTENT,
     projectId: project.id,
     ...(typeof report.suiteLabel === 'string'
@@ -722,8 +745,7 @@ export async function postRunSummary(): Promise<void> {
     ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
     ...(counts ? { counts } : {}),
     ...(snapshot ? { qualitySnapshot: snapshot } : {}),
-    ...(htmlSummary.exploration ? { exploration: htmlSummary.exploration } : {}),
-    ...(htmlSummary.generation ? { generation: htmlSummary.generation } : {})
+    ...(htmlSummary.exploration ? { exploration: htmlSummary.exploration } : {})
   });
 
   const url = `${workerBase}/github/run-summary`;

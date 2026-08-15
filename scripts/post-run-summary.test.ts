@@ -9,6 +9,7 @@ import {
   findRunReport,
   generatedTestsPayload,
   hostedSessionFields,
+  slackRunSummaryCallbackFields,
   prepareFailureScreenshots,
   publishHostedReport,
   reportTests,
@@ -392,6 +393,33 @@ describe('hostedSessionFields', () => {
       generation: { focus: 'login' },
       triage: { fingerprint: 'abc' },
       qualitySnapshot: { knownIssues: ['brittle banner'] }
+    });
+  });
+
+  it('sends only compact generation fields on the Slack run-summary callback', () => {
+    expect(
+      slackRunSummaryCallbackFields({
+        runId: '1',
+        status: 'passed',
+        intent: 'generate-test-suite',
+        generation: {
+          focus: 'smoke',
+          coverageExcerpt: '# Coverage\n'.repeat(40),
+          files: [{ path: 'tests/generated/a.spec.ts', title: 'A' }]
+        },
+        generatedTests: {
+          count: 14,
+          area: 'sauce-demo',
+          titles: Array.from({ length: 14 }, (_, index) => `case ${index}`)
+        }
+      })
+    ).toEqual({
+      generation: { focus: 'smoke' },
+      generatedTests: {
+        count: 14,
+        area: 'sauce-demo',
+        titles: ['case 0', 'case 1', 'case 2', 'case 3', 'case 4']
+      }
     });
   });
 });
