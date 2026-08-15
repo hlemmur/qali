@@ -93,3 +93,46 @@ Tags: `BUG`, `QUESTION`, `IDEA`, `RISK`, `NOTE`.
   - Q-EXP-004: Are all login controls exposed in the accessibility tree with stable roles/names matching JRN-001 locators?
   - Q-EXP-005: Why is `qali-browser` absent from the MCP catalog despite `Mcp(qali-browser:*)` allow rule?
 - Follow-up: Re-run explore step with `qali-browser` connected; execute EXP-LOGIN-001 through EXP-LOGIN-005; capture snapshots and assert oracles per agentic-browser-testing skill; append evidence-backed observations only.
+
+# QA Session
+
+- Project: sauce-demo
+- Target / environment: https://www.saucedemo.com (public production demo)
+- Date: 2026-08-15
+- Operator / tool: Explorer / qali-browser MCP
+- Charter: Explore Sauce Demo login, inventory, cart, and checkout flows with named demo credentials and heuristic probes via the restricted browser facade to discover requirement gaps, auth boundaries, and unexpected behaviors.
+- Focus: app (login → inventory → cart → checkout)
+- Method: bounded black-box exploration through the restricted browser facade
+- Account / role: DATA-001 (`standard_user`) — intended; not reached due to fill blocker
+- Mock mode: off
+
+## Observations
+
+| Time (UTC) | Tag      | Action                                              | Observation                                                                                                                                                                                    | Evidence               |
+| ---------- | -------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 14:39      | NOTE     | Navigate to `/`                                     | Login page loaded with title text "Swag Labs", Username and Password textboxes, Login button, and on-page demo account hints (usernames redacted in snapshot).                                 | exploration-login-page |
+| 14:40      | NOTE     | Snapshot login page                                 | Accessibility tree exposes fields as `textbox "Username"` and `textbox "Password"`; no separate navigation chrome visible pre-auth.                                                            | exploration-login-page |
+| 14:40      | RISK     | Attempt `browser_fill_named` (username, testData)   | Tool timed out waiting for `getByLabel('Username')`. JRN-001 step blocked before submit. Relates to RSK-001 (external demo) and harness locator strategy.                                      | —                      |
+| 14:40      | RISK     | Attempt `browser_fill_named` (password, credential) | Same timeout on `getByLabel('Password')`. Named credential path untested this session. Relates to RSK-002 (credential handling unverified in UI).                                              | —                      |
+| 14:41      | RISK     | Attempt `browser_fill` (Username, standard_user)    | Identical `getByLabel` timeout. Suggests login inputs are named via placeholder/accessibility name, not associated `<label>` elements.                                                         | —                      |
+| 14:41      | NOTE     | Click Login (empty fields)                          | Browser policy rejected interaction: "Form submissions must use POST". Empty-submit error messaging not observed.                                                                              | —                      |
+| 14:41      | NOTE     | Click Username textbox                              | Browser policy rejected: "Form submission is not allowed". Focus/interaction on inputs may be constrained by facade policy.                                                                    | —                      |
+| 14:42      | NOTE     | Navigate to `/inventory.html`                       | Redirected back to `/` (login). Unauthenticated deep-link correctly blocked per REQ-003 intent.                                                                                                | —                      |
+| 14:42      | NOTE     | Diagnostics                                         | Page GET 200; CSS/JS loaded. Console shows blocked font and Backtrace telemetry requests (`ERR_BLOCKED_BY_CLIENT`). No app-breaking network failures observed on login shell.                  | —                      |
+| 14:42      | QUESTION | Fill locator mismatch                               | Journeys reference `placeholder` locators for Username/Password, but MCP fill tools use `getByLabel`. Is facade configuration expected to map placeholder names to fill labels for Sauce Demo? | —                      |
+| 14:42      | QUESTION | Credential availability                             | Were `QALI_TEST_DATA_JSON` / `QALI_TEST_CREDENTIALS_JSON` loaded into this harness browser.env? Fill failures appear locator-related, not auth-related, but credentials were not exercised.    | —                      |
+| 14:43      | IDEA     | Follow-up charter                                   | Once fill works, run locked_out_user and problem_user negative paths (REQ-003), then JRN-002 cart flow and checkout boundary probes (zero items, back navigation).                             | —                      |
+
+## Debrief
+
+- Coverage: **partial**
+  - Login shell / orient: **covered**
+  - Authenticated inventory: **unexplored** (blocked)
+  - Cart and checkout: **unexplored** (blocked)
+  - Invalid/locked accounts (REQ-003): **unexplored** (blocked)
+- Reproduced findings: Login page renders; unauthenticated inventory URL redirects to login; fill tools consistently timeout on Username/Password fields.
+- Suspected findings: Harness `browser_fill` / `browser_fill_named` locator strategy may be incompatible with Sauce Demo login field markup (placeholder-based names vs label association).
+- Non-issues: Public demo origin reachable (HTTP 200); blocked third-party telemetry/fonts appear environmental, not storefront defects.
+- Knowledge updates: First live observation confirms CTX-002 URL and login shell structure; REQ-001/REQ-002 remain **inferred**, not live-verified this session.
+- Open questions: See QUESTION rows above; credential config and fill locator mapping need harness confirmation before inventory exploration can proceed.
+- Follow-up: Re-run exploration after fill locator fix or placeholder-aware fill support; prioritize JRN-001 happy path, then REQ-003 locked account, then cart/checkout heuristics.
