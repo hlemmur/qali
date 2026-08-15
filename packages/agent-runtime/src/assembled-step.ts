@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync
 } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep, basename } from 'node:path';
 import ts from 'typescript';
 import type { NormalizedCommand, RoleProfile, WorkflowStep } from '@qali/contracts';
 import type { AgentRuntime } from './index.js';
@@ -123,6 +123,7 @@ function stripUnrunPlaywrightTests(source: string): string {
 }
 
 function sanitizePromotedGeneratedTests(generatedDirectory: string): void {
+  flattenNestedGeneratedSpecs(generatedDirectory);
   for (const file of listFiles(generatedDirectory)) {
     if (!file.endsWith('.ts')) continue;
     const before = readFileSync(file, 'utf8');
@@ -131,6 +132,20 @@ function sanitizePromotedGeneratedTests(generatedDirectory: string): void {
       after = stripUnrunPlaywrightTests(after);
     }
     if (after !== before) writeFileSync(file, after);
+  }
+}
+
+function flattenNestedGeneratedSpecs(generatedDirectory: string): void {
+  for (const file of listFiles(generatedDirectory)) {
+    if (!file.endsWith('.spec.ts')) continue;
+    const relativePath = relative(generatedDirectory, file).split(sep).join('/');
+    if (!/(?:^|\/)e2e\/tests\//.test(relativePath)) continue;
+    const destination = join(generatedDirectory, 'e2e', 'tests', basename(file));
+    if (destination === file) continue;
+    if (existsSync(destination)) continue;
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(file, destination, { dereference: true });
+    rmSync(file);
   }
 }
 
@@ -326,6 +341,19 @@ export async function executeAssembledAgentStep(request: {
       status: 'blocked',
       reason: 'exploration did not capture browser evidence'
     };
+  }
+  if (request.step.id === 'generate-tests') {
+    const packRoot = join(request.sourceRoot, request.command.project.root);
+    const specs = listFiles(join(packRoot, 'tests/generated')).filter((file) =>
+      file.endsWith('.spec.ts')
+    );
+    const coverageMap = join(packRoot, 'derived/scenarios/coverage-map.md');
+    if (specs.length > 0 && !existsSync(coverageMap)) {
+      return {
+        status: 'blocked',
+        reason: 'generate produced specs without a coverage map'
+      };
+    }
   }
   return { status: 'succeeded', outputs, promoted };
 }

@@ -65,6 +65,14 @@ export interface RunSummary {
   generatedTests?: {
     count: number;
     area?: string;
+    titles?: string[];
+  };
+  generation?: {
+    focus?: string;
+    coverageExcerpt?: string;
+    files?: Array<{ path: string; title: string }>;
+    traceability?: string[];
+    tags?: string[];
   };
   exploration?: {
     focus?: string;
@@ -146,6 +154,10 @@ export function renderSlackRunSummary(
     summary.generatedTests && summary.generatedTests.count > 0
       ? `${summary.generatedTests.count} tests added${
           summary.generatedTests.area ? ` for ${summary.generatedTests.area}` : ''
+        }${
+          summary.generatedTests.titles?.length
+            ? `: ${summary.generatedTests.titles.slice(0, 5).join('; ')}`
+            : ''
         }`
       : undefined;
   const explorationLine = summary.exploration

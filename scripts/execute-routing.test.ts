@@ -1,6 +1,10 @@
 import type { NormalizedCommand } from '../packages/contracts/src/index.js';
 import { describe, expect, it } from 'vitest';
-import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
+import {
+  requiresQualifiedAgentRuntime,
+  selectAgentExecutionRoute,
+  shouldCompleteGenerationOnHost
+} from './execute-routing.js';
 
 const command = (intent: NormalizedCommand['intent']): NormalizedCommand => ({
   intent,
@@ -69,6 +73,11 @@ describe('agent execution routing', () => {
   it('routes production explore and generate through Cursor when the CLI is available', () => {
     expect(selectAgentExecutionRoute(command('explore-project'), true, false)).toBe('cursor');
     expect(selectAgentExecutionRoute(command('generate-test-suite'), true, false)).toBe('cursor');
+  });
+
+  it('never completes live generate on the host Playwright stub', () => {
+    expect(shouldCompleteGenerationOnHost('mock')).toBe(true);
+    expect(shouldCompleteGenerationOnHost('live')).toBe(false);
   });
 
   it('never selects host explore or generate stubs outside Mock Mode', () => {

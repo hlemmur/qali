@@ -81,13 +81,18 @@ import {
   renderRunReport,
   type RunSummary
 } from '../packages/reporting/src/index.js';
-import { requiresQualifiedAgentRuntime, selectAgentExecutionRoute } from './execute-routing.js';
+import {
+  requiresQualifiedAgentRuntime,
+  selectAgentExecutionRoute,
+  shouldCompleteGenerationOnHost
+} from './execute-routing.js';
 import { failureSummaryAction } from './execute-reporting.js';
 import { withProjectWebServer } from './project-web-server.js';
 import {
   assembledHarnessEvidenceDirectory,
   writeBrowserMcpEnvironmentFile
 } from './browser-mcp-env.js';
+import { generatedTestsPayload, materializeGenerationSidecar } from './post-run-summary.js';
 
 const workspace = process.cwd();
 const expand = (value: string, command: NormalizedCommand): string =>
@@ -123,6 +128,18 @@ function writeWorkflowSlackSummary(
   const explorationSidecar = existsSync(explorationPath)
     ? (JSON.parse(readFileSync(explorationPath, 'utf8')) as RunSummary['exploration'])
     : undefined;
+  const generationPath = join(reportDirectory, 'generation.json');
+  const generationSidecar = existsSync(generationPath)
+    ? (JSON.parse(readFileSync(generationPath, 'utf8')) as RunSummary['generation'])
+    : undefined;
+  const generatedTests =
+    command.intent === 'generate-test-suite'
+      ? generatedTestsPayload(
+          join(workspace, command.project.root),
+          command.project.id,
+          command.intent
+        )
+      : undefined;
   const summary = {
     runId: command.parameters.requestId
       ? String(command.parameters.requestId)
@@ -135,7 +152,9 @@ function writeWorkflowSlackSummary(
     ...(command.intent === 'explore-project' && command.project.environmentLabel !== 'mock'
       ? { environment: 'explored with Cursor + harness browser-exploration' }
       : {}),
-    ...(explorationSidecar ? { exploration: explorationSidecar } : {})
+    ...(explorationSidecar ? { exploration: explorationSidecar } : {}),
+    ...(generationSidecar ? { generation: generationSidecar } : {}),
+    ...(generatedTests ? { generatedTests } : {})
   };
   writeFileSync(join(reportDirectory, 'slack-summary.json'), renderGeneratedJson(summary));
   writeFileSync(join(workspace, '.qali/slack-summary.json'), renderGeneratedJson(summary));
@@ -694,7 +713,13 @@ class RoutedStepExecutor implements StepExecutor {
       if (result.status === 'succeeded') {
         const missingDeclared = outputs.some((output) => !existsSync(join(workspace, output.path)));
         if (missingDeclared && (step.id === 'design-coverage' || step.id === 'generate-tests')) {
-          return completeGenerationOnHost();
+          if (shouldCompleteGenerationOnHost(this.executionMode)) {
+            return completeGenerationOnHost();
+          }
+          return {
+            status: 'blocked',
+            reason: 'generate did not produce a coverage map and specs from exploration evidence'
+          } as const;
         }
         return { status: 'succeeded', outputs } as const;
       }
@@ -704,7 +729,13 @@ class RoutedStepExecutor implements StepExecutor {
         (step.id === 'design-coverage' || step.id === 'generate-tests') &&
         /no validated harness outputs/i.test(result.error)
       ) {
-        return completeGenerationOnHost();
+        if (shouldCompleteGenerationOnHost(this.executionMode)) {
+          return completeGenerationOnHost();
+        }
+        return {
+          status: 'blocked',
+          reason: 'generate did not produce a coverage map and specs from exploration evidence'
+        } as const;
       }
       if (
         /ENOENT|not found|usage limit|spend limit|not authenticated|api key|unauthorized/i.test(
@@ -861,6 +892,11 @@ appendAgentLog(join(workspace, command.project.root, 'derived/workflow-state/age
 if (result.status === 'succeeded') {
   if (command.intent === 'explore-project') {
     materializeExplorationSidecar(join(workspace, command.project.root), command);
+  }
+  if (command.intent === 'generate-test-suite') {
+    const focus =
+      typeof command.parameters.feature === 'string' ? command.parameters.feature : undefined;
+    materializeGenerationSidecar(join(workspace, command.project.root), command.project.id, focus);
   }
   if (command.intent !== 'run-test-suite' && !existsSync(transientSlackSummaryPath)) {
     writeWorkflowSlackSummary(command, 'passed');

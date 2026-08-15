@@ -66,13 +66,65 @@ export function generatedTestsPayload(
   projectRoot: string,
   projectId: string,
   intent?: string
-): { count: number; area: string } | undefined {
+): { count: number; area: string; titles?: string[] } | undefined {
   if (intent !== 'generate-test-suite') return undefined;
   const generatedDirectory = join(projectRoot, 'tests/generated');
-  const generatedCount = existsSync(generatedDirectory)
-    ? readdirSync(generatedDirectory).filter((name) => name.endsWith('.generated.spec.ts')).length
-    : 0;
-  return generatedCount > 0 ? { count: generatedCount, area: projectId } : undefined;
+  const files = listGeneratedSpecFiles(generatedDirectory);
+  if (files.length === 0) return undefined;
+  const titles = files
+    .flatMap((file) =>
+      [...readFileSync(file, 'utf8').matchAll(/\btest(?:\.(?:only))?\(\s*(['"`])([^'"`]+)\1/g)].map(
+        (match) => match[2]!
+      )
+    )
+    .sort((left, right) => left.localeCompare(right));
+  return {
+    count: files.length,
+    area: projectId,
+    ...(titles.length ? { titles } : {})
+  };
+}
+
+function listGeneratedSpecFiles(directory: string): string[] {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = join(directory, entry.name);
+    if (entry.isDirectory()) return listGeneratedSpecFiles(absolute);
+    return entry.name.endsWith('.spec.ts') ? [absolute] : [];
+  });
+}
+
+export function materializeGenerationSidecar(
+  projectRoot: string,
+  projectId: string,
+  focus?: string
+): void {
+  const payload = generatedTestsPayload(projectRoot, projectId, 'generate-test-suite');
+  if (!payload) return;
+  const coveragePath = join(projectRoot, 'derived/scenarios/coverage-map.md');
+  const coverageExcerpt = existsSync(coveragePath)
+    ? readFileSync(coveragePath, 'utf8').split('\n').slice(0, 16).join('\n')
+    : undefined;
+  const files = listGeneratedSpecFiles(join(projectRoot, 'tests/generated')).map((file) => {
+    const title =
+      [
+        ...readFileSync(file, 'utf8').matchAll(/\btest(?:\.(?:only))?\(\s*(['"`])([^'"`]+)\1/g)
+      ][0]?.[2] ?? basename(file);
+    return { path: file.slice(projectRoot.length + 1).replaceAll('\\', '/'), title };
+  });
+  const sidecar = {
+    version: 1,
+    focus,
+    coverageExcerpt,
+    files,
+    tags: ['@smoke', '@regression'],
+    count: payload.count
+  };
+  mkdirSync(join(projectRoot, 'derived/reports'), { recursive: true });
+  writeFileSync(
+    join(projectRoot, 'derived/reports/generation.json'),
+    `${JSON.stringify(sidecar, null, 2)}\n`
+  );
 }
 
 export function reportTests(

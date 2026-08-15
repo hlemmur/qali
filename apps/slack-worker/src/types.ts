@@ -187,5 +187,6 @@ export interface SlackRunSummary {
   generatedTests?: {
     count: number;
     area?: string;
+    titles?: string[];
   };
 }

@@ -140,6 +140,33 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
+  it('renders a generate authoring record instead of a missing Playwright KPI stub', () => {
+    const html = renderHtmlReport({
+      runId: 'gen-1',
+      status: 'passed',
+      intent: 'generate-test-suite',
+      projectId: 'sauce-demo',
+      generatedTests: {
+        count: 2,
+        area: 'sauce-demo',
+        titles: ['signs in @smoke', 'pays with saved card @regression']
+      },
+      generation: {
+        focus: 'login flow',
+        coverageExcerpt: '| Scenario | Requirement |',
+        files: [{ path: 'tests/generated/login.spec.ts', title: 'signs in @smoke' }],
+        traceability: ['JRN-001', 'OBS-EXP-001']
+      }
+    });
+    expect(html).toContain('What was designed');
+    expect(html).toContain('What was added');
+    expect(html).toContain('signs in @smoke');
+    expect(html).toContain('Traceability');
+    expect(html).toContain('Run the smoke suite');
+    expect(html).not.toContain('No test counts were recorded for this run.');
+    expect(html).not.toContain('<script');
+  });
+
   it('renders exploration findings that are objects without crashing HTML escape', () => {
     const html = renderHtmlReport({
       runId: 'exp-2',
