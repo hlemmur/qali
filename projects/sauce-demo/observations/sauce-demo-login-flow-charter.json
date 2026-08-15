@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "projectId": "sauce-demo",
+  "profileId": "exploration-charter",
+  "generationRequestId": "Ev0BPYCU3C4X",
+  "feature": "login flow",
+  "depth": "deep",
+  "focus": "login flow",
+  "method": "bounded black-box exploration through the restricted browser facade",
+  "charter": "Explore the Sauce Demo login flow with named demo accounts, invalid and locked credentials, and boundary input conditions to discover requirement gaps, error-handling weaknesses, security signals, and UX inconsistencies before inventory is reached.",
+  "target": {
+    "url": "https://www.saucedemo.com",
+    "entryPoint": "/",
+    "mockMode": false
+  },
+  "resources": {
+    "accounts": [
+      {
+        "id": "DATA-001",
+        "username": "standard_user",
+        "purpose": "happy-path authentication (JRN-001)"
+      },
+      {
+        "username": "locked_out_user",
+        "purpose": "locked-account rejection (REQ-003)"
+      },
+      {
+        "username": "problem_user",
+        "purpose": "post-login defect surfacing"
+      },
+      {
+        "username": "performance_glitch_user",
+        "purpose": "latency and timeout behavior"
+      },
+      {
+        "username": "error_user",
+        "purpose": "server-side error handling after login"
+      },
+      {
+        "username": "visual_user",
+        "purpose": "layout and visual consistency (HICCUPS Image)"
+      }
+    ],
+    "credentials": {
+      "passwordRef": "DATA-002",
+      "source": "named credential in QALI_TEST_CREDENTIALS_JSON (never echoed or committed)"
+    },
+    "environment": "public production demo origin only (CTX-006); no local mock",
+    "tooling": "restricted browser facade; session log per templates/session-log.md"
+  },
+  "informationGoals": [
+    "Confirm REQ-001: named demo account reaches product inventory after successful login",
+    "Confirm REQ-003: invalid, empty, and locked accounts do not reach inventory",
+    "Characterize error messages, timing, and recovery paths for each failure mode",
+    "Probe state transitions: refresh mid-login, browser back, duplicate tabs, double submit",
+    "Assess credential and session handling signals against RSK-002 (no leakage in UI, URL, or console)",
+    "Detect copy, selector, or flow drift against RSK-001 (public demo changes without notice)",
+    "Surface UX, accessibility, and consistency issues via HICCUPS and FEW HICCUPS lenses"
+  ],
+  "linkedArtifacts": {
+    "requirements": ["REQ-001", "REQ-003"],
+    "journeys": ["JRN-001"],
+    "risks": ["RSK-001", "RSK-002", "RSK-003"],
+    "testData": ["DATA-001", "DATA-002"],
+    "knownIssues": ["BUG-001"]
+  },
+  "hypotheses": [
+    "Locked and invalid accounts show distinct, actionable error text without exposing stack traces",
+    "Empty or whitespace-only credentials are rejected before navigation away from login",
+    "Double-clicking Login does not create duplicate sessions or inconsistent inventory state",
+    "Browser back from inventory returns to login and requires re-authentication",
+    "Long or special-character inputs do not break the form or bypass validation",
+    "performance_glitch_user exposes whether loading indicators and timeouts are handled gracefully"
+  ],
+  "heuristicLenses": {
+    "primary": ["HICCUPS", "FEW HICCUPS"],
+    "boundary": [
+      "empty username and password",
+      "whitespace-only fields",
+      "correct username with wrong password and vice versa",
+      "max-length and Unicode strings in both fields",
+      "case sensitivity of username"
+    ],
+    "stateTransition": [
+      "submit then immediately refresh",
+      "submit then browser back",
+      "open login in two tabs; authenticate in one; observe the other",
+      "interrupt login with navigation to direct /inventory.html URL while unauthenticated"
+    ],
+    "errorHandling": [
+      "locked_out_user rejection message and retry behavior",
+      "error_user post-login failure presentation",
+      "malformed or missing form fields"
+    ],
+    "whatIf": [
+      "paste credentials with leading/trailing spaces",
+      "autofill and password-manager behavior",
+      "keyboard-only navigation and screen-reader labels",
+      "mobile viewport layout on login form"
+    ]
+  },
+  "sessionPlan": {
+    "totalMinutes": 90,
+    "context": "new feature / discovery (deep dive on login only)",
+    "phases": [
+      {
+        "name": "Orient and survey",
+        "minutes": 15,
+        "activities": [
+          "Load login page; record visible copy, fields, and primary CTA",
+          "Verify public origin matches CTX-002",
+          "Note baseline console and network behavior on first load"
+        ]
+      },
+      {
+        "name": "Happy path and account matrix",
+        "minutes": 25,
+        "activities": [
+          "Execute JRN-001 with DATA-001 / DATA-002",
+          "Exercise locked_out_user, problem_user, error_user, performance_glitch_user, visual_user",
+          "Tag each outcome: inventory reached, blocked at login, or post-login anomaly"
+        ]
+      },
+      {
+        "name": "Boundaries and hostile inputs",
+        "minutes": 20,
+        "activities": [
+          "Run boundary heuristic bank on username and password fields",
+          "Test invalid credential combinations and empty submissions",
+          "Probe case sensitivity and trimming behavior"
+        ]
+      },
+      {
+        "name": "State transitions and integration edges",
+        "minutes": 15,
+        "activities": [
+          "Refresh, back button, duplicate tab, and double-submit scenarios",
+          "Attempt direct navigation to inventory while logged out",
+          "Observe session persistence after successful login"
+        ]
+      },
+      {
+        "name": "Wrap-up and debrief prep",
+        "minutes": 15,
+        "activities": [
+          "Review tagged observations (BUG, QUESTION, IDEA, RISK, NOTE)",
+          "Mark coverage: happy path, locked/invalid, boundaries, state transitions",
+          "List follow-up charters (e.g., inventory, cart) and automation candidates"
+        ]
+      }
+    ]
+  },
+  "coverageTargets": [
+    { "area": "Happy-path login to inventory", "requirement": "REQ-001", "priority": "must" },
+    {
+      "area": "Locked and invalid account rejection",
+      "requirement": "REQ-003",
+      "priority": "must"
+    },
+    { "area": "Input boundary and validation", "requirement": "REQ-003", "priority": "should" },
+    { "area": "State transition and session behavior", "requirement": null, "priority": "should" },
+    {
+      "area": "UX, accessibility, and error presentation",
+      "requirement": null,
+      "priority": "should"
+    },
+    { "area": "Credential leakage signals", "risk": "RSK-002", "priority": "must" }
+  ],
+  "openQuestions": [
+    {
+      "id": "Q-LOGIN-001",
+      "question": "Does locked_out_user show a stable, user-facing message on every attempt?",
+      "status": "unknown"
+    },
+    {
+      "id": "Q-LOGIN-002",
+      "question": "Are usernames case-sensitive for all demo accounts?",
+      "status": "unknown"
+    },
+    {
+      "id": "Q-LOGIN-003",
+      "question": "Does direct navigation to /inventory.html without a session redirect to login?",
+      "status": "unknown"
+    },
+    {
+      "id": "Q-LOGIN-004",
+      "question": "Is there any client-side or URL exposure of the named password value (RSK-002)?",
+      "status": "unknown"
+    },
+    {
+      "id": "Q-LOGIN-005",
+      "question": "Has login page copy or field labeling changed since sources were last checked (RSK-001)?",
+      "status": "unknown"
+    }
+  ],
+  "successCriteria": [
+    "Charter line follows Explore [target] with [resources] to discover [information]",
+    "REQ-001 and REQ-003 each marked covered, partial, or unexplored with evidence",
+    "Every finding tagged and time-stamped in session log format",
+    "Reproducible bugs reference this charter and include steps",
+    "Open questions recorded in exploration log, not in reviewer-owned questions.md"
+  ],
+  "followUp": {
+    "onStabilizedHappyPath": "Hand smoke charter to agentic-browser-testing, then promote to Playwright once selectors stabilize",
+    "nextCharters": [
+      "inventory and cart after login (CTX-007 scope)",
+      "checkout regression after login changes"
+    ]
+  },
+  "outputArtifact": "outputs/charters/sauce-demo-login-flow-charter.json",
+  "sessionLogTemplate": "templates/session-log.md"
+}
