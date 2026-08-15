@@ -190,4 +190,13 @@ export interface SlackRunSummary {
     area?: string;
     titles?: string[];
   };
+  exploration?: {
+    focus?: string;
+    skills?: string[];
+    profile?: string;
+    findings?: string[];
+  };
+  generation?: {
+    focus?: string;
+  };
 }

@@ -1231,7 +1231,8 @@ describe('Slack control worker', () => {
       requestId: 'scheduled-quality-pulse-99',
       intent: 'quality-pulse',
       status: 'passed',
-      reportUrl: 'https://worker.test/reports/sauce-demo/99.html'
+      reportUrl: 'https://worker.test/reports/sauce-demo/99.html',
+      exploration: { skills: ['exploratory-testing'], profile: 'browser-exploration' }
     });
     const timestamp = '1700000000';
     const nonce = 'scheduled-heartbeat-1';
@@ -1261,7 +1262,8 @@ describe('Slack control worker', () => {
       }),
       expect.objectContaining({
         intent: 'quality-pulse',
-        reportUrl: expect.stringContaining('/reports/')
+        reportUrl: expect.stringContaining('/reports/'),
+        exploration: expect.objectContaining({ skills: ['exploratory-testing'] })
       })
     );
   });

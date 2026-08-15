@@ -592,6 +592,18 @@ async function githubRunSummary(
   }
   const requestId = typeof payload.requestId === 'string' ? payload.requestId : undefined;
   const runId = payload.runId !== undefined ? String(payload.runId) : undefined;
+  const exploration =
+    payload.exploration &&
+    typeof payload.exploration === 'object' &&
+    !Array.isArray(payload.exploration)
+      ? (payload.exploration as NonNullable<SlackRunSummary['exploration']>)
+      : undefined;
+  const generation =
+    payload.generation &&
+    typeof payload.generation === 'object' &&
+    !Array.isArray(payload.generation)
+      ? (payload.generation as NonNullable<SlackRunSummary['generation']>)
+      : undefined;
   const correlation =
     (requestId ? await store.findByRequestId(requestId) : null) ??
     (runId ? await store.findByRunId(runId) : null);
@@ -606,7 +618,9 @@ async function githubRunSummary(
           runId: runId ?? prior.runId ?? 'scheduled',
           status: typeof payload.status === 'string' ? payload.status : 'passed',
           intent: typeof payload.intent === 'string' ? payload.intent : 'quality-pulse',
-          ...(typeof payload.reportUrl === 'string' ? { reportUrl: payload.reportUrl } : {})
+          ...(typeof payload.reportUrl === 'string' ? { reportUrl: payload.reportUrl } : {}),
+          ...(exploration ? { exploration } : {}),
+          ...(generation ? { generation } : {})
         }
       );
       return json(200, { ok: true, heartbeat: true });
@@ -687,7 +701,9 @@ async function githubRunSummary(
       : {}),
     ...(parsedStages ? { stages: parsedStages } : {}),
     ...(qualitySnapshot ? { qualitySnapshot } : {}),
-    ...(generatedTests ? { generatedTests } : {})
+    ...(generatedTests ? { generatedTests } : {}),
+    ...(exploration ? { exploration } : {}),
+    ...(generation ? { generation } : {})
   };
   return applySlackSummary({ store, slack, correlation, summary });
 }

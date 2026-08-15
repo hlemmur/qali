@@ -679,7 +679,9 @@ export async function postRunSummary(): Promise<void> {
     ...(errors.length ? { errors } : {}),
     ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
     ...(counts ? { counts } : {}),
-    ...(snapshot ? { qualitySnapshot: snapshot } : {})
+    ...(snapshot ? { qualitySnapshot: snapshot } : {}),
+    ...(htmlSummary.exploration ? { exploration: htmlSummary.exploration } : {}),
+    ...(htmlSummary.generation ? { generation: htmlSummary.generation } : {})
   });
 
   const url = `${workerBase}/github/run-summary`;

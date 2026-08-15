@@ -217,9 +217,9 @@ jobs:
         env:
           QALI_WORKER_BASE_URL: ${{ vars.QALI_WORKER_BASE_URL }}
           QALI_CALLBACK_SECRET: ${{ secrets.QALI_CALLBACK_SECRET }}
-          SUMMARY_REQUEST_ID: ${{ inputs.request_id }}
-          SUMMARY_INTENT: ${{ inputs.intent }}
-          PROJECT_JSON: ${{ inputs.project_json }}
+          SUMMARY_REQUEST_ID: ${{ inputs.request_id || format('scheduled-quality-pulse-{0}', github.run_id) }}
+          SUMMARY_INTENT: ${{ inputs.intent || 'quality-pulse' }}
+          PROJECT_JSON: ${{ inputs.project_json || '{"id":"sauce-demo"}' }}
           JOB_STATUS: ${{ needs.validate-and-execute.result != 'success' && 'failure' || 'success' }}
           EXECUTE_RESULT: ${{ needs.validate-and-execute.result }}
           PUBLISH_RESULT: ${{ needs.publish-generated-changes.result }}
