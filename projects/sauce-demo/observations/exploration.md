@@ -25,9 +25,9 @@
 | 01:09      | NOTE     | Map journey                 | JRN-001 defines login steps: open login page, fill username, fill password, submit Login; success oracle is visible inventory with Add to cart control. Includes Playwright action sketch.                                                           | inputs/reference/journeys.md                                             |
 | 01:09      | RISK     | Review risks                | RSK-001: public demo may change without notice. RSK-002: credential leakage into traces. RSK-003: shared demo state not isolated per run. All relevant to login exploration evidence handling.                                                       | inputs/reference/risks.md                                                |
 | 01:09      | NOTE     | Known issues baseline       | BUG-001 records no known issues; login exploration did not add evidence-backed defects.                                                                                                                                                              | inputs/known-issues/known-issues.md                                      |
-| 01:09      | QUESTION | Attempt browser navigate    | `qali-browser` MCP server configured in `.cursor/mcp.json` but not registered in runtime catalog. `browser_navigate` call failed with "MCP server does not exist".                                                                                   | EVD-EXP-001                                                              |
-| 01:09      | QUESTION | Attempt HTTP fetch fallback | Direct fetch to target origin rejected by runtime policy. Shell prohibited by role constraints.                                                                                                                                                      | EVD-EXP-001                                                              |
-| 01:09      | IDEA     | Deep login matrix prepared  | Five scenarios queued for live execution: happy path (EXP-LOGIN-001), invalid credentials (EXP-LOGIN-002), locked user (EXP-LOGIN-003), empty submit (EXP-LOGIN-004), a11y control inventory (EXP-LOGIN-005). All verdicts blocked pending browser.  | EVD-EXP-003                                                              |
+| 01:09      | QUESTION | Attempt browser navigate    | `qali-browser` MCP server configured in `.cursor/mcp.json` but not registered in runtime catalog. `browser_navigate` call failed with "MCP server does not exist".                                                                                   | — |
+| 01:09      | QUESTION | Attempt HTTP fetch fallback | Direct fetch to target origin rejected by runtime policy. Shell prohibited by role constraints.                                                                                                                                                      | — |
+| 01:09      | IDEA     | Deep login matrix prepared  | Five scenarios queued for live execution: happy path (EXP-LOGIN-001), invalid credentials (EXP-LOGIN-002), locked user (EXP-LOGIN-003), empty submit (EXP-LOGIN-004), a11y control inventory (EXP-LOGIN-005). All verdicts blocked pending browser.  | `observations/Ev0BQDQNBWFL-login-flow-charter.md` |
 
 ## Debrief
 
@@ -36,8 +36,8 @@
 - Suspected findings: none recorded without live evidence.
 - Non-issues: none confirmed live.
 - Knowledge updates:
-  - Exploration charter and deep test matrix authored for login flow (EVD-EXP-002, EVD-EXP-003).
-  - Environment failure documented when browser MCP unavailable (EVD-EXP-001).
+  - Exploration charter authored for login flow (`observations/Ev0BQDQNBWFL-login-flow-charter.md`).
+  - Environment failure documented when browser MCP unavailable (no published evidence artifact).
 - Open questions:
   - Q-EXP-001: What is the exact error copy for invalid credentials vs locked_out_user on the current build?
   - Q-EXP-002: Does empty-form submit show HTML5 validation, inline error, or silent no-op?
