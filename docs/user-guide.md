@@ -164,7 +164,7 @@ In a product channel:
 
 Optional named credentials in the same message are written to the GitHub Environment secret and are never echoed in Slack acks. The live Sauce Demo URL maps to the existing `sauce-demo` pack instead of creating a duplicate.
 
-Operators can still copy `projects/_template` by hand. New slugs are scaffolded on the host; `projects/registry.json` is not auto-published yet. One Slack onboard now includes a first bounded exploration and a conservative schedule seed. After that, review and approve scenarios before generating tests.
+Operators run `npm run operator:install` once. Developers never copy `projects/_template`. `@Qali onboard https://…` scaffolds the pack, upserts `projects/registry.json`, provisions the GitHub Environment, and runs the first bounded exploration. After that, review and approve scenarios before generating tests.
 
 See [Project template](project-template.md), [GitHub setup](setup-github.md), [Slack setup](setup-slack.md), and [Cloudflare setup](setup-cloudflare.md) for operator-level installation.
 

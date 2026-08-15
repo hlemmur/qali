@@ -102,6 +102,83 @@ describe('semantic publication policy', () => {
     }
   });
 
+  it('allows append-only project registry publication and new execution profiles', () => {
+    const donor = {
+      version: 1,
+      projects: [
+        {
+          id: 'sauce-demo',
+          root: 'projects/sauce-demo',
+          githubEnvironment: 'qali-sauce-demo',
+          allowedSlack: {
+            teamIds: [],
+            channelIds: ['C1'],
+            userIds: ['U1'],
+            roles: ['developer']
+          },
+          publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+          enabledWorkflows: ['onboard-project'],
+          schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }],
+          activeExecutionProfile: 'sauce-demo-production'
+        }
+      ]
+    };
+    const appended = {
+      ...donor,
+      projects: [
+        ...donor.projects,
+        {
+          ...donor.projects[0],
+          id: 'example-com',
+          root: 'projects/example-com',
+          githubEnvironment: 'qali-example-com',
+          activeExecutionProfile: 'example-com-production'
+        }
+      ]
+    };
+    const registryChange = createSemanticPublicationChange({
+      path: 'projects/registry.json',
+      before: `${JSON.stringify(donor, null, 2)}\n`,
+      after: `${JSON.stringify(appended, null, 2)}\n`
+    });
+    expect(assessSemanticPublication(semanticManifest([registryChange]))).toEqual({
+      allowed: true
+    });
+
+    const deletedDonor = createSemanticPublicationChange({
+      path: 'projects/registry.json',
+      before: `${JSON.stringify(appended, null, 2)}\n`,
+      after: `${JSON.stringify(donor, null, 2)}\n`
+    });
+    expect(assessSemanticPublication(semanticManifest([deletedDonor]))).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/append-only|existing project/i)
+    });
+
+    const mutatedDonor = {
+      ...appended,
+      projects: appended.projects.map((project, index) =>
+        index === 0
+          ? { ...project, allowedSlack: { ...project.allowedSlack, channelIds: ['C-EVIL'] } }
+          : project
+      )
+    };
+    expect(
+      assessSemanticPublication(
+        semanticManifest([
+          createSemanticPublicationChange({
+            path: 'projects/registry.json',
+            before: `${JSON.stringify(donor, null, 2)}\n`,
+            after: `${JSON.stringify(mutatedDonor, null, 2)}\n`
+          })
+        ])
+      )
+    ).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/unchanged|existing project/i)
+    });
+  });
+
   it('requires approved scenarios for new tests and unchanged oracles for modified tests', () => {
     const newTest = createSemanticPublicationChange({
       path: 'projects/shop/tests/checkout.spec.ts',

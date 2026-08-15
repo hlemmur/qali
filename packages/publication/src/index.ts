@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import ts from 'typescript';
 import { parseGeneratedMarker } from '../../knowledge/src/index.js';
 import {
+  ProjectRegistrySchema,
   SemanticPublicationManifestSchema,
   type PublicationChangeClassification,
   type SemanticPublicationChange,
@@ -84,6 +85,13 @@ export function isGeneratedTestSupportPath(path: string): boolean {
 
 export function classifyPublicationPath(path: string): PublicationChangeClassification {
   if (RAW_EVIDENCE_PATTERN.test(path)) return 'raw-evidence';
+  if (
+    path === 'projects/registry.json' ||
+    /^projects\/[^/]+\/execution-profile\.json$/.test(path) ||
+    /^projects\/[^/]+\/tests\/README\.md$/.test(path)
+  ) {
+    return 'project-bootstrap';
+  }
   if (path.includes('/observations/')) return 'observation';
   if (path.includes('/tests/')) return 'test';
   if (path.includes('/sources/')) return 'governed-source';
@@ -115,6 +123,7 @@ export function createSemanticPublicationChange(input: {
 export type PublicationPolicyDecision = { allowed: true } | { allowed: false; reason: string };
 
 function isSafeProjectPath(path: string, projectRoot: string): boolean {
+  if (path === 'projects/registry.json') return !path.includes('\\');
   if (!path.startsWith(`${projectRoot}/`) || path.includes('\\')) return false;
   const segments = path.split('/');
   return !segments.some((segment) => segment === '.' || segment === '..' || segment === '');
@@ -209,6 +218,15 @@ export function assessSemanticPublication(
         change.path.endsWith('/sources/decisions.md') ||
         change.path.endsWith('/sources/autonomy-policy.md')
       ) {
+        if (!change.before) {
+          if (!change.authorityRef || !change.provenanceRef) {
+            return {
+              allowed: false,
+              reason: `governed source changes require authority and provenance: ${change.path}`
+            };
+          }
+          continue;
+        }
         return {
           allowed: false,
           reason: `reviewer-owned authority artifacts cannot be generated: ${change.path}`
@@ -228,6 +246,36 @@ export function assessSemanticPublication(
           allowed: false,
           reason: `derived artifact has an invalid generated hash: ${change.path}`
         };
+      }
+      continue;
+    }
+    if (change.classification === 'project-bootstrap') {
+      if (change.path === 'projects/registry.json') {
+        try {
+          const after = ProjectRegistrySchema.parse(JSON.parse(change.after.content));
+          if (change.before) {
+            const before = ProjectRegistrySchema.parse(JSON.parse(change.before.content));
+            const afterById = new Map(after.projects.map((project) => [project.id, project]));
+            for (const existing of before.projects) {
+              const next = afterById.get(existing.id);
+              if (!next || JSON.stringify(next) !== JSON.stringify(existing)) {
+                return {
+                  allowed: false,
+                  reason: `existing project must be unchanged: ${existing.id}`
+                };
+              }
+            }
+            if (after.projects.length < before.projects.length) {
+              return {
+                allowed: false,
+                reason: `project registry publication must be append-only: ${change.path}`
+              };
+            }
+          }
+        } catch {
+          return { allowed: false, reason: `project registry is invalid: ${change.path}` };
+        }
+        continue;
       }
       continue;
     }

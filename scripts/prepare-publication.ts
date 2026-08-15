@@ -49,11 +49,19 @@ function changedPaths(workspace: string, projectRoot: string): string[] {
       '--diff-filter=ACDMRTUXB',
       'HEAD',
       '--',
-      projectRoot
+      projectRoot,
+      'projects/registry.json'
     ])
   );
   const untracked = lines(
-    gitOutput(workspace, ['ls-files', '--others', '--exclude-standard', '--', projectRoot])
+    gitOutput(workspace, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '--',
+      projectRoot,
+      'projects/registry.json'
+    ])
   );
   return [...new Set([...tracked, ...untracked])].sort();
 }
