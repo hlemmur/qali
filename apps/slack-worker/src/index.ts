@@ -705,7 +705,12 @@ async function githubRunSummary(
     ...(exploration ? { exploration } : {}),
     ...(generation ? { generation } : {})
   };
-  return applySlackSummary({ store, slack, correlation, summary });
+  try {
+    return await applySlackSummary({ store, slack, correlation, summary });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return new Response(detail.slice(0, 400), { status: 502 });
+  }
 }
 
 export function createWorker(overrides: WorkerDependencies = {}) {

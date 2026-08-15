@@ -86,6 +86,32 @@ describe('compact run reporting', () => {
     );
   });
 
+  it('splits Slack action rows so no block exceeds five elements', () => {
+    const payload = renderSlackRunSummary(
+      {
+        ...result,
+        intent: 'generate-test-suite',
+        generatedTests: { count: 2, area: 'sauce-demo' }
+      },
+      {
+        reportUrl: 'https://worker.test/reports/sauce-demo/1.html',
+        specUrl: 'https://github.test/hlemmur/qali/tree/main/projects/sauce-demo/tests/generated',
+        detailsUrl: 'https://github.test/hlemmur/qali/actions/runs/1',
+        retractValue: 'r1',
+        rerunValue: 'r1',
+        expandValue: 'r1'
+      }
+    );
+    const actionBlocks = payload.blocks.filter((block) => block.type === 'actions') as Array<{
+      elements: unknown[];
+    }>;
+    expect(actionBlocks.length).toBeGreaterThan(1);
+    for (const block of actionBlocks) {
+      expect(block.elements.length).toBeGreaterThan(0);
+      expect(block.elements.length).toBeLessThanOrEqual(5);
+    }
+  });
+
   it('offers View tests in GitHub and Retract after reverse-approval generation', () => {
     const payload = renderSlackRunSummary(
       {

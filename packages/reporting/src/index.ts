@@ -291,7 +291,9 @@ export function renderSlackRunSummary(
   }
 
   if (elements.length > 0) {
-    blocks.push({ type: 'actions', elements });
+    for (let index = 0; index < elements.length; index += 5) {
+      blocks.push({ type: 'actions', elements: elements.slice(index, index + 5) });
+    }
   }
   return { text, blocks };
 }

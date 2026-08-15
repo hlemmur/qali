@@ -1201,6 +1201,57 @@ describe('Slack control worker', () => {
     );
   });
 
+  it('returns 502 instead of throwing when Slack rejects the run card', async () => {
+    const store = new MemoryStore();
+    const work = {
+      identity: 'event:Ev1',
+      requestId: 'Ev1',
+      kind: 'message',
+      text: 'run',
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: '2023-11-14T22:13:20.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+    } satisfies InboundWork;
+    await store.accept(work);
+    const slack: SlackPort = {
+      postResult: vi.fn(async () => {
+        throw new Error('Slack chat.postMessage failed: invalid_blocks');
+      }),
+      updateResult: vi.fn(),
+      postThreadNotice: vi.fn()
+    };
+    const worker = createWorker({
+      store,
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = JSON.stringify({ requestId: 'Ev1', status: 'passed' });
+    const timestamp = '1700000000';
+    const nonce = 'run-slack-fail-1';
+    const signature = await signHmacForTest(
+      'callback-secret',
+      `${timestamp}.${nonce}.${body}`,
+      'sha256='
+    );
+    const response = await worker.fetch(
+      new Request('https://worker.test/github/run-summary', {
+        method: 'POST',
+        headers: {
+          'x-qali-timestamp': timestamp,
+          'x-qali-nonce': nonce,
+          'x-qali-signature': signature
+        },
+        body
+      }),
+      baseEnv([])
+    );
+    expect(response.status).toBe(502);
+    expect(await response.text()).toMatch(/invalid_blocks/);
+  });
+
   it('posts scheduled heartbeats into the latest product-channel thread', async () => {
     const store = new MemoryStore();
     const channelId = DEFAULT_PROJECT_REGISTRY.projects[0]?.allowedSlack.channelIds[0] ?? 'C1';

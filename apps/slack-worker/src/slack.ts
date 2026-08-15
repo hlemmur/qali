@@ -8,7 +8,21 @@ interface SlackResponse {
   error?: string;
 }
 
-function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
+export const SLACK_BUTTON_VALUE_MAX = 2000;
+
+function compactGeneratedTests(summary: SlackRunSummary): SlackRunSummary['generatedTests'] {
+  if (!summary.generatedTests) return undefined;
+  return {
+    count: summary.generatedTests.count,
+    ...(summary.generatedTests.area ? { area: summary.generatedTests.area } : {}),
+    ...(summary.generatedTests.titles?.length
+      ? { titles: summary.generatedTests.titles.slice(0, 5) }
+      : {})
+  };
+}
+
+export function slackExpandValue(correlation: Correlation, summary: SlackRunSummary): string {
+  const generatedTests = compactGeneratedTests(summary);
   const snapshot = {
     runId: summary.runId,
     status: summary.status,
@@ -27,9 +41,9 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
     ...(summary.htmlUrl ? { htmlUrl: summary.htmlUrl } : {}),
     ...(summary.reportUrl ? { reportUrl: summary.reportUrl } : {}),
     ...(summary.specUrl ? { specUrl: summary.specUrl } : {}),
-    ...(summary.generatedTests ? { generatedTests: summary.generatedTests } : {}),
-    ...(summary.exploration ? { exploration: summary.exploration } : {}),
-    ...(summary.generation ? { generation: summary.generation } : {}),
+    ...(generatedTests ? { generatedTests } : {}),
+    ...(summary.exploration?.focus ? { exploration: { focus: summary.exploration.focus } } : {}),
+    ...(summary.generation?.focus ? { generation: { focus: summary.generation.focus } } : {}),
     ...(summary.stages ? { stages: summary.stages } : {})
   };
   const expandValue = JSON.stringify({
@@ -37,6 +51,15 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
     runId: summary.runId,
     summary: snapshot
   });
+  if (expandValue.length <= SLACK_BUTTON_VALUE_MAX) return expandValue;
+  return JSON.stringify({
+    requestId: correlation.requestId,
+    runId: summary.runId
+  });
+}
+
+function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
+  const expandValue = slackExpandValue(correlation, summary);
   const controlValue = JSON.stringify({
     requestId: correlation.requestId,
     runId: summary.runId
