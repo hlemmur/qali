@@ -4,11 +4,13 @@ Each target application lives under `projects/<id>/` with a fixed layout enforce
 
 ## Scaffold
 
-```bash
-cp -R projects/_template projects/my-app
-# Edit sources/project-context.md, sources/reference/*, sources/autonomy-policy.md
-npm run project:validate -- projects/my-app
+Do not copy this directory by hand. Operators install Qali with `npm run operator:install`. Developers onboard a live URL in Slack:
+
+```text
+@Qali onboard https://www.example.com
 ```
+
+That command scaffolds `projects/<id>/` from this template, upserts `projects/registry.json`, and provisions the GitHub Environment. `npm run project:validate -- projects/<id>` remains available for local checks.
 
 ## Directory layout
 
@@ -92,13 +94,11 @@ Record non-secret context in `sources/project-context.md`:
 
 ## Adding a real target
 
-1. Scaffold from `_template`.
-2. Add the canonical root and allowed Slack scope to `projects/registry.json`.
-3. Set the active profile and create its named GitHub Environment.
-4. Configure the four standard target variables/secrets in that Environment.
-5. Fill project context and journeys.
-6. Set autonomy mode in `sources/autonomy-policy.md`.
-7. Run `onboard-project` through Slack or `npm run execute`.
-8. Approve first scenarios, then generate and run suites.
+1. Mention `@Qali onboard https://…` in an allowed product channel (do not copy `_template`).
+2. Qali upserts `projects/registry.json` and the Worker creates the GitHub Environment.
+3. Review the publication PR, then explore and generate from the Open report.
+4. Fill remaining context only if onboarding left questions open.
+5. Set autonomy mode in `sources/autonomy-policy.md` if a reviewer needs to change it.
+6. Approve first scenarios, then generate and run suites.
 
 No preview URL is required; document the exact URL Qali should hit.

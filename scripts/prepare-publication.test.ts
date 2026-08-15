@@ -273,4 +273,75 @@ test('SCN-LGN-001 named demo account reaches inventory @smoke', async ({ page })
     ]);
     expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
   });
+
+  it('includes projects/registry.json when onboard upserts a live target', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-publication-registry-'));
+    mkdirSync(join(workspace, 'projects/shop/sources'), { recursive: true });
+    const donor = {
+      version: 1,
+      projects: [
+        {
+          id: 'shop',
+          root: 'projects/shop',
+          githubEnvironment: 'qali-shop',
+          allowedSlack: {
+            teamIds: [],
+            channelIds: ['C1'],
+            userIds: ['U1'],
+            roles: ['developer']
+          },
+          publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+          enabledWorkflows: ['onboard-project'],
+          schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }],
+          activeExecutionProfile: 'shop-production'
+        }
+      ]
+    };
+    writeFileSync(join(workspace, 'projects/shop/sources/project-context.md'), '# Context\n');
+    writeFileSync(join(workspace, 'projects/registry.json'), `${JSON.stringify(donor, null, 2)}\n`);
+    git(workspace, 'init');
+    git(workspace, 'config', 'user.name', 'Test');
+    git(workspace, 'config', 'user.email', 'test@example.test');
+    git(workspace, 'add', '.');
+    git(workspace, 'commit', '-m', 'baseline');
+    const appended = {
+      ...donor,
+      projects: [
+        ...donor.projects,
+        {
+          ...donor.projects[0],
+          id: 'example-com',
+          root: 'projects/example-com',
+          githubEnvironment: 'qali-example-com',
+          activeExecutionProfile: 'example-com-production'
+        }
+      ]
+    };
+    writeFileSync(
+      join(workspace, 'projects/registry.json'),
+      `${JSON.stringify(appended, null, 2)}\n`
+    );
+
+    const manifest = preparePublicationManifest({
+      workspace,
+      requestId: 'REQ-ONBOARD-REG',
+      projectRoot: 'projects/shop',
+      provenanceRef: 'workflow:REQ-ONBOARD-REG',
+      authorityRef: 'slack-user:U1',
+      checks: [
+        {
+          command: process.execPath,
+          args: ['-e', "process.stdout.write('ok')"]
+        }
+      ]
+    });
+
+    expect(manifest.changes).toEqual([
+      expect.objectContaining({
+        path: 'projects/registry.json',
+        classification: 'project-bootstrap'
+      })
+    ]);
+    expect(assessSemanticPublication(manifest)).toEqual({ allowed: true });
+  });
 });

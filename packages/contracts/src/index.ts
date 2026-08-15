@@ -460,6 +460,7 @@ export const PublicationChangeClassificationSchema = z.enum([
   'governed-source',
   'derived-artifact',
   'raw-evidence',
+  'project-bootstrap',
   'unsupported'
 ]);
 export type PublicationChangeClassification = z.infer<typeof PublicationChangeClassificationSchema>;
@@ -485,7 +486,7 @@ export type PublicationCheckResult = z.infer<typeof PublicationCheckResultSchema
 
 export const SemanticPublicationChangeSchema = z
   .object({
-    path: z.string().regex(/^projects\/_?[a-z0-9][a-z0-9-]*\//),
+    path: z.string().regex(/^projects\/(?:registry\.json|_?[a-z0-9][a-z0-9-]*\/)/),
     classification: PublicationChangeClassificationSchema,
     before: PublicationFileStateSchema.nullable(),
     after: PublicationFileStateSchema.nullable(),

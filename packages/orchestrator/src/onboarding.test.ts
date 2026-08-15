@@ -245,9 +245,38 @@ describe('deterministic project onboarding', () => {
     mkdirSync(join(workspace, 'projects'), { recursive: true });
     writeFileSync(
       join(workspace, 'projects/registry.json'),
-      JSON.stringify({ version: 1, projects: [{ id: 'sauce-demo' }] })
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: 'sauce-demo',
+            root: 'projects/sauce-demo',
+            githubEnvironment: 'qali-sauce-demo',
+            allowedSlack: {
+              teamIds: [],
+              channelIds: ['C1'],
+              userIds: ['U1'],
+              roles: ['developer', 'qa-lead-admin']
+            },
+            publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+            enabledWorkflows: [
+              'onboard-project',
+              'explore-project',
+              'generate-test-suite',
+              'run-test-suite',
+              'triage-failure',
+              'maintain-knowledge',
+              'maintain-suite',
+              'maintain-schedule',
+              'quality-pulse',
+              'query-project'
+            ],
+            schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }],
+            activeExecutionProfile: 'sauce-demo-production'
+          }
+        ]
+      })
     );
-    const beforeRegistry = readFileSync(join(workspace, 'projects/registry.json'), 'utf8');
     const onboardCommand: NormalizedCommand = {
       ...command,
       project: {
@@ -280,7 +309,17 @@ describe('deterministic project onboarding', () => {
       source: 'https://example.com/'
     });
     expect(evidence.facts[0].statement).toContain('https://example.com');
-    expect(readFileSync(join(workspace, 'projects/registry.json'), 'utf8')).toBe(beforeRegistry);
+    const registry = JSON.parse(readFileSync(join(workspace, 'projects/registry.json'), 'utf8'));
+    expect(registry.projects.map((project: { id: string }) => project.id)).toEqual([
+      'sauce-demo',
+      'example-com'
+    ]);
+    expect(registry.projects[1]).toMatchObject({
+      id: 'example-com',
+      root: 'projects/example-com',
+      githubEnvironment: 'qali-example-com',
+      activeExecutionProfile: 'example-com-production'
+    });
     expect(JSON.stringify(evidence)).not.toMatch(/password|secret_sauce/i);
   });
 

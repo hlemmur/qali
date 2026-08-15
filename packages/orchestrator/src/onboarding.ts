@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
-import type {
-  ArtifactReference,
-  NormalizedCommand,
-  WorkflowStep
+import {
+  ProjectRegistrySchema,
+  type ArtifactReference,
+  type NormalizedCommand,
+  type WorkflowStep
 } from '../../contracts/src/index.js';
 import { scaffoldProject } from '../../knowledge/src/index.js';
 import type { StepExecutionResult } from './execution.js';
@@ -146,6 +147,39 @@ export interface PrepareOnboardProjectOptions {
   templateRoot?: string;
 }
 
+export function upsertOnboardedProjectRegistry(
+  workspace: string,
+  command: NormalizedCommand
+): void {
+  const registryPath = join(workspace, 'projects/registry.json');
+  if (!existsSync(registryPath) || command.intent !== 'onboard-project') return;
+  let registry;
+  try {
+    registry = ProjectRegistrySchema.parse(JSON.parse(readFileSync(registryPath, 'utf8')));
+  } catch {
+    return;
+  }
+  if (registry.projects.some((project) => project.id === command.project.id)) return;
+  const donor = registry.projects[0];
+  if (!donor) return;
+  const root = command.project.root.startsWith('projects/')
+    ? command.project.root
+    : `projects/${command.project.id}`;
+  registry.projects.push({
+    ...donor,
+    id: command.project.id,
+    root,
+    githubEnvironment: command.project.environment ?? `qali-${command.project.id}`,
+    activeExecutionProfile:
+      command.project.executionProfileId ?? `${command.project.id}-production`,
+    schedules: scheduleTemplate('conservative').jobs
+  });
+  writeFileSync(
+    registryPath,
+    `${JSON.stringify(ProjectRegistrySchema.parse(registry), null, 2)}\n`
+  );
+}
+
 export function prepareOnboardProject(
   workspace: string,
   command: NormalizedCommand,
@@ -171,6 +205,7 @@ export function prepareOnboardProject(
       writeFileSync(profilePath, `${JSON.stringify(profile, null, 2)}\n`);
     }
   }
+  upsertOnboardedProjectRegistry(workspace, command);
   const evidencePath = join(projectRoot, 'sources/reference/onboarding-evidence.json');
   if (!existsSync(evidencePath)) {
     mkdirSync(dirname(evidencePath), { recursive: true });

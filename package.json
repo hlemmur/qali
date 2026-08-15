@@ -33,7 +33,8 @@
     "control-plane:sync-secrets": "tsx scripts/sync-worker-secrets.ts",
     "control-plane:deploy": "npm exec -- wrangler deploy --config apps/slack-worker/wrangler.jsonc",
     "control-plane:dry-run": "npm exec -- wrangler deploy --dry-run --config apps/slack-worker/wrangler.jsonc",
-    "control-plane:dev": "npm exec -- wrangler dev --config apps/slack-worker/wrangler.jsonc"
+    "control-plane:dev": "npm exec -- wrangler dev --config apps/slack-worker/wrangler.jsonc",
+    "operator:install": "bash scripts/install-operator.sh"
   },
   "keywords": [
     "qa",
