@@ -1,0 +1,127 @@
+{
+  "generationRequestId": "Ev0BQA8XPP45",
+  "projectId": "sauce-demo",
+  "feature": "login flow",
+  "depth": "deep",
+  "status": "completed",
+  "role": "test-generator",
+  "workflowStep": "generate-tests",
+  "mutation": "create-test",
+  "outputRoot": "outputs/tests",
+  "requirementsCovered": ["REQ-001", "REQ-003"],
+  "journeysReferenced": ["JRN-001"],
+  "testDataReferenced": ["DATA-001", "DATA-002"],
+  "decisionsReferenced": ["D-002", "D-003"],
+  "artifacts": [
+    "outputs/tests/package.json",
+    "outputs/tests/tsconfig.json",
+    "outputs/tests/playwright.config.ts",
+    "outputs/tests/e2e/helpers/credentials.ts",
+    "outputs/tests/e2e/fixtures/base.fixture.ts",
+    "outputs/tests/e2e/pages/login.page.ts",
+    "outputs/tests/e2e/pages/inventory.page.ts",
+    "outputs/tests/e2e/tests/auth/login.spec.ts",
+    "outputs/tests/generation/coverage-login-flow.md"
+  ],
+  "tests": [
+    {
+      "id": "SCN-LOGIN-001",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "signs in with named demo account and reaches inventory @smoke",
+      "tags": ["@smoke"],
+      "requirement": "REQ-001",
+      "priority": "P0",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-002",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "displays username, password, and login controls on the login page @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-001",
+      "priority": "P1",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-003",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "rejects locked_out_user and does not reach inventory @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P0",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-004",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "rejects invalid password for standard_user @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P0",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-005",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "rejects unknown username @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P1",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-006",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "requires username before login @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P1",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-007",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "requires password before login @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P1",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-008",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "rejects empty username and password @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P2",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-009",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "signs in with problem_user alternate demo account @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-001",
+      "priority": "P2",
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "SCN-LOGIN-010",
+      "file": "e2e/tests/auth/login.spec.ts",
+      "name": "retains username input after failed login @regression",
+      "tags": ["@regression"],
+      "requirement": "REQ-003",
+      "priority": "P2",
+      "reviewStatus": "pending"
+    }
+  ],
+  "smokeCount": 1,
+  "regressionCount": 9,
+  "verification": {
+    "shellBlocked": true,
+    "typescript": "not_run",
+    "playwrightList": "not_run",
+    "notes": "Validators deferred; harness grants file-read and file-write only for this step."
+  },
+  "humanReviewRequired": true
+}

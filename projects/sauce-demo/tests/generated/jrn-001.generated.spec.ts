@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-
 // Generated from: JRN-001
 // Requirements: REQ-001
 test('JRN-001 generated scenario @smoke', async ({ page }) => {
