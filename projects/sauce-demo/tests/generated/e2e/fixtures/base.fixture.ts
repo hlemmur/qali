@@ -1,27 +1,28 @@
 import { test as base } from '@playwright/test';
-import { LoginPage } from '../pages/login.page';
+import { CartPage } from '../pages/cart.page';
 import { InventoryPage } from '../pages/inventory.page';
-import { getCredentials, getTestData } from '../helpers/credentials';
+import { LoginPage } from '../pages/login.page';
+import { type DemoCredentials, loadDemoCredentials } from '../helpers/credentials';
 
-type HarnessFixtures = {
+type AppFixtures = {
+  credentials: DemoCredentials;
   loginPage: LoginPage;
   inventoryPage: InventoryPage;
-  standardUsername: string;
-  demoPassword: string;
+  cartPage: CartPage;
 };
 
-export const test = base.extend<HarnessFixtures>({
-  standardUsername: async ({}, use) => {
-    await use(getTestData().username);
-  },
-  demoPassword: async ({}, use) => {
-    await use(getCredentials().password);
+export const test = base.extend<AppFixtures>({
+  credentials: async ({}, use) => {
+    await use(loadDemoCredentials());
   },
   loginPage: async ({ page }, use) => {
     await use(new LoginPage(page));
   },
   inventoryPage: async ({ page }, use) => {
     await use(new InventoryPage(page));
+  },
+  cartPage: async ({ page }, use) => {
+    await use(new CartPage(page));
   }
 });
 

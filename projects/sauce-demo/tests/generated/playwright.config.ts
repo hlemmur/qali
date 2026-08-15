@@ -19,10 +19,5 @@ export default defineConfig({
     video: isCI ? 'on-first-retry' : 'off',
     navigationTimeout: 30_000
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
-    }
-  ]
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }]
 });
