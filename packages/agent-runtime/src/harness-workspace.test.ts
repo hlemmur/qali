@@ -92,9 +92,21 @@ describe('ephemeral harness workspace', () => {
     expect(result.manifest.profileId).toBe('exploration');
     expect(result.manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
     const mcp = JSON.parse(readFileSync(join(workspace, '.cursor/mcp.json'), 'utf8')) as {
-      mcpServers: { 'qali-browser': { command: string; args: string[]; envFile?: string } };
+      mcpServers: {
+        'qali-browser': {
+          command: string;
+          args: string[];
+          cwd?: string;
+          envFile?: string;
+        };
+      };
     };
     expect(mcp.mcpServers['qali-browser'].envFile).toBeUndefined();
+    expect(mcp.mcpServers['qali-browser'].cwd).toBe(process.cwd());
+    expect(mcp.mcpServers['qali-browser'].command).toBe(process.execPath);
+    expect(mcp.mcpServers['qali-browser'].args[0]).toBe('--import');
+    expect(existsSync(mcp.mcpServers['qali-browser'].args[1]!)).toBe(true);
+    expect(mcp.mcpServers['qali-browser'].args[1]).toMatch(/tsx/);
     expect(mcp.mcpServers['qali-browser'].args).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/qali-browser-mcp-launch\.ts$/),

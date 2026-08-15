@@ -125,8 +125,9 @@ describe('agent runtime', () => {
       })
     );
     const argv = spawn.mock.calls[0]![1];
-    expect(argv).toEqual(expect.arrayContaining(['--approve-mcps']));
+    expect(argv).toEqual(expect.arrayContaining(['--approve-mcps', '--force']));
     expect(argv[argv.indexOf('--trust') + 1]).toBe('--approve-mcps');
+    expect(argv[argv.indexOf('--approve-mcps') + 1]).toBe('--force');
   });
 
   it('uses allowlist mode and ignores CURSOR_SANDBOX from the environment', async () => {
