@@ -440,6 +440,47 @@ export async function publishHostedReport(input: {
   }
 }
 
+function githubRunUrlFromEnv(env = process.env): string | undefined {
+  if (env.GITHUB_RUN_URL) return env.GITHUB_RUN_URL;
+  if (!env.GITHUB_RUN_ID || !env.GITHUB_REPOSITORY) return undefined;
+  return `${env.GITHUB_SERVER_URL ?? 'https://github.com'}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
+}
+
+function loadGenerationSummary(projectRoot: string): RunSummary['generation'] | undefined {
+  const sidecar = readJson(join(projectRoot, 'derived/reports/generation.json'));
+  if (!sidecar) return undefined;
+  const files = Array.isArray(sidecar.files)
+    ? sidecar.files.flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return [];
+        const value = entry as { path?: unknown; title?: unknown };
+        if (typeof value.path !== 'string') return [];
+        return [
+          {
+            path: value.path,
+            title: typeof value.title === 'string' ? value.title : ''
+          }
+        ];
+      })
+    : [];
+  return {
+    ...(typeof sidecar.focus === 'string' ? { focus: sidecar.focus } : {}),
+    ...(typeof sidecar.coverageExcerpt === 'string'
+      ? { coverageExcerpt: sidecar.coverageExcerpt }
+      : {}),
+    ...(files.length ? { files } : {}),
+    ...(Array.isArray(sidecar.traceability)
+      ? {
+          traceability: sidecar.traceability.filter(
+            (entry): entry is string => typeof entry === 'string'
+          )
+        }
+      : {}),
+    ...(Array.isArray(sidecar.tags)
+      ? { tags: sidecar.tags.filter((entry): entry is string => typeof entry === 'string') }
+      : {})
+  };
+}
+
 function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] | undefined {
   const sidecar = readJson(join(projectRoot, 'derived/reports/exploration.json'));
   if (!sidecar || sidecar.intent !== 'explore-project') return undefined;
@@ -596,6 +637,15 @@ export async function postRunSummary(): Promise<void> {
   const qualitySnapshot =
     session.qualitySnapshot ??
     (snapshot ? (snapshot as NonNullable<RunSummary['qualitySnapshot']>) : undefined);
+  const generation = session.generation ?? loadGenerationSummary(project.root);
+  const generatedTests =
+    session.generatedTests ??
+    generatedTestsPayload(project.root, project.id, process.env.SUMMARY_INTENT);
+  const githubRunUrl = githubRunUrlFromEnv();
+  const specUrl =
+    generatedTests && process.env.GITHUB_REPOSITORY
+      ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/tree/${process.env.GITHUB_SHA ?? 'main'}/${project.root}/tests/generated`
+      : undefined;
   const htmlSummary: RunSummary = {
     runId: runId ?? 'unknown',
     status,
@@ -615,10 +665,12 @@ export async function postRunSummary(): Promise<void> {
     ...(tests ? { tests } : {}),
     ...(counts ?? {}),
     ...(exploration ? { exploration } : {}),
-    ...(session.generation ? { generation: session.generation } : {}),
-    ...(session.generatedTests ? { generatedTests: session.generatedTests } : {}),
+    ...(generation ? { generation } : {}),
+    ...(generatedTests ? { generatedTests } : {}),
     ...(session.triage ? { triage: session.triage } : {}),
-    ...(qualitySnapshot ? { qualitySnapshot } : {})
+    ...(qualitySnapshot ? { qualitySnapshot } : {}),
+    ...(githubRunUrl ? { githubRunUrl } : {}),
+    ...(specUrl ? { specUrl } : {})
   };
   const html = renderHtmlReport(htmlSummary);
   mkdirSync('.qali', { recursive: true });
@@ -649,20 +701,10 @@ export async function postRunSummary(): Promise<void> {
     }
   }
 
-  const generatedTests = generatedTestsPayload(
-    project.root,
-    project.id,
-    process.env.SUMMARY_INTENT
-  );
-  const specUrl =
-    generatedTests && process.env.GITHUB_REPOSITORY
-      ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/tree/${process.env.GITHUB_SHA ?? 'main'}/${project.root}/tests/generated`
-      : undefined;
-
   const body = JSON.stringify({
     requestId,
     runId,
-    htmlUrl: process.env.GITHUB_RUN_URL,
+    htmlUrl: githubRunUrl ?? process.env.GITHUB_RUN_URL,
     ...(reportUrl ? { reportUrl } : {}),
     ...(specUrl ? { specUrl } : {}),
     ...(generatedTests ? { generatedTests } : {}),

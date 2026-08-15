@@ -11,10 +11,10 @@ type HarnessFixtures = {
 };
 
 export const test = base.extend<HarnessFixtures>({
-  standardUsername: async (_fixtures, use) => {
+  standardUsername: async ({}, use) => {
     await use(getTestData().username);
   },
-  demoPassword: async (_fixtures, use) => {
+  demoPassword: async ({}, use) => {
     await use(getCredentials().password);
   },
   loginPage: async ({ page }, use) => {

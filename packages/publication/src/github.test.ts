@@ -149,6 +149,29 @@ describe('least-privilege GitHub publication adapter', () => {
       })
     );
 
+    await adapter.commit('qali/req-1', 'Flatten nested generated spec', [
+      {
+        path: 'projects/shop/tests/generated/e2e/tests/auth/login.spec.ts',
+        classification: 'test',
+        before: { content: 'nested', sha256: 'c'.repeat(64) },
+        after: null
+      }
+    ]);
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          tree: [
+            {
+              path: 'projects/shop/tests/generated/e2e/tests/auth/login.spec.ts',
+              mode: '100644',
+              type: 'blob',
+              sha: null
+            }
+          ]
+        })
+      })
+    );
+
     await expect(
       adapter.commit('qali/req-1', 'Unsafe delete', [
         {

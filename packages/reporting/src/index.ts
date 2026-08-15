@@ -67,6 +67,8 @@ export interface RunSummary {
     area?: string;
     titles?: string[];
   };
+  githubRunUrl?: string;
+  specUrl?: string;
   generation?: {
     focus?: string;
     coverageExcerpt?: string;

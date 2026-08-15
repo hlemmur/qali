@@ -197,7 +197,7 @@ describe('assembled Cursor harness step', () => {
     ).toContain('JRN-001');
   });
 
-  it('rewrites Playwright empty fixture patterns when promoting generated tests', () => {
+  it('keeps Playwright empty fixture destructuring when promoting generated tests', () => {
     const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
     temporaryDirectories.push(parent);
     const harnessWorkspace = join(parent, 'harness');
@@ -235,8 +235,8 @@ describe('assembled Cursor harness step', () => {
       join(packRoot, 'tests/generated/e2e/fixtures/login.fixture.ts'),
       'utf8'
     );
-    expect(promoted).not.toMatch(/async \(\{\s*\}, use\)/);
-    expect(promoted).toContain('async (_fixtures, use)');
+    expect(promoted).toContain('async ({}, use)');
+    expect(promoted).not.toContain('_fixtures');
   });
 
   it('strips Playwright skip and fixme tests from promoted generated specs', () => {
@@ -316,6 +316,52 @@ test('signs in @smoke', async ({ page }) => {
 
     expect(existsSync(join(packRoot, 'tests/generated/e2e/tests/login.spec.ts'))).toBe(true);
     expect(existsSync(join(packRoot, 'tests/generated/e2e/tests/auth/login.spec.ts'))).toBe(false);
+  });
+
+  it('keeps an existing observation JSON charter and writes a new session file', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const harnessWorkspace = join(parent, 'harness');
+    const packRoot = join(parent, 'pack');
+    mkdirSync(join(harnessWorkspace, 'outputs/observations'), { recursive: true });
+    mkdirSync(join(packRoot, 'observations'), { recursive: true });
+    writeFileSync(
+      join(packRoot, 'observations/sauce-demo-login-flow-charter.json'),
+      '{"session":"prior"}\n'
+    );
+    writeFileSync(
+      join(harnessWorkspace, 'outputs/observations/sauce-demo-login-flow-charter.json'),
+      '{"session":"current"}\n'
+    );
+
+    promoteHarnessOutputs({
+      harnessWorkspace,
+      packRoot,
+      step: {
+        id: 'explore',
+        role: 'explorer',
+        harnessProfileId: 'browser-exploration',
+        needs: ['charter'],
+        inputs: [],
+        outputs: [],
+        requiredTools: ['browser'],
+        mutations: ['append-observation'],
+        policyGates: [],
+        retries: 0,
+        timeoutMs: 180000
+      }
+    });
+
+    expect(
+      readFileSync(join(packRoot, 'observations/sauce-demo-login-flow-charter.json'), 'utf8')
+    ).toBe('{"session":"prior"}\n');
+    const extras = readdirSync(join(packRoot, 'observations')).filter(
+      (name) => name !== 'sauce-demo-login-flow-charter.json'
+    );
+    expect(extras).toHaveLength(1);
+    expect(readFileSync(join(packRoot, 'observations', extras[0]!), 'utf8')).toBe(
+      '{"session":"current"}\n'
+    );
   });
 
   it('blocks explore when the agent reports that qali-browser is missing', async () => {

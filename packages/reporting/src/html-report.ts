@@ -96,9 +96,39 @@ function nonTestRunNotice(intent?: string): string {
     return 'This onboard run did not execute Playwright tests. It records project context, journeys, risks, and open questions.';
   }
   if (intent === 'explore-project') {
-    return 'This exploration session used the restricted browser facade. It did not execute the scripted Playwright suite.';
+    return 'This exploration session used the restricted browser facade. It did not execute the scripted Playwright suite and did not generate Playwright tests.';
+  }
+  if (intent === 'generate-test-suite') {
+    return 'This generate run authored Playwright specs. It did not execute Playwright tests.';
   }
   return 'This run did not execute Playwright tests.';
+}
+
+function isTimelineNoise(entry: { action: string; observation?: string }): boolean {
+  const noise = (value: string): boolean => /^:?-{2,}:?$/.test(value.trim());
+  if (noise(entry.action) || (entry.observation !== undefined && noise(entry.observation))) {
+    return true;
+  }
+  if (/^(time|action|observation|evidence)$/i.test(entry.action.trim())) return true;
+  return false;
+}
+
+function isPlaywrightCollectionFailure(summary: RunSummary): boolean {
+  return (
+    summary.intent === 'run-test-suite' &&
+    [summary.total, summary.passed, summary.failed, summary.skipped].every(Number.isInteger) &&
+    Number(summary.total) === 0
+  );
+}
+
+function isAuthoringIntent(intent?: string): boolean {
+  return (
+    intent === 'generate-test-suite' ||
+    intent === 'explore-project' ||
+    intent === 'onboard-project' ||
+    intent === 'triage-failure' ||
+    intent === 'quality-pulse'
+  );
 }
 
 export function formatDurationMs(ms: number): string {
@@ -219,8 +249,14 @@ export function renderHtmlReport(summary: RunSummary): string {
   const browser =
     tests.map((test) => test.suite).find((suite) => suite && suite.length > 0) ?? undefined;
 
-  const kpi = hasCounts(summary)
-    ? `<section class="kpis" aria-label="Result counts">
+  const collectionFailure = isPlaywrightCollectionFailure(summary);
+  const kpi = collectionFailure
+    ? `<section>
+    <h2>Summary</h2>
+    <p>Playwright did not collect any tests. The suite never started.</p>
+  </section>`
+    : hasCounts(summary) && Number(summary.total) > 0
+      ? `<section class="kpis" aria-label="Result counts">
     <div class="kpi"><span class="kpi-label">Total</span><span class="kpi-value">${total}</span></div>
     <div class="kpi pass"><span class="kpi-label">Passed</span><span class="kpi-value">${passed}</span></div>
     <div class="kpi fail"><span class="kpi-label">Failed</span><span class="kpi-value">${failed}</span></div>
@@ -231,15 +267,13 @@ export function renderHtmlReport(summary: RunSummary): string {
   <div class="bar" role="img" aria-label="Passed ${passed}, failed ${failed}, skipped ${skipped}">
     ${barSegment(passed, total, 'pass')}${barSegment(failed, total, 'fail')}${barSegment(skipped, total, 'skip')}
   </div>`
-    : summary.exploration ||
-        summary.generation ||
-        summary.generatedTests ||
-        summary.qualitySnapshot ||
-        summary.intent === 'onboard-project' ||
-        summary.intent === 'triage-failure' ||
-        summary.intent === 'quality-pulse'
-      ? ''
-      : `<section>
+      : summary.exploration ||
+          summary.generation ||
+          summary.generatedTests ||
+          summary.qualitySnapshot ||
+          isAuthoringIntent(summary.intent)
+        ? ''
+        : `<section>
     <h2>Summary</h2>
     <p>No test counts were recorded for this run.</p>
     ${
@@ -313,9 +347,11 @@ export function renderHtmlReport(summary: RunSummary): string {
       : '';
 
   const exploration = summary.exploration;
+  const timeline = (exploration?.timeline ?? []).filter((entry) => !isTimelineNoise(entry));
   const explorationBlock = exploration
     ? `<section>
     <h2>What Qali did</h2>
+    <p>${escapeHtml(nonTestRunNotice('explore-project'))}</p>
     <ul>
       ${exploration.charter ? `<li>Charter: ${escapeHtml(exploration.charter)}</li>` : ''}
       ${exploration.focus ? `<li>Focus: ${escapeHtml(exploration.focus)}</li>` : ''}
@@ -333,10 +369,10 @@ export function renderHtmlReport(summary: RunSummary): string {
     </ul>
   </section>
   ${
-    (exploration.timeline ?? []).length
+    timeline.length
       ? `<section>
     <h2>Timeline</h2>
-    <ul>${(exploration.timeline ?? [])
+    <ul>${timeline
       .map((entry) => {
         const observation = entry.observation ? ` — ${escapeHtml(entry.observation)}` : '';
         const evidence = entry.evidence ? ` (${escapeHtml(entry.evidence)})` : '';
@@ -387,42 +423,46 @@ export function renderHtmlReport(summary: RunSummary): string {
     : '';
 
   const generation = summary.generation;
-  const generationBlock = generation
-    ? `<section>
+  const generationBlock =
+    generation || summary.intent === 'generate-test-suite'
+      ? `<section>
     <h2>What was designed</h2>
+    <p>${escapeHtml(nonTestRunNotice('generate-test-suite'))}</p>
     <ul>
-      ${generation.focus ? `<li>Focus: ${escapeHtml(generation.focus)}</li>` : ''}
-      ${(generation.tags ?? []).length ? `<li>Tags: ${escapeHtml((generation.tags ?? []).join(', '))}</li>` : ''}
+      ${generation?.focus ? `<li>Focus: ${escapeHtml(generation.focus)}</li>` : ''}
+      ${(generation?.tags ?? []).length ? `<li>Tags: ${escapeHtml((generation?.tags ?? []).join(', '))}</li>` : ''}
     </ul>
-    ${generation.coverageExcerpt ? `<pre>${escapeHtml(generation.coverageExcerpt)}</pre>` : ''}
+    ${generation?.coverageExcerpt ? `<pre>${escapeHtml(generation.coverageExcerpt)}</pre>` : ''}
   </section>
   <section>
     <h2>What was added</h2>
     ${
-      (generation.files ?? []).length
-        ? `<ul>${(generation.files ?? [])
+      (generation?.files ?? []).length
+        ? `<ul>${(generation?.files ?? [])
             .map(
               (file) =>
                 `<li><code>${escapeHtml(file.path)}</code>${file.title ? ` — ${escapeHtml(file.title)}` : ''}</li>`
             )
             .join('')}</ul>`
-        : '<p>No generated spec files were recorded.</p>'
+        : summary.generatedTests?.titles?.length
+          ? `<ul>${summary.generatedTests.titles.map((title) => `<li>${escapeHtml(title)}</li>`).join('')}</ul>`
+          : '<p>No generated spec files were recorded in this run artifact.</p>'
     }
   </section>
   ${
-    (generation.traceability ?? []).length
+    (generation?.traceability ?? []).length
       ? `<section>
     <h2>Traceability</h2>
-    <ul>${(generation.traceability ?? []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+    <ul>${(generation?.traceability ?? []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
   </section>`
       : ''
   }`
-    : summary.generatedTests?.titles?.length
-      ? `<section>
+      : summary.generatedTests?.titles?.length
+        ? `<section>
     <h2>What was added</h2>
     <ul>${summary.generatedTests.titles.map((title) => `<li>${escapeHtml(title)}</li>`).join('')}</ul>
   </section>`
-      : '';
+        : '';
 
   const pulse = summary.qualitySnapshot;
   const pulseBlock = pulse
@@ -546,6 +586,16 @@ export function renderHtmlReport(summary: RunSummary): string {
       ${summary.suiteLabel ? `<li>Suite: ${escapeHtml(summary.suiteLabel)}</li>` : ''}
       ${browser ? `<li>Browser project: ${escapeHtml(browser)}</li>` : ''}
       ${stages ? `<li>Stages: ${escapeHtml(stages)}</li>` : ''}
+      ${
+        summary.githubRunUrl
+          ? `<li><a href="${escapeHtml(summary.githubRunUrl)}">GitHub run</a></li>`
+          : ''
+      }
+      ${
+        summary.specUrl
+          ? `<li><a href="${escapeHtml(summary.specUrl)}">Generated tests on GitHub</a></li>`
+          : ''
+      }
     </ul>
   </section>
   <section>

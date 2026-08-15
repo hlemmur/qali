@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   cpSync,
@@ -80,10 +81,6 @@ export function collectHarnessInputFiles(
   return files;
 }
 
-function rewritePlaywrightEmptyFixturePatterns(source: string): string {
-  return source.replace(/\(\s*\{\s*\}\s*,\s*use\b/g, '(_fixtures, use');
-}
-
 function isUnrunPlaywrightCall(node: ts.CallExpression): boolean {
   const names: string[] = [];
   let expression: ts.Expression = node.expression;
@@ -127,10 +124,7 @@ function sanitizePromotedGeneratedTests(generatedDirectory: string): void {
   for (const file of listFiles(generatedDirectory)) {
     if (!file.endsWith('.ts')) continue;
     const before = readFileSync(file, 'utf8');
-    let after = rewritePlaywrightEmptyFixturePatterns(before);
-    if (file.endsWith('.spec.ts')) {
-      after = stripUnrunPlaywrightTests(after);
-    }
+    const after = file.endsWith('.spec.ts') ? stripUnrunPlaywrightTests(before) : before;
     if (after !== before) writeFileSync(file, after);
   }
 }
@@ -173,14 +167,27 @@ export function promoteHarnessOutputs(request: {
       const relativePath = relative(fromDir, file).split(sep).join('/');
       const destination = join(toDir, relativePath);
       mkdirSync(dirname(destination), { recursive: true });
-      if (mode === 'append-markdown' && destination.endsWith('.md') && existsSync(destination)) {
-        writeFileSync(
-          destination,
-          appendMarkdown(readFileSync(destination, 'utf8'), readFileSync(file, 'utf8'))
-        );
-      } else {
-        cpSync(file, destination, { dereference: true });
+      if (mode === 'append-markdown' && existsSync(destination)) {
+        if (destination.endsWith('.md')) {
+          writeFileSync(
+            destination,
+            appendMarkdown(readFileSync(destination, 'utf8'), readFileSync(file, 'utf8'))
+          );
+          promoted.push(destination);
+          continue;
+        }
+        if (destination.endsWith('.json')) {
+          const digest = createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 8);
+          const unique = destination.replace(/(\.[^./]+)$/, `.${digest}$1`);
+          if (unique === destination || existsSync(unique)) {
+            continue;
+          }
+          cpSync(file, unique, { dereference: true });
+          promoted.push(unique);
+          continue;
+        }
       }
+      cpSync(file, destination, { dereference: true });
       promoted.push(destination);
     }
   };
