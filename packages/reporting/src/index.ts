@@ -186,11 +186,22 @@ export function renderSlackRunSummary(
       }`
     : undefined;
 
+  const citationLine = summary.exploration?.skills?.length
+    ? `Used ${summary.exploration.skills.join(', ')}${
+        summary.exploration.profile ? ` · ${summary.exploration.profile}` : ''
+      }`
+    : summary.generation?.focus
+      ? `Authored from ${summary.generation.focus}`
+      : actions.reportUrl
+        ? 'Open report for the session record'
+        : undefined;
+
   const body = [
     title,
     countLine,
     generationLine,
     explorationLine,
+    citationLine,
     stageLine(summary.stages ?? {}),
     failureLine
   ]

@@ -78,5 +78,7 @@ describe('App Home', () => {
     expect(text).toContain('sauce-demo · run-test-suite · failed');
     expect(text).toContain('sauce-demo · explore-project · dispatched');
     expect(text).toContain('sauce-demo · query-project · answered');
+    expect(text).toContain('explore the login flow');
+    expect(text).toContain('run the smoke suite');
   });
 });

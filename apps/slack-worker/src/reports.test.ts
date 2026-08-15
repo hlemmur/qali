@@ -38,6 +38,9 @@ class MemoryStore implements ControlStore {
   async findLatestByThread(): Promise<Correlation | null> {
     return null;
   }
+  async findLatestInChannel(): Promise<Correlation | null> {
+    return [...this.correlations.values()][0] ?? null;
+  }
   async markCompleted(): Promise<void> {}
   async getQualitySnapshot(): Promise<QualitySnapshot | null> {
     return null;

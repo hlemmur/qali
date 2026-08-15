@@ -595,6 +595,23 @@ async function githubRunSummary(
   const correlation =
     (requestId ? await store.findByRequestId(requestId) : null) ??
     (runId ? await store.findByRunId(runId) : null);
+  const scheduledHeartbeat = Boolean(requestId?.startsWith('scheduled-'));
+  if (!correlation && scheduledHeartbeat) {
+    const channelId = DEFAULT_PROJECT_REGISTRY.projects[0]?.allowedSlack.channelIds[0];
+    const prior = channelId ? await store.findLatestInChannel(channelId) : null;
+    if (prior) {
+      await slack.postResult(
+        { ...prior, requestId: requestId ?? prior.requestId, ...(runId ? { runId } : {}) },
+        {
+          runId: runId ?? prior.runId ?? 'scheduled',
+          status: typeof payload.status === 'string' ? payload.status : 'passed',
+          intent: typeof payload.intent === 'string' ? payload.intent : 'quality-pulse',
+          ...(typeof payload.reportUrl === 'string' ? { reportUrl: payload.reportUrl } : {})
+        }
+      );
+      return json(200, { ok: true, heartbeat: true });
+    }
+  }
   if (!correlation) return new Response('Uncorrelated', { status: 404 });
   const counts = record(payload.counts);
   const hasCounts =

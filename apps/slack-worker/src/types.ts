@@ -109,6 +109,7 @@ export interface ControlStore {
     channelId: string;
     threadTs: string;
   }): Promise<Correlation | null>;
+  findLatestInChannel(channelId: string): Promise<Correlation | null>;
   markCompleted(
     requestId: string,
     status: string,

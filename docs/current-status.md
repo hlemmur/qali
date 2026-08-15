@@ -1,8 +1,8 @@
 # Qali implementation and readiness status
 
-**Status date:** 2026-08-14
+**Status date:** 2026-08-15
 
-**Repository state at assessment:** `main` at `43b4b77`, clean and synchronized with `origin/main`
+**Repository state at assessment:** `main` tracking independently reviewed vision-gap slices through onboard registry publication (`#71`)
 
 **Full reviewed-main gate:** 47 test files / 309 tests, formatting, lint, TypeScript, registry validation, qualification-registry validation, harness validation, and Worker dry run passed
 

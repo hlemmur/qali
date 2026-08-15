@@ -10,6 +10,7 @@ import { signHmacForTest } from './security.js';
 import { createWorker as createProductionWorker, type WorkerDependencies } from './index.js';
 import { heuristicClassify } from './classifier.js';
 import { SlackWebClient } from './slack.js';
+import { DEFAULT_PROJECT_REGISTRY } from './project-registry.js';
 import type {
   ControlStore,
   Correlation,
@@ -135,6 +136,14 @@ class MemoryStore implements ControlStore {
             row.threadTs === input.threadTs &&
             Boolean(row.runId)
         )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
+    );
+  }
+
+  async findLatestInChannel(channelId: string): Promise<Correlation | null> {
+    return (
+      [...this.correlations.values()]
+        .filter((row) => row.channelId === channelId)
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
     );
   }
@@ -1189,6 +1198,71 @@ describe('Slack control worker', () => {
     expect(slack.postResult).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(vi.mocked(slack.postResult).mock.calls[0]?.[1])).not.toMatch(
       /callback-token|employee-1234|customer-42/
+    );
+  });
+
+  it('posts scheduled heartbeats into the latest product-channel thread', async () => {
+    const store = new MemoryStore();
+    const channelId = DEFAULT_PROJECT_REGISTRY.projects[0]?.allowedSlack.channelIds[0] ?? 'C1';
+    store.correlations.set('prior', {
+      requestId: 'prior',
+      status: 'passed',
+      createdAt: '2026-08-15T00:00:00.000Z',
+      updatedAt: '2026-08-15T00:01:00.000Z',
+      teamId: 'T1',
+      channelId,
+      userId: 'U1',
+      threadTs: '1700000000.100',
+      requestTs: '1700000000.100'
+    });
+    const slack = {
+      postResult: vi.fn(async () => '3.3'),
+      updateResult: vi.fn(),
+      postThreadNotice: vi.fn()
+    };
+    const worker = createWorker({
+      store,
+      classifier: {} as IntentClassifier,
+      github: {} as GitHubPort,
+      slack,
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const body = JSON.stringify({
+      requestId: 'scheduled-quality-pulse-99',
+      intent: 'quality-pulse',
+      status: 'passed',
+      reportUrl: 'https://worker.test/reports/sauce-demo/99.html'
+    });
+    const timestamp = '1700000000';
+    const nonce = 'scheduled-heartbeat-1';
+    const signature = await signHmacForTest(
+      'callback-secret',
+      `${timestamp}.${nonce}.${body}`,
+      'sha256='
+    );
+    const response = await worker.fetch(
+      new Request('https://worker.test/github/run-summary', {
+        method: 'POST',
+        headers: {
+          'x-qali-timestamp': timestamp,
+          'x-qali-nonce': nonce,
+          'x-qali-signature': signature
+        },
+        body
+      }),
+      baseEnv([])
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, heartbeat: true });
+    expect(slack.postResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadTs: '1700000000.100',
+        requestId: 'scheduled-quality-pulse-99'
+      }),
+      expect.objectContaining({
+        intent: 'quality-pulse',
+        reportUrl: expect.stringContaining('/reports/')
+      })
     );
   });
 
