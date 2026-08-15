@@ -163,9 +163,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
     env:
       QALI_PUBLISH_GITHUB_TOKEN: ${{ secrets.QALI_PUBLISH_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
       GITHUB_OWNER: ${{ github.repository_owner }}
       GITHUB_REPO: ${{ github.event.repository.name }}
     steps:
@@ -180,13 +182,13 @@ jobs:
           name: qali-${{ github.run_id }}-${{ github.run_attempt }}
           path: publication-artifact
       - name: Publish through Qali GitHub App
-        if: env.QALI_PUBLISH_GITHUB_TOKEN != ''
+        if: env.QALI_PUBLISH_GITHUB_TOKEN != '' || env.GITHUB_TOKEN != ''
         env:
           QALI_PUBLICATION_MANIFEST: publication-artifact/.qali/publication-request.json
         run: npm run publish
       - name: Keep patch artifact when publication is not configured
-        if: env.QALI_PUBLISH_GITHUB_TOKEN == ''
-        run: echo "QALI_PUBLISH_GITHUB_TOKEN is not configured; generated.patch remains an artifact."
+        if: env.QALI_PUBLISH_GITHUB_TOKEN == '' && env.GITHUB_TOKEN == ''
+        run: echo "No publication token is configured; generated.patch remains an artifact."
 
   notify-slack:
     if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')

@@ -7,10 +7,23 @@ import {
 
 export interface GitHubPublicationAdapterOptions {
   token: string;
+  fallbackToken?: string;
   owner: string;
   repo: string;
   apiUrl?: string;
   fetcher?: typeof fetch;
+}
+
+export function resolvePublicationTokens(env: NodeJS.ProcessEnv): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const name of ['QALI_PUBLISH_GITHUB_TOKEN', 'GITHUB_TOKEN'] as const) {
+    const value = env[name]?.trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    tokens.push(value);
+  }
+  return tokens;
 }
 
 const object = (value: unknown): Record<string, unknown> =>
@@ -19,11 +32,23 @@ const object = (value: unknown): Record<string, unknown> =>
 export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
   private readonly fetcher: typeof fetch;
   private readonly apiUrl: string;
+  private readonly tokens: string[];
+  private tokenIndex = 0;
   private readonly branchBases = new Map<string, string>();
 
   constructor(private readonly options: GitHubPublicationAdapterOptions) {
     this.fetcher = options.fetcher ?? fetch;
     this.apiUrl = (options.apiUrl ?? 'https://api.github.com').replace(/\/$/, '');
+    this.tokens = [options.token, options.fallbackToken]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+    if (this.tokens.length === 0) {
+      throw new Error('publication token is required');
+    }
+  }
+
+  private currentToken(): string {
+    return this.tokens[this.tokenIndex] ?? this.tokens[0]!;
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
@@ -31,16 +56,19 @@ export class GitHubRestPublicationAdapter implements GitHubPublicationPort {
       ...init,
       headers: {
         accept: 'application/vnd.github+json',
-        authorization: `Bearer ${this.options.token}`,
+        authorization: `Bearer ${this.currentToken()}`,
         'content-type': 'application/json',
         'x-github-api-version': '2022-11-28',
         ...init.headers
       }
     });
     if (!response.ok) {
-      throw new Error(
-        `GitHub publication request failed (${response.status}): ${await response.text()}`
-      );
+      const detail = await response.text();
+      if (response.status === 401 && this.tokenIndex < this.tokens.length - 1) {
+        this.tokenIndex += 1;
+        return this.request(path, init);
+      }
+      throw new Error(`GitHub publication request failed (${response.status}): ${detail}`);
     }
     return object(await response.json());
   }
