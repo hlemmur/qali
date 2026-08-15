@@ -129,8 +129,7 @@ function isSafeProjectPath(path: string, projectRoot: string): boolean {
   return !segments.some((segment) => segment === '.' || segment === '..' || segment === '');
 }
 
-const RETRACTABLE_GENERATED_SPEC =
-  /^projects\/[^/]+\/tests\/generated\/[^/]+\.generated\.spec\.ts$/;
+const RETRACTABLE_GENERATED_SPEC = /^projects\/[^/]+\/tests\/generated\/.+\.spec\.ts$/;
 
 export function isRetractableGeneratedSpec(path: string): boolean {
   return isSafePath(path) && RETRACTABLE_GENERATED_SPEC.test(path);

@@ -296,6 +296,14 @@ export interface ExplorationReportSidecar {
   timeline: Array<{ action: string; observation?: string; evidence?: string }>;
 }
 
+function isExplorationTableNoise(marker: string, action: string, observation: string): boolean {
+  const noise = (value: string): boolean => /^:?-{2,}:?$/.test(value) || /^-{3,}$/.test(value);
+  if (noise(marker) || noise(action) || noise(observation)) return true;
+  if (/^(time|action|observation|evidence)$/i.test(marker)) return true;
+  if (/^(time|action|observation|evidence)$/i.test(action)) return true;
+  return false;
+}
+
 function explorationSidecar(
   exploration: string,
   command: NormalizedCommand,
@@ -324,15 +332,20 @@ function explorationSidecar(
       (match) => `${match[1]} ${match[2]!.trim()}`
     ),
     assumptions: [`${focus} is reachable on the allowlisted origin`],
-    evidence: [...exploration.matchAll(/`([^`]+\.(?:png|json))`/g)].map((match) => match[1]!),
+    evidence: [...exploration.matchAll(/`([^`]+\.(?:png|jpe?g|webp))`/gi)].map(
+      (match) => match[1]!
+    ),
     skills: ['exploratory-testing', 'agentic-browser-testing'],
     profile: 'browser-exploration',
     timeline: [...exploration.matchAll(/^\| (\d{2}:\d{2}|\S+) \| ([^|]+) \| ([^|]+) \|/gm)]
+      .flatMap((match) => {
+        const marker = match[1]!.trim();
+        const action = match[2]!.trim();
+        const observation = match[3]!.trim();
+        if (isExplorationTableNoise(marker, action, observation)) return [];
+        return [{ action, observation }];
+      })
       .slice(0, 20)
-      .map((match) => ({
-        action: match[2]!.trim(),
-        observation: match[3]!.trim()
-      }))
   };
 }
 

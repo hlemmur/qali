@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   executeExplorationStep,
   explorationBudget,
+  materializeExplorationSidecar,
   type ExplorationBrowser
 } from './exploration.js';
 import {
@@ -403,5 +404,30 @@ describe('bounded exploratory testing', () => {
     expect(readFileSync(join(projectRoot, 'observations/exploration.md'), 'utf8')).toContain(
       'Q-EXP-001'
     );
+  });
+
+  it('does not parse markdown table separators or mcp.json as exploration timeline evidence', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-exploration-sidecar-'));
+    const projectRoot = join(workspace, command.project.root);
+    mkdirSync(join(projectRoot, 'observations'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'observations/exploration.md'),
+      `# Exploration
+
+| Time | Action | Observation | Evidence |
+| --- | --- | --- | --- |
+| 00:01 | Navigate to \`/\` | Login form visible | \`login.png\` |
+| NOTE | Read governed sources | ok | \`mcp.json\` |
+`
+    );
+    materializeExplorationSidecar(projectRoot, command);
+    const sidecar = JSON.parse(
+      readFileSync(join(projectRoot, 'derived/reports/exploration.json'), 'utf8')
+    ) as { timeline: Array<{ action: string }>; evidence: string[] };
+    expect(sidecar.timeline.map((entry) => entry.action)).toEqual([
+      'Navigate to `/`',
+      'Read governed sources'
+    ]);
+    expect(sidecar.evidence).toEqual(['login.png']);
   });
 });

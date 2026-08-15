@@ -248,6 +248,73 @@ describe('hosted HTML report', () => {
     expect(html).toContain('Explore the main flow');
   });
 
+  it('explains generate runs as authoring even without a generation sidecar', () => {
+    const html = renderHtmlReport({
+      runId: '31880865364',
+      status: 'passed',
+      intent: 'generate-test-suite',
+      projectId: 'sauce-demo',
+      stages: { execution: 'passed', publication: 'failed' },
+      githubRunUrl: 'https://github.com/hlemmur/qali/actions/runs/31880865364',
+      specUrl: 'https://github.com/hlemmur/qali/tree/main/projects/sauce-demo/tests/generated'
+    });
+    expect(html).toContain('What was added');
+    expect(html).toContain('did not execute Playwright tests');
+    expect(html).toContain('https://github.com/hlemmur/qali/actions/runs/31880865364');
+    expect(html).toContain('projects/sauce-demo/tests/generated');
+    expect(html).toContain('Publication failed');
+    expect(html).not.toContain('No test counts were recorded for this run.');
+    expect(html).not.toContain('Pass rate');
+  });
+
+  it('does not present a Playwright collection failure as a 0% pass rate', () => {
+    const html = renderHtmlReport({
+      runId: '31881257755',
+      status: 'failed',
+      intent: 'run-test-suite',
+      projectId: 'sauce-demo',
+      suiteLabel: 'smoke',
+      total: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      durationMs: 87,
+      githubRunUrl: 'https://github.com/hlemmur/qali/actions/runs/31881257755',
+      errors: [
+        'First argument must use the object destructuring pattern: _fixtures (sauce-demo/tests/generated/e2e/fixtures/base.fixture.ts:13)'
+      ]
+    });
+    expect(html).toContain('did not collect any tests');
+    expect(html).toContain('object destructuring pattern');
+    expect(html).toContain('https://github.com/hlemmur/qali/actions/runs/31881257755');
+    expect(html).not.toContain('Pass rate');
+    expect(html).not.toContain('class="kpis"');
+  });
+
+  it('omits markdown table separators from the exploration timeline and states tests were not generated', () => {
+    const html = renderHtmlReport({
+      runId: '31879422988',
+      status: 'passed',
+      intent: 'explore-project',
+      projectId: 'sauce-demo',
+      stages: { execution: 'passed', publication: 'failed' },
+      githubRunUrl: 'https://github.com/hlemmur/qali/actions/runs/31879422988',
+      exploration: {
+        focus: 'deep login flow',
+        timeline: [
+          { action: '----------------------------------', observation: '-------' },
+          { action: 'Time', observation: 'Observation' },
+          { action: 'Navigate to `/`', observation: 'Login form visible', evidence: 'login.png' }
+        ]
+      }
+    });
+    expect(html).toContain('Navigate to `/`');
+    expect(html).not.toContain('----------------------------------');
+    expect(html).toContain('did not generate Playwright tests');
+    expect(html).toContain('https://github.com/hlemmur/qali/actions/runs/31879422988');
+    expect(html).toContain('Generate smoke tests for deep login flow');
+  });
+
   it('escapes untrusted error text so it cannot inject markup', () => {
     const html = renderHtmlReport({
       runId: '1',

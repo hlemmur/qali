@@ -325,6 +325,22 @@ describe('semantic publication policy', () => {
     });
     expect(assessSemanticPublication(semanticManifest([retract]))).toEqual({ allowed: true });
 
+    const flattened = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/e2e/tests/auth/login.spec.ts',
+      before: "test('login', async ({ page }) => { await page.goto('/'); });\n",
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([flattened]))).toEqual({ allowed: true });
+
+    const nestedGenerated = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/foo.spec.ts',
+      before: "test('generated', async ({ page }) => { await expect(page).toHaveURL('/'); });\n",
+      after: null
+    });
+    expect(assessSemanticPublication(semanticManifest([nestedGenerated]))).toEqual({
+      allowed: true
+    });
+
     const missingBefore = createSemanticPublicationChange({
       path: 'projects/shop/tests/generated/foo.generated.spec.ts',
       before: null,
@@ -337,7 +353,6 @@ describe('semantic publication policy', () => {
 
     for (const path of [
       'projects/shop/tests/login.spec.ts',
-      'projects/shop/tests/generated/foo.spec.ts',
       'projects/shop/derived/reports/run.md',
       'projects/shop/tests/__snapshots__/checkout.snap'
     ]) {
