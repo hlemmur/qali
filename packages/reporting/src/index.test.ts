@@ -245,22 +245,34 @@ describe('compact run reporting', () => {
     expect(payload.text).toContain('failed');
   });
 
-  it('summarizes exploration findings instead of test counts', () => {
-    const payload = renderSlackRunSummary({
-      runId: 'exp-1',
-      status: 'passed',
-      intent: 'explore-project',
-      projectId: 'sauce-demo',
-      exploration: {
-        focus: 'login flow',
-        findings: ['Login form is visible', 'Empty password stays on login'],
-        skills: ['exploratory-testing', 'agentic-browser-testing'],
-        profile: 'browser-exploration'
-      }
-    });
-    expect(payload.text).toContain('2 findings');
-    expect(JSON.stringify(payload.blocks)).toContain('login flow');
-    expect(JSON.stringify(payload.blocks)).toContain('exploratory-testing');
-    expect(JSON.stringify(payload.blocks)).not.toContain('No test counts');
+  it('puts the exploration verdict and follow-up actions on the Slack card', () => {
+    const payload = renderSlackRunSummary(
+      {
+        runId: 'exp-1',
+        status: 'passed',
+        intent: 'explore-project',
+        projectId: 'sauce-demo',
+        exploration: {
+          focus: 'login flow',
+          truncated: true,
+          verdict: 'Login shell was reached; inventory was not explored because fill timed out.',
+          findings: ['Login form is visible', 'Empty password stays on login']
+        }
+      },
+      { rerunValue: '{"requestId":"Ev1","runId":"exp-1"}', reportUrl: 'https://worker.test/r.html' }
+    );
+    expect(payload.text).toMatch(/incomplete/i);
+    expect(payload.text).toContain('Login shell was reached');
+    expect(JSON.stringify(payload.blocks)).not.toContain('exploratory-testing');
+    expect(JSON.stringify(payload.blocks)).not.toContain('0 findings');
+    expect(JSON.stringify(payload.blocks)).toContain('followup_generate_tests');
+    expect(JSON.stringify(payload.blocks)).toContain('followup_report_issues');
+    expect(JSON.stringify(payload.blocks)).toContain('followup_clarify');
+    const actionBlocks = payload.blocks.filter((block) => block.type === 'actions') as Array<{
+      elements: unknown[];
+    }>;
+    for (const block of actionBlocks) {
+      expect(block.elements.length).toBeLessThanOrEqual(5);
+    }
   });
 });

@@ -94,14 +94,23 @@ export function formatQualityQueryAnswer(
         )
         .join('; ')}.`;
     }
-    case 'expected':
-      return `${project}: ${list(
-        'Expected results',
-        matching(snapshot.expectedResults, feature),
-        feature
-          ? `I do not have a recorded expected result for ${feature}.`
-          : 'No expected-result notes are in the snapshot.'
-      )}`;
+    case 'expected': {
+      const expected = matching(snapshot.expectedResults, feature);
+      const questions = matching(snapshot.openQuestions, feature);
+      if (!expected.length && !questions.length) {
+        return `${project}: ${
+          feature
+            ? `I do not have a recorded expected result or open question for ${feature}.`
+            : 'No expected-result notes or open questions are in the snapshot.'
+        }`;
+      }
+      return `${project}: ${[
+        list('Assumptions', expected, ''),
+        list('Open questions', questions, '')
+      ]
+        .filter((line) => line.length > 0)
+        .join(' ')}`;
+    }
     case 'flows':
       return `${project}: ${list(
         'Critical flows',

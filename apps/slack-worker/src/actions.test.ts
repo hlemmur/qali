@@ -439,4 +439,144 @@ describe('Slack action handling', () => {
     expect(store.markCompleted).toHaveBeenCalledWith('action-1', 'action-handled');
     expect(notices[0]).toMatch(/Qali run in this thread/i);
   });
+
+  it('starts generate-test-suite from an exploration follow-up button', async () => {
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '120', htmlUrl: 'https://github.test/runs/120' }))
+    };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'explore-project',
+      status: 'passed',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1',
+      commandJson: JSON.stringify({
+        intent: 'explore-project',
+        project: {
+          id: '_demo',
+          root: 'projects/_demo',
+          environment: 'qali-demo',
+          environmentLabel: 'mock',
+          executionProfileId: 'demo-mock',
+          publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true }
+        },
+        requestedBy: 'U1',
+        externalRole: 'developer',
+        receivedAt: '2023-11-14T22:15:00.000Z',
+        slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' },
+        parameters: { feature: 'login' }
+      })
+    };
+    const store = {
+      findByRequestId: vi.fn(async () => correlation),
+      findByRunId: vi.fn(),
+      accept: vi.fn(async () => true),
+      claim: vi.fn(async () => true),
+      markCompleted: vi.fn(),
+      markDispatched: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async () => undefined)
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'followup_generate_tests' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'generate-test-suite',
+        parameters: expect.objectContaining({
+          feature: 'login',
+          sourceRequestId: 'Ev1'
+        })
+      }),
+      expect.stringMatching(/^generate-/)
+    );
+  });
+
+  it('answers report-issues and clarify from the quality snapshot', async () => {
+    const github: GitHubPort = { dispatch: vi.fn() };
+    const correlation: Correlation = {
+      requestId: 'Ev1',
+      runId: '42',
+      workflowId: 'explore-project',
+      status: 'passed',
+      createdAt: '',
+      updatedAt: '',
+      teamId: 'T1',
+      channelId: 'C1',
+      userId: 'U1',
+      threadTs: '1.1',
+      requestTs: '1.1',
+      commandJson: JSON.stringify({
+        intent: 'explore-project',
+        project: {
+          id: '_demo',
+          root: 'projects/_demo',
+          environment: 'qali-demo',
+          environmentLabel: 'mock',
+          executionProfileId: 'demo-mock',
+          publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true }
+        },
+        requestedBy: 'U1',
+        externalRole: 'developer',
+        receivedAt: '2023-11-14T22:15:00.000Z',
+        slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' },
+        parameters: { feature: 'login' }
+      })
+    };
+    const notices: string[] = [];
+    const store = {
+      findByRequestId: vi.fn(async () => correlation),
+      findByRunId: vi.fn(),
+      getQualitySnapshot: vi.fn(async () => ({
+        version: 1,
+        projectId: '_demo',
+        updatedAt: '2026-08-15T12:00:00.000Z',
+        knownIssues: ['Login fill timed out'],
+        openQuestions: ['Q-EXP-001 Exact error copy'],
+        expectedResults: ['Placeholder fields are fillable']
+      })),
+      markCompleted: vi.fn()
+    } as unknown as ControlStore;
+    const slack = {
+      postThreadNotice: vi.fn(async (input: { text: string }) => {
+        notices.push(input.text);
+      })
+    } as unknown as SlackPort;
+
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'followup_report_issues' }),
+        store,
+        github,
+        slack
+      })
+    );
+    await handleSlackAction(
+      actionDeps({
+        work: work({ actionId: 'followup_clarify', requestId: 'action-2' }),
+        store,
+        github,
+        slack
+      })
+    );
+
+    expect(github.dispatch).not.toHaveBeenCalled();
+    expect(notices[0]).toMatch(/Login fill timed out/);
+    expect(notices[1]).toMatch(/Placeholder fields are fillable/);
+    expect(notices[1]).toMatch(/Q-EXP-001/);
+  });
 });
