@@ -153,15 +153,23 @@ export function upsertOnboardedProjectRegistry(
 ): void {
   const registryPath = join(workspace, 'projects/registry.json');
   if (!existsSync(registryPath) || command.intent !== 'onboard-project') return;
-  let registry;
-  try {
-    registry = ProjectRegistrySchema.parse(JSON.parse(readFileSync(registryPath, 'utf8')));
-  } catch {
-    return;
-  }
+  const registry = ProjectRegistrySchema.parse(JSON.parse(readFileSync(registryPath, 'utf8')));
   if (registry.projects.some((project) => project.id === command.project.id)) return;
-  const donor = registry.projects[0];
-  if (!donor) return;
+  const channelId = command.slack?.channelId;
+  const matched = channelId
+    ? registry.projects.filter((project) => project.allowedSlack.channelIds.includes(channelId))
+    : [];
+  const donor =
+    matched.length === 1
+      ? matched[0]
+      : registry.projects.length === 1
+        ? registry.projects[0]
+        : undefined;
+  if (!donor) {
+    throw new Error(
+      'onboard registry donor is ambiguous; Slack channel must match exactly one project'
+    );
+  }
   const root = command.project.root.startsWith('projects/')
     ? command.project.root
     : `projects/${command.project.id}`;

@@ -255,12 +255,20 @@ export function assessSemanticPublication(
           const after = ProjectRegistrySchema.parse(JSON.parse(change.after.content));
           if (change.before) {
             const before = ProjectRegistrySchema.parse(JSON.parse(change.before.content));
-            const afterIds = new Set(after.projects.map((project) => project.id));
-            const missing = before.projects.filter((project) => !afterIds.has(project.id));
-            if (missing.length > 0) {
+            const afterById = new Map(after.projects.map((project) => [project.id, project]));
+            for (const existing of before.projects) {
+              const next = afterById.get(existing.id);
+              if (!next || JSON.stringify(next) !== JSON.stringify(existing)) {
+                return {
+                  allowed: false,
+                  reason: `existing project must be unchanged: ${existing.id}`
+                };
+              }
+            }
+            if (after.projects.length < before.projects.length) {
               return {
                 allowed: false,
-                reason: `project registry publication must be append-only: ${missing.map((project) => project.id).join(', ')}`
+                reason: `project registry publication must be append-only: ${change.path}`
               };
             }
           }

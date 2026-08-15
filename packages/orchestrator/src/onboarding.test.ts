@@ -12,7 +12,8 @@ import {
   executeWorkflow,
   loadWorkflowDirectory,
   prepareOnboardProject,
-  summarizeOnboardingReport
+  summarizeOnboardingReport,
+  upsertOnboardedProjectRegistry
 } from './index.js';
 
 const command: NormalizedCommand = {
@@ -321,6 +322,58 @@ describe('deterministic project onboarding', () => {
       activeExecutionProfile: 'example-com-production'
     });
     expect(JSON.stringify(evidence)).not.toMatch(/password|secret_sauce/i);
+  });
+
+  it('copies Slack scope from the channel-matched donor, not the first registry row', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'qali-onboard-donor-'));
+    mkdirSync(join(workspace, 'projects'), { recursive: true });
+    const donorA = {
+      id: 'alpha',
+      root: 'projects/alpha',
+      githubEnvironment: 'qali-alpha',
+      allowedSlack: {
+        teamIds: [],
+        channelIds: ['C_A'],
+        userIds: ['U1'],
+        roles: ['developer', 'qa-lead-admin']
+      },
+      publication: { owner: 'hlemmur', repo: 'qali', branch: 'main', reviewOnly: true },
+      enabledWorkflows: ['onboard-project'],
+      schedules: [{ workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }],
+      activeExecutionProfile: 'alpha-production'
+    };
+    const donorB = {
+      ...donorA,
+      id: 'beta',
+      root: 'projects/beta',
+      githubEnvironment: 'qali-beta',
+      allowedSlack: { ...donorA.allowedSlack, channelIds: ['C_B'] },
+      activeExecutionProfile: 'beta-production'
+    };
+    writeFileSync(
+      join(workspace, 'projects/registry.json'),
+      JSON.stringify({ version: 1, projects: [donorA, donorB] })
+    );
+    const onboardCommand: NormalizedCommand = {
+      ...command,
+      project: {
+        id: 'example-com',
+        root: 'projects/example-com',
+        environment: 'qali-example-com',
+        environmentLabel: 'production',
+        executionProfileId: 'example-com-production'
+      },
+      slack: { teamId: 'T1', channelId: 'C_B', threadTs: '1.1', requestTs: '1.1' },
+      parameters: { targetUrl: 'https://example.com/', origin: 'https://example.com' }
+    };
+
+    upsertOnboardedProjectRegistry(workspace, onboardCommand);
+
+    const registry = JSON.parse(readFileSync(join(workspace, 'projects/registry.json'), 'utf8'));
+    expect(registry.projects.at(-1)).toMatchObject({
+      id: 'example-com',
+      allowedSlack: { channelIds: ['C_B'] }
+    });
   });
 
   it('reuses an existing pack and only fills missing URL evidence', () => {

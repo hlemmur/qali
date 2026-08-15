@@ -154,6 +154,29 @@ describe('semantic publication policy', () => {
       allowed: false,
       reason: expect.stringMatching(/append-only|existing project/i)
     });
+
+    const mutatedDonor = {
+      ...appended,
+      projects: appended.projects.map((project, index) =>
+        index === 0
+          ? { ...project, allowedSlack: { ...project.allowedSlack, channelIds: ['C-EVIL'] } }
+          : project
+      )
+    };
+    expect(
+      assessSemanticPublication(
+        semanticManifest([
+          createSemanticPublicationChange({
+            path: 'projects/registry.json',
+            before: `${JSON.stringify(donor, null, 2)}\n`,
+            after: `${JSON.stringify(mutatedDonor, null, 2)}\n`
+          })
+        ])
+      )
+    ).toMatchObject({
+      allowed: false,
+      reason: expect.stringMatching(/unchanged|existing project/i)
+    });
   });
 
   it('requires approved scenarios for new tests and unchanged oracles for modified tests', () => {
