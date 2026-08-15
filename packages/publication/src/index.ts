@@ -74,6 +74,14 @@ function hasValidGeneratedHash(path: string, content: string): boolean {
 const RAW_EVIDENCE_PATTERN =
   /(?:^|\/)(?:cookies?|logs?|screenshots?|traces?|videos?)(?:\/|\.|$)|\.(?:gif|har|jpe?g|log|mp4|png|trace|webm|webp|zip)$/i;
 
+const GENERATED_TEST_SUPPORT = /^projects\/[^/]+\/tests\/generated\/.+\.(?:ts|json|md)$/i;
+
+export function isGeneratedTestSupportPath(path: string): boolean {
+  if (!isSafePath(path) || RAW_EVIDENCE_PATTERN.test(path)) return false;
+  if (path.includes('__snapshots__') || path.includes('-snapshots')) return false;
+  return GENERATED_TEST_SUPPORT.test(path) && !path.endsWith('.spec.ts');
+}
+
 export function classifyPublicationPath(path: string): PublicationChangeClassification {
   if (RAW_EVIDENCE_PATTERN.test(path)) return 'raw-evidence';
   if (path.includes('/observations/')) return 'observation';
@@ -168,6 +176,9 @@ export function assessSemanticPublication(
     }
     if (change.classification === 'test') {
       if (!change.path.endsWith('.spec.ts')) {
+        if (isGeneratedTestSupportPath(change.path)) {
+          continue;
+        }
         return {
           allowed: false,
           reason: `non-spec test artifacts and visual baselines are not publishable: ${change.path}`

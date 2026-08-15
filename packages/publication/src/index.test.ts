@@ -171,6 +171,24 @@ describe('semantic publication policy', () => {
     });
   });
 
+  it('allows generated Playwright fixtures and metadata under tests/generated', () => {
+    const fixture = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/e2e/fixtures/login.fixture.ts',
+      before: null,
+      after: 'export const test = base.extend({});\n',
+      generationSourceRef: 'scenario:JRN-001'
+    });
+    const metadata = createSemanticPublicationChange({
+      path: 'projects/shop/tests/generated/GENERATION-METADATA.json',
+      before: null,
+      after: '{"generator":"qali"}\n',
+      generationSourceRef: 'scenario:JRN-001'
+    });
+    expect(assessSemanticPublication(semanticManifest([fixture, metadata]))).toEqual({
+      allowed: true
+    });
+  });
+
   it('fingerprints soft and polling Playwright assertions', () => {
     for (const [before, after] of [
       [
