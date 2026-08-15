@@ -244,7 +244,7 @@ describe('publication preparation', () => {
       join(workspace, specPath),
       `/**
  * Scenario: SCN-LGN-001 — Happy path
- * Requirement: REQ-001 | Journey: JRN-001 | Priority: P0
+ * Requirement: REQ-001 (JRN-001)
  */
 test('SCN-LGN-001 named demo account reaches inventory @smoke', async ({ page }) => {
   await expect(page).toHaveURL(/inventory/);

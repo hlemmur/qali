@@ -81,17 +81,20 @@ function generationSourceRef(
   projectRoot: string,
   content: string
 ): string | undefined {
-  const journeyId =
-    /^\/\/ Generated from: (\S+)$/m.exec(content)?.[1] ??
-    /\bJourney:\s*(JRN-[0-9]+)\b/i.exec(content)?.[1];
-  if (!journeyId) return undefined;
   const journeysPath = `${projectRoot}/sources/reference/journeys.md`;
   try {
     if (!existsSync(resolve(workspace, journeysPath))) return undefined;
     const body = readFileSync(resolve(workspace, journeysPath), 'utf8');
-    return body.includes(journeyId)
-      ? `${journeysPath.replace(`${projectRoot}/`, '')}#${journeyId}`
-      : undefined;
+    const mentioned = [
+      ...new Set(
+        [...content.matchAll(/\b(JRN-[0-9]+)\b/gi)].map((match) => match[1]!.toUpperCase())
+      )
+    ];
+    const journeyId =
+      /^\/\/ Generated from: (\S+)$/m.exec(content)?.[1] ??
+      mentioned.find((id) => body.includes(id));
+    if (!journeyId || !body.includes(journeyId)) return undefined;
+    return `${journeysPath.replace(`${projectRoot}/`, '')}#${journeyId}`;
   } catch {
     return undefined;
   }
@@ -152,7 +155,10 @@ export function preparePublicationManifest(
           : undefined;
       const generationSource =
         after && classifyPublicationPath(path) === 'test'
-          ? generationSourceRef(options.workspace, options.projectRoot, after)
+          ? (generationSourceRef(options.workspace, options.projectRoot, after) ??
+            (path.includes('/tests/generated/') && options.provenanceRef
+              ? options.provenanceRef
+              : undefined))
           : undefined;
       return createSemanticPublicationChange({
         path,
