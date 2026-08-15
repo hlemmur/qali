@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { NormalizedCommand, WorkflowStep } from '@qali/contracts';
 import { FakeAgentRuntime } from './index.js';
 import { loadHarnessProfiles } from './harness-profiles.js';
-import { executeAssembledAgentStep } from './assembled-step.js';
+import { executeAssembledAgentStep, promoteHarnessOutputs } from './assembled-step.js';
 import { ROLE_PROFILES } from '../../orchestrator/src/workflows.js';
 
 const temporaryDirectories: string[] = [];
@@ -185,5 +185,47 @@ describe('assembled Cursor harness step', () => {
     expect(
       readFileSync(join(sourceRoot, 'projects/sample/derived/scenarios/coverage-map.md'), 'utf8')
     ).toContain('JRN-001');
+  });
+
+  it('rewrites Playwright empty fixture patterns when promoting generated tests', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const harnessWorkspace = join(parent, 'harness');
+    const packRoot = join(parent, 'pack');
+    mkdirSync(join(harnessWorkspace, 'outputs/tests/e2e/fixtures'), { recursive: true });
+    writeFileSync(
+      join(harnessWorkspace, 'outputs/tests/e2e/fixtures/login.fixture.ts'),
+      `export const test = base.extend({
+  lockedOutUser: async ({}, use) => {
+    await use({ username: 'locked_out_user' });
+  },
+});
+`
+    );
+
+    promoteHarnessOutputs({
+      harnessWorkspace,
+      packRoot,
+      step: {
+        id: 'generate-tests',
+        role: 'test-generator',
+        harnessProfileId: 'test-generation',
+        needs: [],
+        inputs: [],
+        outputs: [],
+        requiredTools: ['file-write'],
+        mutations: ['create-test'],
+        policyGates: [],
+        retries: 0,
+        timeoutMs: 180000
+      }
+    });
+
+    const promoted = readFileSync(
+      join(packRoot, 'tests/generated/e2e/fixtures/login.fixture.ts'),
+      'utf8'
+    );
+    expect(promoted).not.toMatch(/async \(\{\s*\}, use\)/);
+    expect(promoted).toContain('async (_fixtures, use)');
   });
 });

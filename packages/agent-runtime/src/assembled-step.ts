@@ -79,6 +79,19 @@ export function collectHarnessInputFiles(
   return files;
 }
 
+function rewritePlaywrightEmptyFixturePatterns(source: string): string {
+  return source.replace(/\(\s*\{\s*\}\s*,\s*use\b/g, '(_fixtures, use');
+}
+
+function sanitizePromotedGeneratedTests(generatedDirectory: string): void {
+  for (const file of listFiles(generatedDirectory)) {
+    if (!file.endsWith('.ts')) continue;
+    const before = readFileSync(file, 'utf8');
+    const after = rewritePlaywrightEmptyFixturePatterns(before);
+    if (after !== before) writeFileSync(file, after);
+  }
+}
+
 function appendMarkdown(existing: string, addition: string): string {
   const separator =
     existing.length === 0
@@ -171,6 +184,7 @@ export function promoteHarnessOutputs(request: {
       join(request.packRoot, 'tests/generated'),
       'replace'
     );
+    sanitizePromotedGeneratedTests(join(request.packRoot, 'tests/generated'));
   } else {
     copyTree(join(request.harnessWorkspace, 'outputs'), request.packRoot, 'replace');
   }

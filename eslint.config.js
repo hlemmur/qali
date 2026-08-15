@@ -20,5 +20,13 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error'
     }
+  },
+  {
+    files: ['projects/**/tests/generated/**/*.ts'],
+    rules: {
+      // Playwright fixtures commonly use `async ({}, use)` when they do not
+      // consume other fixtures. Live generation must still pass repo lint.
+      'no-empty-pattern': 'off'
+    }
   }
 );
