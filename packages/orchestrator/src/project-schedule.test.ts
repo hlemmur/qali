@@ -17,11 +17,17 @@ import {
 
 describe('project schedule', () => {
   it('seeds conservative and startup templates from the live pulse cron', () => {
-    expect(scheduleTemplate('conservative').jobs).toEqual([
-      { workflowId: 'quality-pulse', cron: '17 6 * * *', enabled: true }
+    expect(
+      scheduleTemplate('conservative').jobs.map(({ workflowId, suite }) => ({ workflowId, suite }))
+    ).toEqual([
+      { workflowId: 'quality-pulse', suite: undefined },
+      { workflowId: 'run-test-suite', suite: 'smoke' },
+      { workflowId: 'run-test-suite', suite: 'regression' }
     ]);
     expect(scheduleTemplate('startup-e2e').jobs.map(({ workflowId }) => workflowId)).toEqual([
       'quality-pulse',
+      'run-test-suite',
+      'run-test-suite',
       'explore-project'
     ]);
   });
@@ -51,6 +57,7 @@ describe('project schedule', () => {
     const sauceDemo = loadProjectSchedule('projects/sauce-demo');
     expect(sauceDemo.template).toBe('conservative');
     expect(scheduleAllowsIntent(sauceDemo, 'quality-pulse')).toBe(true);
-    expect(collectScheduleCrons([sauceDemo])).toEqual(['17 6 * * *']);
+    expect(scheduleAllowsIntent(sauceDemo, 'run-test-suite')).toBe(true);
+    expect(collectScheduleCrons([sauceDemo])).toEqual(['17 4 * * 0', '17 5 * * *', '17 6 * * *']);
   });
 });

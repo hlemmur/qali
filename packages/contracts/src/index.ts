@@ -210,7 +210,8 @@ export const ScheduleJobSchema = z
       .string()
       .min(1)
       .refine(isGithubActionsCron, 'cron must be a 5-field GitHub Actions expression'),
-    enabled: z.boolean()
+    enabled: z.boolean(),
+    suite: z.enum(['smoke', 'regression']).optional()
   })
   .strict();
 export type ScheduleJob = z.infer<typeof ScheduleJobSchema>;

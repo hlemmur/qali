@@ -19,6 +19,7 @@ export function buildScheduledCommand(input: {
   receivedAt: string;
   requestId: string;
   schedule?: ProjectSchedule;
+  suite?: 'smoke' | 'regression';
 }): NormalizedCommand {
   const registry = ProjectRegistrySchema.parse(input.registry);
   const project = registry.projects.find(({ id }) => id === input.projectId);
@@ -52,6 +53,10 @@ export function buildScheduledCommand(input: {
     requestedBy: 'github-schedule',
     externalRole: 'qa-lead-admin',
     receivedAt: input.receivedAt,
-    parameters: { requestId: input.requestId, trigger: 'schedule' }
+    parameters: {
+      requestId: input.requestId,
+      trigger: 'schedule',
+      ...(typeof input.suite === 'string' ? { suite: input.suite } : {})
+    }
   });
 }

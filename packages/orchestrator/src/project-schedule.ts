@@ -17,15 +17,32 @@ export function scheduleTemplate(template: ProjectSchedule['template']): Project
     cron: '17 6 * * *',
     enabled: true
   };
+  const smoke: ScheduleJob = {
+    workflowId: 'run-test-suite',
+    cron: '17 5 * * *',
+    enabled: true,
+    suite: 'smoke'
+  };
+  const regression: ScheduleJob = {
+    workflowId: 'run-test-suite',
+    cron: '17 4 * * 0',
+    enabled: true,
+    suite: 'regression'
+  };
   if (template === 'startup-e2e') {
     return {
       version: 1,
       template,
       paused: false,
-      jobs: [pulse, { workflowId: 'explore-project', cron: '17 7 * * 1', enabled: true }]
+      jobs: [
+        pulse,
+        smoke,
+        regression,
+        { workflowId: 'explore-project', cron: '17 7 * * 1', enabled: true }
+      ]
     };
   }
-  return { version: 1, template, paused: false, jobs: [pulse] };
+  return { version: 1, template, paused: false, jobs: [pulse, smoke, regression] };
 }
 
 export function effectiveScheduleJobs(schedule: ProjectSchedule): ScheduleJob[] {

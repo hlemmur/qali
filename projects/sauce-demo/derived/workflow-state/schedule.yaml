@@ -1,4 +1,4 @@
-# qali:generated owner=qali sha256=416e2718b5a6dd82a211ad7860596fa97eeb032a58c5f9ffcc4e7e4880916601
+# qali:generated owner=qali sha256=99e7d09608e909b959b7ce022268d11587486a724d0abeb37723d25ee9b61f40
 version: 1
 template: conservative
 paused: false
@@ -6,3 +6,11 @@ jobs:
   - workflowId: quality-pulse
     cron: 17 6 * * *
     enabled: true
+  - workflowId: run-test-suite
+    cron: 17 5 * * *
+    enabled: true
+    suite: smoke
+  - workflowId: run-test-suite
+    cron: 17 4 * * 0
+    enabled: true
+    suite: regression

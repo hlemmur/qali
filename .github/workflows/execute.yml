@@ -31,6 +31,8 @@ on:
         required: true
         type: string
   schedule:
+    - cron: '17 4 * * 0'
+    - cron: '17 5 * * *'
     - cron: '17 6 * * *'
 
 permissions:
@@ -112,7 +114,8 @@ jobs:
       - name: Run scheduled quality pulse through the production orchestrator
         if: github.event_name == 'schedule'
         env:
-          QALI_SCHEDULE_REQUEST_ID: scheduled-quality-pulse-${{ github.run_id }}
+          QALI_SCHEDULE_REQUEST_ID: scheduled-${{ github.run_id }}
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           COMMAND_JSON="$(node --import tsx scripts/scheduled-quality-pulse.ts)"
           export COMMAND_JSON
