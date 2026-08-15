@@ -109,6 +109,7 @@ export interface ControlStore {
     channelId: string;
     threadTs: string;
   }): Promise<Correlation | null>;
+  findLatestInChannel(channelId: string): Promise<Correlation | null>;
   markCompleted(
     requestId: string,
     status: string,
@@ -188,5 +189,14 @@ export interface SlackRunSummary {
     count: number;
     area?: string;
     titles?: string[];
+  };
+  exploration?: {
+    focus?: string;
+    skills?: string[];
+    profile?: string;
+    findings?: string[];
+  };
+  generation?: {
+    focus?: string;
   };
 }

@@ -227,11 +227,14 @@ describe('compact run reporting', () => {
       projectId: 'sauce-demo',
       exploration: {
         focus: 'login flow',
-        findings: ['Login form is visible', 'Empty password stays on login']
+        findings: ['Login form is visible', 'Empty password stays on login'],
+        skills: ['exploratory-testing', 'agentic-browser-testing'],
+        profile: 'browser-exploration'
       }
     });
     expect(payload.text).toContain('2 findings');
     expect(JSON.stringify(payload.blocks)).toContain('login flow');
+    expect(JSON.stringify(payload.blocks)).toContain('exploratory-testing');
     expect(JSON.stringify(payload.blocks)).not.toContain('No test counts');
   });
 });

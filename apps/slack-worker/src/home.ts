@@ -98,7 +98,14 @@ export function renderAppHome(items: readonly HomeItem[]): {
       },
       ...sectionBlocks('Needs attention', grouped['needs-attention']),
       ...sectionBlocks('Running', grouped.running),
-      ...sectionBlocks('Recent', grouped.recent)
+      ...sectionBlocks('Recent', grouped.recent),
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Try in the product channel:* `@Qali explore the login flow` · `@Qali run the smoke suite` · `@Qali what is our quality status?`'
+        }
+      }
     ]
   };
 }

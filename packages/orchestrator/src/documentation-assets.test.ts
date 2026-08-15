@@ -169,6 +169,7 @@ describe('product documentation assets', () => {
     expect(notificationJob).not.toContain("needs.publish-generated-changes.result == 'failure'");
     expect(notificationJob).toContain('EXECUTE_RESULT');
     expect(notificationJob).toContain('PUBLISH_RESULT');
+    expect(notificationJob).toContain('scheduled-quality-pulse');
   });
 
   it('skips Playwright, Cursor, repository check, and publication for query-project', () => {

@@ -206,6 +206,19 @@ export class D1ControlStore implements ControlStore {
     return row ? rowToCorrelation(row) : null;
   }
 
+  async findLatestInChannel(channelId: string): Promise<Correlation | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT * FROM correlations
+         WHERE channel_id = ?
+         ORDER BY updated_at DESC
+         LIMIT 1`
+      )
+      .bind(channelId)
+      .first<Record<string, unknown>>();
+    return row ? rowToCorrelation(row) : null;
+  }
+
   async markCompleted(
     requestId: string,
     status: string,
