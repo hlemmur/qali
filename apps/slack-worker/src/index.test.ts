@@ -1606,4 +1606,74 @@ describe('Slack control worker', () => {
     expect((await worker.fetch(await slackEvent(homeOpened), env)).status).toBe(200);
     expect(published).toHaveLength(0);
   });
+
+  it('generates tests from a natural follow-up in an exploration thread', async () => {
+    const store = new MemoryStore();
+    const exploreWork = {
+      identity: 'event:EvExplore',
+      requestId: 'EvExplore',
+      kind: 'message' as const,
+      text: 'explore login',
+      requestedBy: 'U1',
+      externalRole: 'developer' as const,
+      receivedAt: '2023-11-14T22:13:20.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '1.1' }
+    } satisfies InboundWork;
+    await store.accept(exploreWork);
+    await store.claim('EvExplore');
+    await store.markDispatched(
+      'EvExplore',
+      {
+        ...resolvedCommand(exploreWork),
+        intent: 'explore-project',
+        parameters: { feature: 'login' }
+      },
+      '42'
+    );
+    const github: GitHubPort = {
+      dispatch: vi.fn(async () => ({ runId: '99', htmlUrl: 'https://github.test/runs/99' }))
+    };
+    const worker = createWorker({
+      store,
+      classifier: {
+        classify: async (inbound) => {
+          const classified = heuristicClassify(inbound);
+          return { ...classified, projectId: '_demo' };
+        }
+      },
+      github,
+      slack: {
+        postResult: vi.fn(),
+        updateResult: vi.fn(),
+        postThreadNotice: vi.fn(async () => undefined)
+      },
+      now: () => new Date('2023-11-14T22:15:00.000Z')
+    });
+    const followup: InboundWork = {
+      identity: 'event:EvFollow',
+      requestId: 'EvFollow',
+      kind: 'message',
+      text: 'generate tests from this',
+      requestedBy: 'U1',
+      externalRole: 'developer',
+      receivedAt: '2023-11-14T22:16:00.000Z',
+      slack: { teamId: 'T1', channelId: 'C1', threadTs: '1.1', requestTs: '2.2' }
+    };
+    await store.accept(followup);
+    await worker.queue(
+      { messages: [{ body: followup, ack: vi.fn(), retry: vi.fn() }] },
+      baseEnv([])
+    );
+
+    expect(github.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'generate-test-suite',
+        parameters: expect.objectContaining({
+          feature: 'login',
+          sourceRequestId: 'EvExplore'
+        })
+      }),
+      'EvFollow'
+    );
+  });
 });

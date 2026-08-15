@@ -94,6 +94,7 @@ function actionPayload(correlation: Correlation, summary: SlackRunSummary) {
       expandValue,
       rerunValue: controlValue,
       triageValue: controlValue,
+      followupValue: controlValue,
       expanded: Boolean(summary.expanded)
     }
   );

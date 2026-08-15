@@ -1,6 +1,7 @@
 import { displayRunStatus, isTerminalRunStatus } from './run-status.js';
 
 export { displayRunStatus, isTerminalRunStatus };
+export { parseExplorationDebrief, renderMarkdownToHtml } from './exploration-debrief.js';
 export {
   renderHtmlReport,
   describeExecutionCase,
@@ -90,6 +91,9 @@ export interface RunSummary {
     skills?: string[];
     profile?: string;
     timeline?: Array<{ action: string; observation?: string; evidence?: string }>;
+    debriefMarkdown?: string;
+    verdict?: string;
+    nextActions?: string[];
   };
   qualitySnapshot?: {
     lastRun?: {
@@ -120,6 +124,7 @@ export interface RunSummaryActions {
   retractValue?: string;
   rerunValue?: string;
   triageValue?: string;
+  followupValue?: string;
   expandValue?: string;
   expanded?: boolean;
 }
@@ -183,18 +188,20 @@ export function renderSlackRunSummary(
         }`
       : undefined;
   const explorationLine = summary.exploration
-    ? `${summary.exploration.findings?.length ?? 0} findings${
-        summary.exploration.focus ? ` · ${summary.exploration.focus}` : ''
-      }`
+    ? summary.exploration.verdict
+      ? summary.exploration.verdict
+      : summary.exploration.findings?.length
+        ? summary.exploration.findings.slice(0, 2).join('; ')
+        : summary.exploration.focus
+          ? `Exploration of ${summary.exploration.focus}`
+          : 'Exploration finished'
     : undefined;
 
-  const citationLine = summary.exploration?.skills?.length
-    ? `Used ${summary.exploration.skills.join(', ')}${
-        summary.exploration.profile ? ` · ${summary.exploration.profile}` : ''
-      }`
-    : summary.generation?.focus
-      ? `Authored from ${summary.generation.focus}`
-      : actions.reportUrl
+  const citationLine = summary.generation?.focus
+    ? `Authored from ${summary.generation.focus}`
+    : summary.intent === 'explore-project' && actions.reportUrl
+      ? 'Open the report for the full exploration results.'
+      : actions.reportUrl && summary.intent !== 'explore-project'
         ? 'Open report for the session record'
         : undefined;
 
@@ -286,6 +293,27 @@ export function renderSlackRunSummary(
         action_id: 'retract_generated_tests',
         text: { type: 'plain_text', text: 'Retract' },
         value: actions.retractValue ?? actions.rerunValue ?? summary.runId
+      });
+    }
+    if (summary.intent === 'explore-project') {
+      const followup = actions.followupValue ?? actions.rerunValue ?? summary.runId;
+      elements.push({
+        type: 'button',
+        action_id: 'followup_generate_tests',
+        text: { type: 'plain_text', text: 'Generate tests' },
+        value: followup
+      });
+      elements.push({
+        type: 'button',
+        action_id: 'followup_report_issues',
+        text: { type: 'plain_text', text: 'Report issues' },
+        value: followup
+      });
+      elements.push({
+        type: 'button',
+        action_id: 'followup_clarify',
+        text: { type: 'plain_text', text: 'Clarify' },
+        value: followup
       });
     }
   }

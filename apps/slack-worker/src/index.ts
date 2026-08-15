@@ -405,6 +405,40 @@ async function slackInteraction(
   return acceptWork(work, env, store);
 }
 
+async function threadContextFor(
+  store: ControlStore,
+  work: InboundWork
+): Promise<InboundWork['threadContext'] | undefined> {
+  if (work.slack.threadTs === work.slack.requestTs) return undefined;
+  const prior = await store.findLatestByThread({
+    teamId: work.slack.teamId,
+    channelId: work.slack.channelId,
+    threadTs: work.slack.threadTs
+  });
+  if (!prior) return undefined;
+  let priorIntent = prior.workflowId;
+  let priorFeature: string | undefined;
+  if (prior.commandJson) {
+    try {
+      const stored = JSON.parse(prior.commandJson) as {
+        intent?: unknown;
+        parameters?: Record<string, unknown>;
+      };
+      if (typeof stored.intent === 'string') priorIntent = stored.intent;
+      if (typeof stored.parameters?.feature === 'string') {
+        priorFeature = stored.parameters.feature;
+      }
+    } catch {
+      /* ignore malformed stored command */
+    }
+  }
+  return {
+    ...(priorIntent ? { priorIntent } : {}),
+    ...(priorFeature ? { priorFeature } : {}),
+    requestId: prior.requestId
+  };
+}
+
 function commandMeta(correlation: Correlation): { intent?: string; projectId?: string } {
   if (!correlation.commandJson) return {};
   try {
@@ -437,8 +471,22 @@ async function persistQualitySnapshot(
     ...(summary.counts ? { counts: summary.counts } : {}),
     ...(summary.stages ? { stages: summary.stages } : {})
   };
+  const explorationPatch = summary.exploration
+    ? {
+        ...(summary.exploration.findings?.length
+          ? { knownIssues: summary.exploration.findings }
+          : {}),
+        ...(summary.exploration.questions?.length
+          ? { openQuestions: summary.exploration.questions }
+          : {}),
+        ...(summary.exploration.assumptions?.length
+          ? { expectedResults: summary.exploration.assumptions }
+          : {})
+      }
+    : {};
   const snapshot = mergeQualitySnapshot(existing, {
     ...(summary.qualitySnapshot ?? {}),
+    ...explorationPatch,
     projectId,
     updatedAt: summary.qualitySnapshot?.updatedAt ?? new Date().toISOString(),
     lastRun: summary.qualitySnapshot?.lastRun ?? lastRun
@@ -778,10 +826,13 @@ export function createWorker(overrides: WorkerDependencies = {}) {
             continue;
           }
           const onboard = parseOnboardTarget(message.body.text);
-          const classifyWork =
-            onboard.ok && onboard.credentials
+          const threadContext = await threadContextFor(store, message.body);
+          const classifyWork = {
+            ...(onboard.ok && onboard.credentials
               ? { ...message.body, text: onboard.sanitizedText }
-              : message.body;
+              : message.body),
+            ...(threadContext ? { threadContext } : {})
+          };
           const classification = applyOnboardTarget(
             await classifier.classify(classifyWork),
             classifyWork.text
