@@ -27,6 +27,10 @@ export function requiresQualifiedAgentRuntime(
   );
 }
 
+export function shouldCompleteGenerationOnHost(executionMode: 'mock' | 'live' | string): boolean {
+  return executionMode === 'mock';
+}
+
 export function selectAgentExecutionRoute(
   command: NormalizedCommand,
   cursorCliAvailable: boolean,

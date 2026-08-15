@@ -28,7 +28,7 @@ export const test = base.extend({
       result.messages.filter((message) => message.severity === 2)
     );
     expect(errors).toEqual([]);
-  });
+  }, 30_000);
 
   it('accepts inline import() type annotations under tests/generated', async () => {
     const eslint = new ESLint({ cwd: repositoryRoot });

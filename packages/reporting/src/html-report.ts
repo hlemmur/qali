@@ -59,6 +59,13 @@ function nextActions(summary: RunSummary): string[] {
       'Open the GitHub run'
     ];
   }
+  if (summary.intent === 'generate-test-suite') {
+    return [
+      'Run the smoke suite',
+      'Retract if the authored cases are wrong',
+      'Open the GitHub run'
+    ];
+  }
   const actions = ['Open the GitHub run'];
   if (status === 'failed') {
     actions.push('Ask Qali to triage the failures');
@@ -207,7 +214,7 @@ export function renderHtmlReport(summary: RunSummary): string {
   <div class="bar" role="img" aria-label="Passed ${passed}, failed ${failed}, skipped ${skipped}">
     ${barSegment(passed, total, 'pass')}${barSegment(failed, total, 'fail')}${barSegment(skipped, total, 'skip')}
   </div>`
-    : summary.exploration
+    : summary.exploration || summary.generation || summary.generatedTests
       ? ''
       : `<section>
     <h2>Summary</h2>
@@ -356,6 +363,44 @@ export function renderHtmlReport(summary: RunSummary): string {
   }`
     : '';
 
+  const generation = summary.generation;
+  const generationBlock = generation
+    ? `<section>
+    <h2>What was designed</h2>
+    <ul>
+      ${generation.focus ? `<li>Focus: ${escapeHtml(generation.focus)}</li>` : ''}
+      ${(generation.tags ?? []).length ? `<li>Tags: ${escapeHtml((generation.tags ?? []).join(', '))}</li>` : ''}
+    </ul>
+    ${generation.coverageExcerpt ? `<pre>${escapeHtml(generation.coverageExcerpt)}</pre>` : ''}
+  </section>
+  <section>
+    <h2>What was added</h2>
+    ${
+      (generation.files ?? []).length
+        ? `<ul>${(generation.files ?? [])
+            .map(
+              (file) =>
+                `<li><code>${escapeHtml(file.path)}</code>${file.title ? ` — ${escapeHtml(file.title)}` : ''}</li>`
+            )
+            .join('')}</ul>`
+        : '<p>No generated spec files were recorded.</p>'
+    }
+  </section>
+  ${
+    (generation.traceability ?? []).length
+      ? `<section>
+    <h2>Traceability</h2>
+    <ul>${(generation.traceability ?? []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+  </section>`
+      : ''
+  }`
+    : summary.generatedTests?.titles?.length
+      ? `<section>
+    <h2>What was added</h2>
+    <ul>${summary.generatedTests.titles.map((title) => `<li>${escapeHtml(title)}</li>`).join('')}</ul>
+  </section>`
+      : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -402,6 +447,7 @@ export function renderHtmlReport(summary: RunSummary): string {
   .failures li:last-child { border-bottom: 0; }
   ul { margin: 0.25rem 0 0; padding-left: 1.2rem; }
   code { font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { overflow: auto; font: 0.85em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); padding: 0.75rem; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -415,6 +461,7 @@ export function renderHtmlReport(summary: RunSummary): string {
   </header>
   ${kpi}
   ${explorationBlock}
+  ${generationBlock}
   ${failuresBlock}
   ${tableBlock}
   <section>

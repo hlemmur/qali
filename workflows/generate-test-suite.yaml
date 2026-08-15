@@ -25,6 +25,8 @@ steps:
         path: projects/{projectId}/derived/scenarios/proposed
       - artifact: reports
         path: projects/{projectId}/derived/reports/exploration.md
+      - artifact: reports
+        path: projects/{projectId}/derived/reports/exploration.json
     outputs:
       - artifact: scenarios
         path: projects/{projectId}/derived/scenarios/coverage-map.md

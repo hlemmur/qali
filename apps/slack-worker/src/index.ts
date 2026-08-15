@@ -628,7 +628,14 @@ async function githubRunSummary(
     typeof generatedTestsRaw.count === 'number' && generatedTestsRaw.count > 0
       ? {
           count: generatedTestsRaw.count,
-          ...(typeof generatedTestsRaw.area === 'string' ? { area: generatedTestsRaw.area } : {})
+          ...(typeof generatedTestsRaw.area === 'string' ? { area: generatedTestsRaw.area } : {}),
+          ...(Array.isArray(generatedTestsRaw.titles)
+            ? {
+                titles: generatedTestsRaw.titles.filter(
+                  (title): title is string => typeof title === 'string'
+                )
+              }
+            : {})
         }
       : undefined;
   const summary: SlackRunSummary = {

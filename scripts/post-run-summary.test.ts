@@ -77,12 +77,35 @@ describe('generatedTestsPayload', () => {
   it('does not count committed generated specs on explore summaries', () => {
     const root = mkdtempSync(join(tmpdir(), 'qali-explore-generated-'));
     mkdirSync(join(root, 'tests/generated'), { recursive: true });
-    writeFileSync(join(root, 'tests/generated/jrn-001.generated.spec.ts'), 'export {};\n');
+    writeFileSync(
+      join(root, 'tests/generated/jrn-001.generated.spec.ts'),
+      "test('JRN-001 generated scenario @smoke', async ({ page }) => {});\n"
+    );
 
     expect(generatedTestsPayload(root, 'sauce-demo', 'explore-project')).toBeUndefined();
     expect(generatedTestsPayload(root, 'sauce-demo', 'generate-test-suite')).toEqual({
       count: 1,
-      area: 'sauce-demo'
+      area: 'sauce-demo',
+      titles: ['JRN-001 generated scenario @smoke']
+    });
+  });
+
+  it('counts nested generated specs and lists human titles', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qali-nested-generated-'));
+    mkdirSync(join(root, 'tests/generated/e2e/tests/auth'), { recursive: true });
+    writeFileSync(
+      join(root, 'tests/generated/e2e/tests/auth/login.spec.ts'),
+      "test('signs in with named demo account @smoke', async ({ page }) => {});\n"
+    );
+    writeFileSync(
+      join(root, 'tests/generated/checkout.spec.ts'),
+      "test('pays with saved card @regression', async ({ page }) => {});\n"
+    );
+
+    expect(generatedTestsPayload(root, 'sauce-demo', 'generate-test-suite')).toEqual({
+      count: 2,
+      area: 'sauce-demo',
+      titles: ['pays with saved card @regression', 'signs in with named demo account @smoke']
     });
   });
 });

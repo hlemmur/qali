@@ -281,6 +281,43 @@ test.skip('legacy skipped case', async () => {});
     expect(promoted).not.toMatch(/test\.(?:fixme|skip)\s*\(/);
   });
 
+  it('flattens nested e2e/tests specs into tests/generated', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
+    temporaryDirectories.push(parent);
+    const harnessWorkspace = join(parent, 'harness');
+    const packRoot = join(parent, 'pack');
+    mkdirSync(join(harnessWorkspace, 'outputs/tests/e2e/tests/auth'), { recursive: true });
+    writeFileSync(
+      join(harnessWorkspace, 'outputs/tests/e2e/tests/auth/login.spec.ts'),
+      `import { test } from '@playwright/test';
+test('signs in @smoke', async ({ page }) => {
+  await page.goto('/');
+});
+`
+    );
+
+    promoteHarnessOutputs({
+      harnessWorkspace,
+      packRoot,
+      step: {
+        id: 'generate-tests',
+        role: 'test-generator',
+        harnessProfileId: 'test-generation',
+        needs: [],
+        inputs: [],
+        outputs: [],
+        requiredTools: ['file-write'],
+        mutations: ['create-test'],
+        policyGates: [],
+        retries: 0,
+        timeoutMs: 180000
+      }
+    });
+
+    expect(existsSync(join(packRoot, 'tests/generated/e2e/tests/login.spec.ts'))).toBe(true);
+    expect(existsSync(join(packRoot, 'tests/generated/e2e/tests/auth/login.spec.ts'))).toBe(false);
+  });
+
   it('blocks explore when the agent reports that qali-browser is missing', async () => {
     const parent = mkdtempSync(join(tmpdir(), 'qali-assembled-'));
     temporaryDirectories.push(parent);
