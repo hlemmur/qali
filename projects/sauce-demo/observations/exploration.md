@@ -93,3 +93,65 @@ Tags: `BUG`, `QUESTION`, `IDEA`, `RISK`, `NOTE`.
   - Q-EXP-004: Are all login controls exposed in the accessibility tree with stable roles/names matching JRN-001 locators?
   - Q-EXP-005: Why is `qali-browser` absent from the MCP catalog despite `Mcp(qali-browser:*)` allow rule?
 - Follow-up: Re-run explore step with `qali-browser` connected; execute EXP-LOGIN-001 through EXP-LOGIN-005; capture snapshots and assert oracles per agentic-browser-testing skill; append evidence-backed observations only.
+
+# QA Session
+
+- Project: sauce-demo
+- Target / environment: https://www.saucedemo.com (public production demo)
+- Date: 2026-08-16
+- Operator / tool: Explorer / qali-browser MCP
+- Charter: Explore Sauce Demo storefront (login, inventory, cart, checkout) with named demo credentials and bounded browser facade to discover requirement gaps, auth-guard behavior, and unexpected behaviors
+- Focus: app — end-to-end shopper flows from login through checkout
+- Method: bounded black-box exploration through the restricted browser facade
+- Account / role: DATA-001 (`standard_user`) — intended; not reached due to fill tooling mismatch
+- Mock mode: off
+
+## Observations
+
+| Time (UTC) | Tag      | Action                                                                 | Observation                                                                                                                                                                                                                                                           | Evidence                   |
+| ---------- | -------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 10:47      | NOTE     | Navigate to `/`                                                        | Login page renders with brand text "Swag Labs", Username and Password textboxes, Login button, and helper copy listing accepted usernames and shared password hint (values redacted in snapshot).                                                                     | explore-login-landing      |
+| 10:48      | RISK     | Attempt `browser_fill_named` / `browser_fill` on Username and Password | Both fill tools time out waiting for `getByLabel('Username'/'Password')`. Snapshot shows fields as textbox names (placeholder-style), not labels. JRN-001 expects `placeholder` locator strategy. Authenticated flows blocked for this session.                       | —                          |
+| 10:49      | RISK     | Click Login button with empty fields                                   | `browser_click` rejected: "Form submissions must use POST". Cannot exercise empty-submit or credential validation via facade.                                                                                                                                         | —                          |
+| 10:49      | NOTE     | Navigate to `/inventory.html` while logged out                         | SPA redirects to login (`/`). Error banner: "Epic sadface: You can only access '/inventory.html' when you are logged in." Consistent with REQ-003 intent (unauthenticated users do not reach inventory). Network shows 404 on `.html` path before client redirect.    | explore-inventory-redirect |
+| 10:50      | NOTE     | Navigate to `/cart.html` while logged out                              | Same redirect pattern with message referencing `/cart.html`. Auth guard observed on cart route.                                                                                                                                                                       | explore-cart-redirect      |
+| 10:50      | NOTE     | Navigate to `/checkout-step-one.html` while logged out                 | Same redirect pattern with message referencing `/checkout-step-one.html`. Auth guard observed on checkout route.                                                                                                                                                      | explore-checkout-redirect  |
+| 10:51      | QUESTION | Error banner dismiss control                                           | Snapshot shows an unnamed `button` inside the error heading; clicks on "Close" / "×" did not resolve. Unclear accessible name for dismiss control — accessibility review warranted.                                                                                   | explore-inventory-redirect |
+| 10:51      | RISK     | Console / network diagnostics                                          | Repeated `ERR_BLOCKED_BY_CLIENT` on inspector/analytics endpoints; Google Fonts blocked. Core app assets (`index-*.css`, `index-*.js`) load 200. Telemetry to `events.backtrace.io` blocked. Unlikely to block core flows but may hide real-world telemetry failures. | explore-login-landing      |
+| 10:51      | IDEA     | Follow-up charter                                                      | After facade supports placeholder fills and POST login, run: (1) JRN-001 happy path, (2) `locked_out_user` negative per REQ-003, (3) add-to-cart JRN-002, (4) checkout boundary values.                                                                               | —                          |
+
+Tags: `BUG`, `QUESTION`, `IDEA`, `RISK`, `NOTE`.
+
+## Debrief
+
+- Coverage:
+  - Login landing UI: **partial** (rendered; submit and credential paths not exercised)
+  - Unauthenticated deep-link guards (inventory, cart, checkout): **covered**
+  - Authenticated inventory / cart / checkout: **unexplored** (tooling blocker)
+  - Invalid / locked account handling: **unexplored** (tooling blocker)
+- Reproduced findings:
+  - Unauthenticated access to `/inventory.html`, `/cart.html`, and `/checkout-step-one.html` redirects to login with route-specific "Epic sadface" messages (observed 2026-08-16).
+  - `browser_fill` / `browser_fill_named` cannot target Sauce Demo login fields with current `getByLabel` strategy (observed 2026-08-16).
+- Suspected findings:
+  - Harness/browser-facade locator strategy may be misaligned with Sauce Demo placeholder inputs (inferred from fill timeouts vs. snapshot tree).
+- Non-issues:
+  - Redirect-to-login on protected routes appears intentional demo behavior, aligned with REQ-003 (observed only; not confirmed as requirement).
+- Knowledge updates:
+  - Sauce Demo is a client-side SPA: direct `.html` navigations return HTTP 404 then client router shows auth error on login view (observed).
+  - Accepted usernames visible on login page include `standard_user`, `locked_out_user`, `problem_user`, `performance_glitch_user`, `error_user`, `visual_user` (observed; password hint redacted).
+- Open questions:
+  - Should `browser_fill_named` use placeholder locators when labels are absent, matching JRN-001 Playwright JSON?
+  - What is the accessible name of the error-banner dismiss button?
+  - Does empty Login submit show validation, or is POST policy blocking a real test gap?
+- Follow-up:
+  - Re-run authenticated exploration once fill/login interactions work through the facade.
+  - Schedule negative-login charter for `locked_out_user` and invalid credentials.
+  - Consider agentic-browser-testing smoke after happy path stabilizes.
+
+## Findings summary
+
+- Sessions: 1
+- Bugs filed: 0 (tooling blockers recorded as RISK, not product defects)
+- Questions: 3
+- Risks noted: 3
+- Evidence artifacts: 4 (see `outputs/evidence/exploration/index.json`)
