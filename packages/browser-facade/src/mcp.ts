@@ -90,7 +90,7 @@ export function browserToolDefinitions(facade: RestrictedBrowserFacade): Browser
     },
     {
       name: 'browser_fill',
-      description: 'Fill an exact accessible label with a caller-provided non-secret value.',
+      description: 'Fill an exact accessible label, placeholder, or textbox name.',
       inputSchema: fillSchema,
       handler: safeHandler(facade, fillSchema, ({ label, value }) => facade.fill(label, value))
     },
