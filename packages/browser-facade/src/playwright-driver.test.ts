@@ -217,4 +217,49 @@ describe('Playwright browser driver security boundary', () => {
       await driver.close();
     }
   }, 90_000);
+
+  it('fills placeholder-named fields and allows SPA login clicks that do not GET-submit', async () => {
+    const target = await listen((request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      if (request.url === '/inventory.html') {
+        response.end('<!doctype html><h1>Products</h1><button>Add to cart</button>');
+        return;
+      }
+      response.end(`<!doctype html>
+        <form>
+          <input placeholder="Username" name="user-name">
+          <input placeholder="Password" name="password" type="password">
+          <input type="submit" value="Login">
+        </form>
+        <script>
+          document.querySelector('form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const user = document.querySelector('[name=user-name]').value;
+            if (user) location.href = '/inventory.html';
+          });
+        </script>`);
+    });
+    const evidenceDirectory = mkdtempSync(join(tmpdir(), 'qali-browser-placeholder-'));
+    temporaryDirectories.push(evidenceDirectory);
+    const driver = await PlaywrightBrowserDriver.launch({ allowedOrigins: [target.origin] });
+    const browser = new RestrictedBrowserFacade(driver, {
+      baseUrl: target.origin,
+      allowedOrigins: [target.origin],
+      credentials: { password: 'secret_sauce' },
+      testData: { username: 'standard_user' },
+      evidenceDirectory,
+      allowedSubmissions: [{ role: 'button', name: 'Login' }]
+    });
+
+    try {
+      await browser.navigate('/');
+      await browser.fillNamed('Username', 'testData', 'username');
+      await browser.fillNamed('Password', 'credential', 'password');
+      await expect(browser.click('button', 'Login')).resolves.toMatchObject({
+        url: `${target.origin}/inventory.html`
+      });
+    } finally {
+      await driver.close();
+    }
+  }, 90_000);
 });
