@@ -97,7 +97,7 @@ export function browserToolDefinitions(facade: RestrictedBrowserFacade): Browser
     {
       name: 'browser_fill_named',
       description:
-        'Fill a named credential or test-data field without returning the configured value.',
+        'Fill Username/Password-style fields from named credential or test-data without returning the value. Matches label, placeholder, or textbox name.',
       inputSchema: namedFillSchema,
       handler: safeHandler(facade, namedFillSchema, ({ label, source, field }) =>
         facade.fillNamed(label, source, field)

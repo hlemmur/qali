@@ -262,4 +262,33 @@ describe('Playwright browser driver security boundary', () => {
       await driver.close();
     }
   }, 90_000);
+
+  it('logs into public Sauce Demo with named test credentials', async () => {
+    const evidenceDirectory = mkdtempSync(join(tmpdir(), 'qali-browser-sauce-login-'));
+    temporaryDirectories.push(evidenceDirectory);
+    const origin = 'https://www.saucedemo.com';
+    const driver = await PlaywrightBrowserDriver.launch({ allowedOrigins: [origin] });
+    const browser = new RestrictedBrowserFacade(driver, {
+      baseUrl: origin,
+      allowedOrigins: [origin],
+      credentials: { password: 'secret_sauce' },
+      testData: { username: 'standard_user' },
+      evidenceDirectory,
+      allowedSubmissions: [{ role: 'button', name: 'Login' }]
+    });
+
+    try {
+      await browser.navigate('/');
+      await browser.fillNamed('Username', 'testData', 'username');
+      await browser.fillNamed('Password', 'credential', 'password');
+      await expect(browser.click('button', 'Login')).resolves.toMatchObject({
+        url: expect.stringMatching(/\/inventory\.html/)
+      });
+      const snapshot = await browser.accessibilitySnapshot();
+      expect(snapshot.untrustedPageData).toMatch(/Add to cart/i);
+      expect(snapshot.untrustedPageData).not.toContain('secret_sauce');
+    } finally {
+      await driver.close();
+    }
+  }, 90_000);
 });
