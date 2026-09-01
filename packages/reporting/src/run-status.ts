@@ -1,4 +1,9 @@
-export function displayRunStatus(summary: { status: string; conclusion?: string }): string {
+export function displayRunStatus(summary: {
+  status: string;
+  conclusion?: string;
+  exploration?: { truncated?: boolean };
+}): string {
+  if (summary.exploration?.truncated) return 'incomplete';
   const raw = (summary.conclusion ?? summary.status).toLowerCase();
   if (raw === 'success' || raw === 'passed') return 'passed';
   if (raw === 'failure' || raw === 'failed') return 'failed';

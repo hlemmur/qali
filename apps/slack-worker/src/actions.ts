@@ -4,6 +4,7 @@ import {
   type ProjectExecutionProfile,
   type ProjectRegistry
 } from '@qali/contracts';
+import { formatQualityQueryAnswer } from './quality-query.js';
 import { resolveTrustedCommand } from '@qali/project-config';
 import { DEFAULT_EXECUTION_PROFILES, DEFAULT_PROJECT_REGISTRY } from './project-registry.js';
 import type {
@@ -63,6 +64,16 @@ const MESSAGE_SHORTCUTS: Record<string, NormalizedCommand['intent']> = {
   qali_test_message: 'run-test-suite',
   qali_triage_message: 'triage-failure'
 };
+
+function commandProjectId(correlation: Correlation): string | undefined {
+  if (!correlation.commandJson) return undefined;
+  try {
+    const stored = NormalizedCommandSchema.parse(JSON.parse(correlation.commandJson));
+    return stored.project.id;
+  } catch {
+    return undefined;
+  }
+}
 
 function rebuildCommand(
   correlation: Correlation,
@@ -199,6 +210,56 @@ export async function handleSlackAction(input: {
       threadTs: work.slack.threadTs,
       text: dispatched.htmlUrl ? `Started: ${dispatched.htmlUrl}` : 'Started a retract run.'
     });
+    return;
+  }
+
+  if (actionId === 'followup_generate_tests') {
+    const correlation = await resolveCorrelation(store, value);
+    if (!correlation) {
+      throw new Error(`No correlated run found for ${actionId}`);
+    }
+    const command = rebuildCommand(correlation, work, 'generate-test-suite', registry, profiles);
+    const childRequestId = `generate-${Date.now().toString(36)}`;
+    const childWork: InboundWork = {
+      ...work,
+      identity: `child:${childRequestId}`,
+      requestId: childRequestId
+    };
+    await store.accept(childWork);
+    await store.claim(childRequestId);
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: 'Generating tests from this exploration…'
+    });
+    const dispatched = await github.dispatch(command, childRequestId);
+    await store.markDispatched(childRequestId, command, dispatched.runId);
+    await store.markCompleted(work.requestId, 'action-handled');
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text: dispatched.htmlUrl ? `Started: ${dispatched.htmlUrl}` : 'Started a generate run.'
+    });
+    return;
+  }
+
+  if (actionId === 'followup_report_issues' || actionId === 'followup_clarify') {
+    const correlation = await resolveCorrelation(store, value);
+    const projectId =
+      (correlation ? commandProjectId(correlation) : undefined) ??
+      registry.projects[0]?.id ??
+      'sauce-demo';
+    const snapshot = await store.getQualitySnapshot(projectId);
+    const text =
+      actionId === 'followup_report_issues'
+        ? formatQualityQueryAnswer(snapshot, { topic: 'history' })
+        : formatQualityQueryAnswer(snapshot, { topic: 'expected' });
+    await slack.postThreadNotice({
+      channelId: work.slack.channelId,
+      threadTs: work.slack.threadTs,
+      text
+    });
+    await store.markCompleted(work.requestId, 'action-handled');
     return;
   }
 

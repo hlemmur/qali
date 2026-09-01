@@ -1,3 +1,4 @@
+import { renderMarkdownToHtml } from './exploration-debrief.js';
 import { displayRunStatus } from './run-status.js';
 import type { RunSummary, RunTestCase } from './index.js';
 
@@ -52,11 +53,13 @@ function stageLine(stages: NonNullable<RunSummary['stages']>): string | undefine
 function nextActions(summary: RunSummary): string[] {
   const status = displayRunStatus(summary);
   if (summary.intent === 'explore-project') {
-    const focus = summary.exploration?.focus ?? 'this focus';
+    if (summary.exploration?.nextActions?.length) {
+      return summary.exploration.nextActions;
+    }
     return [
-      `Generate smoke tests for ${focus}`,
-      `Generate regression tests for ${focus}`,
-      'Open the GitHub run'
+      'Generate tests from this exploration',
+      'Report issues if any were found',
+      'Clarify assumptions or open questions in the Slack thread'
     ];
   }
   if (summary.intent === 'generate-test-suite') {
@@ -96,7 +99,7 @@ function nonTestRunNotice(intent?: string): string {
     return 'This onboard run did not execute Playwright tests. It records project context, journeys, risks, and open questions.';
   }
   if (intent === 'explore-project') {
-    return 'This exploration session used the restricted browser facade. It did not execute the scripted Playwright suite and did not generate Playwright tests.';
+    return 'This exploration did not execute the scripted Playwright suite and did not generate Playwright tests.';
   }
   if (intent === 'generate-test-suite') {
     return 'This generate run authored Playwright specs. It did not execute Playwright tests.';
@@ -232,7 +235,10 @@ function statusClass(status: string): string {
 
 export function renderHtmlReport(summary: RunSummary): string {
   const status = displayRunStatus(summary);
-  const titleBits = [summary.intent, summary.projectId].filter(Boolean);
+  const titleBits =
+    summary.intent === 'explore-project'
+      ? ['Exploration', summary.projectId].filter(Boolean)
+      : [summary.intent, summary.projectId].filter(Boolean);
   const heading = titleBits.length ? titleBits.join(' · ') : `Run ${summary.runId}`;
   const stages = stageLine(summary.stages ?? {});
   const findings = summary.errors?.length ? summary.errors : [];
@@ -347,31 +353,29 @@ export function renderHtmlReport(summary: RunSummary): string {
       : '';
 
   const exploration = summary.exploration;
+  const debriefHtml = exploration?.debriefMarkdown
+    ? renderMarkdownToHtml(exploration.debriefMarkdown)
+    : undefined;
   const timeline = (exploration?.timeline ?? []).filter((entry) => !isTimelineNoise(entry));
-  const explorationBlock = exploration
-    ? `<section>
-    <h2>What Qali did</h2>
-    <p>${escapeHtml(nonTestRunNotice('explore-project'))}</p>
-    <ul>
-      ${exploration.charter ? `<li>Charter: ${escapeHtml(exploration.charter)}</li>` : ''}
-      ${exploration.focus ? `<li>Focus: ${escapeHtml(exploration.focus)}</li>` : ''}
-      ${exploration.profile ? `<li>Profile: ${escapeHtml(exploration.profile)}</li>` : ''}
-      ${
-        (exploration.skills ?? []).length
-          ? `<li>Skills: ${escapeHtml((exploration.skills ?? []).join(', '))}</li>`
-          : ''
-      }
-      ${
-        exploration.budget
-          ? `<li>Budget: ${exploration.budget.completedSteps ?? '—'} / ${exploration.budget.maxSteps} steps · cap ${escapeHtml(formatDurationMs(exploration.budget.timeBudgetMs))}${exploration.truncated ? ' · truncated' : ' · complete'}</li>`
-          : ''
-      }
-    </ul>
-  </section>
-  ${
-    timeline.length
+  const screenshotBlock =
+    exploration && (exploration.screenshotUrls ?? []).length
       ? `<section>
-    <h2>Timeline</h2>
+    <h2>Screenshots</h2>
+    ${(exploration.screenshotUrls ?? [])
+      .map(
+        (url) =>
+          `<p><img src="${escapeHtml(url)}" alt="Exploration evidence for ${escapeHtml(exploration.focus ?? 'session')}"></p>`
+      )
+      .join('')}
+  </section>`
+      : '';
+  const explorationBlock = debriefHtml
+    ? `<section class="debrief">${debriefHtml}</section>${screenshotBlock}`
+    : exploration
+      ? `${
+          timeline.length
+            ? `<section>
+    <h2>What happened</h2>
     <ul>${timeline
       .map((entry) => {
         const observation = entry.observation ? ` — ${escapeHtml(entry.observation)}` : '';
@@ -380,47 +384,25 @@ export function renderHtmlReport(summary: RunSummary): string {
       })
       .join('')}</ul>
   </section>`
-      : ''
-  }
-  <section>
-    <h2>Coverage</h2>
-    <ul>
-      ${(exploration.areas ?? []).map((area) => `<li>Area: ${escapeHtml(area)}</li>`).join('')}
-      ${(exploration.ideas ?? []).map((idea) => `<li>Idea: ${escapeHtml(idea)}</li>`).join('')}
-    </ul>
-  </section>
-  <section>
-    <h2>Findings</h2>
-    ${
-      (exploration.findings ?? []).length ||
-      (exploration.questions ?? []).length ||
-      (exploration.assumptions ?? []).length
-        ? `<ul>${[
-            ...(exploration.findings ?? []).map((item) => `<li>${escapeHtml(item)}</li>`),
-            ...(exploration.questions ?? []).map(
-              (item) => `<li>Question: ${escapeHtml(item)}</li>`
-            ),
-            ...(exploration.assumptions ?? []).map(
-              (item) => `<li>Assumption: ${escapeHtml(item)}</li>`
-            )
-          ].join('')}</ul>`
-        : '<p>No findings were recorded.</p>'
-    }
-  </section>
+            : ''
+        }
   ${
-    (exploration.screenshotUrls ?? []).length
+    (exploration.findings ?? []).length ||
+    (exploration.questions ?? []).length ||
+    (exploration.assumptions ?? []).length
       ? `<section>
-    <h2>Evidence</h2>
-    ${(exploration.screenshotUrls ?? [])
-      .map(
-        (url) =>
-          `<p><img src="${escapeHtml(url)}" alt="Exploration evidence for ${escapeHtml(exploration.focus ?? 'session')}"></p>`
-      )
-      .join('')}
+    <h2>Findings</h2>
+    <ul>${[
+      ...(exploration.findings ?? []).map((item) => `<li>${escapeHtml(item)}</li>`),
+      ...(exploration.questions ?? []).map((item) => `<li>Question: ${escapeHtml(item)}</li>`),
+      ...(exploration.assumptions ?? []).map((item) => `<li>Assumption: ${escapeHtml(item)}</li>`)
+    ].join('')}</ul>
   </section>`
       : ''
-  }`
-    : '';
+  }
+  ${screenshotBlock}`
+      : '';
+  const exploreDebrief = Boolean(debriefHtml);
 
   const generation = summary.generation;
   const generationBlock =
@@ -525,8 +507,10 @@ export function renderHtmlReport(summary: RunSummary): string {
   main { max-width: 64rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
   header, section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
   .eyebrow { margin: 0 0 0.35rem; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; color: var(--muted); }
-  h1, h2 { margin: 0 0 0.75rem; font-size: 1.35rem; }
+  h1, h2, h3 { margin: 0 0 0.75rem; font-size: 1.35rem; }
   h2 { font-size: 1.05rem; }
+  h3 { font-size: 0.95rem; }
+  .debrief h1 { font-size: 1.2rem; }
   p, li { margin: 0.35rem 0; }
   .status { display: inline-block; font-weight: 650; text-transform: capitalize; }
   .status.failed, .status.blocked, .status.bad { color: var(--fail); }
@@ -564,7 +548,9 @@ export function renderHtmlReport(summary: RunSummary): string {
 <body>
 <main>
   <header>
-    <p class="eyebrow">Qali execution report</p>
+    <p class="eyebrow">${
+      summary.intent === 'explore-project' ? 'Exploration results' : 'Qali execution report'
+    }</p>
     <h1>${escapeHtml(heading)}</h1>
     <p class="status ${escapeHtml(statusToken)}">${escapeHtml(status)}</p>
     <p class="meta">Run <code>${escapeHtml(summary.runId)}</code>${summary.suiteLabel ? ` · ${escapeHtml(summary.suiteLabel)}` : ''}${browser ? ` · ${escapeHtml(browser)}` : ''}${summary.environment ? ` · ${escapeHtml(summary.environment)}` : ''}</p>
@@ -598,26 +584,34 @@ export function renderHtmlReport(summary: RunSummary): string {
       }
     </ul>
   </section>
-  <section>
+  ${
+    !findings.length && (exploreDebrief || summary.intent === 'explore-project')
+      ? ''
+      : `<section>
     <h2>Findings</h2>
     ${
       findings.length
         ? `<ul>${findings.map((error) => `<li>${escapeHtml(error)}</li>`).join('')}</ul>`
         : '<p>No findings were recorded.</p>'
     }
-  </section>
+  </section>`
+  }
   ${
-    evidence.length && summary.intent !== 'onboard-project'
+    evidence.length && summary.intent !== 'onboard-project' && !exploreDebrief
       ? `<section>
     <h2>Evidence</h2>
     <ul>${evidence.map((path) => `<li><code>${escapeHtml(path)}</code></li>`).join('')}</ul>
   </section>`
       : ''
   }
-  <section>
+  ${
+    exploreDebrief
+      ? ''
+      : `<section>
     <h2>Next actions</h2>
     <ul>${actions.map((action) => `<li>${escapeHtml(action)}</li>`).join('')}</ul>
-  </section>
+  </section>`
+  }
 </main>
 </body>
 </html>

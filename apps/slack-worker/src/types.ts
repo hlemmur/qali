@@ -63,6 +63,11 @@ export interface InboundWork {
   externalRole: ExternalRole;
   receivedAt: string;
   slack: SlackCorrelationContext;
+  threadContext?: {
+    priorIntent?: string;
+    priorFeature?: string;
+    requestId?: string;
+  };
 }
 
 export interface Correlation {
@@ -195,6 +200,10 @@ export interface SlackRunSummary {
     skills?: string[];
     profile?: string;
     findings?: string[];
+    questions?: string[];
+    assumptions?: string[];
+    verdict?: string;
+    truncated?: boolean;
   };
   generation?: {
     focus?: string;

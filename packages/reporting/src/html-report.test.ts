@@ -99,7 +99,7 @@ describe('hosted HTML report', () => {
     expect(html).not.toContain('<script');
   });
 
-  it('renders a structured exploration report instead of a generic non-test stub', () => {
+  it('renders exploration debrief results instead of harness sidecar jargon', () => {
     const html = renderHtmlReport({
       runId: 'exp-1',
       status: 'passed',
@@ -107,36 +107,41 @@ describe('hosted HTML report', () => {
       projectId: 'sauce-demo',
       exploration: {
         focus: 'login flow',
-        charter: 'Explore login flow with bounded black-box exploration.',
-        budget: { maxSteps: 24, timeBudgetMs: 720_000, completedSteps: 18 },
-        truncated: false,
-        areas: ['login'],
-        ideas: ['happy path', 'empty credentials'],
-        findings: ['Login form is visible on /'],
-        questions: ['Q-EXP-001 What should happen for locked users?'],
-        assumptions: ['Allowlisted origin is reachable'],
-        screenshotUrls: ['https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&sig=abc'],
-        skills: ['exploratory-testing', 'agentic-browser-testing'],
-        profile: 'browser-exploration',
-        timeline: [
-          { action: 'Navigate /', observation: 'Login form visible', evidence: 'login.png' }
-        ]
+        truncated: true,
+        debriefMarkdown: `# Exploration Report — sauce-demo
+
+Session focus: **login flow**
+
+## What ran
+
+Run status: **truncated**. Login shell was reached; inventory was not explored.
+
+## Findings
+
+- Login page loads at origin with expected fields.
+- Direct navigation to \`/inventory.html\` without auth redirects to login.
+
+## Next actions
+
+1. Fix fill timeouts, then re-explore.
+2. Generate tests only after the happy path is observed.
+`,
+        screenshotUrls: ['https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&sig=abc']
       }
     });
-    expect(html).toContain('What Qali did');
-    expect(html).toContain('login flow');
-    expect(html).toContain('24');
-    expect(html).toContain('Coverage');
-    expect(html).toContain('happy path');
-    expect(html).toContain('Generate smoke tests for login flow');
-    expect(html).toContain('Generate regression tests for login flow');
-    expect(html).not.toContain('This run did not execute Playwright tests.');
-    expect(html).not.toContain('No test counts were recorded for this run.');
-    expect(html).toContain('Timeline');
-    expect(html).toContain('agentic-browser-testing');
+    expect(html).toContain('Exploration results');
+    expect(html).toContain('incomplete');
+    expect(html).toContain('Login shell was reached');
+    expect(html).toContain('Login page loads at origin');
+    expect(html).toContain('Fix fill timeouts');
     expect(html).toContain(
       'src="https://worker.test/reports/sauce-demo/exp-1/shot-0.png?exp=1&amp;sig=abc"'
     );
+    expect(html).not.toContain('What Qali did');
+    expect(html).not.toContain('browser-exploration');
+    expect(html).not.toContain('restricted browser facade');
+    expect(html).not.toContain('No findings were recorded.');
+    expect(html).not.toContain('Generate smoke tests');
     expect(html).not.toContain('<script');
   });
 
@@ -310,9 +315,10 @@ describe('hosted HTML report', () => {
     });
     expect(html).toContain('Navigate to `/`');
     expect(html).not.toContain('----------------------------------');
-    expect(html).toContain('did not generate Playwright tests');
+    expect(html).not.toContain('restricted browser facade');
+    expect(html).not.toContain('No findings were recorded.');
     expect(html).toContain('https://github.com/hlemmur/qali/actions/runs/31879422988');
-    expect(html).toContain('Generate smoke tests for deep login flow');
+    expect(html).toContain('Generate tests from this exploration');
   });
 
   it('escapes untrusted error text so it cannot inject markup', () => {

@@ -220,8 +220,11 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
         form = element.closest('form');
       }
       const method = (submitterMethod || form?.method || 'get').toUpperCase();
+      const declaredAction = form?.getAttribute('action');
       return {
-        submission: form ? { submits: true as const, method } : { submits: false as const },
+        submission: form
+          ? { submits: true as const, method, declaredAction }
+          : { submits: false as const },
         triggersDownload: element instanceof HTMLAnchorElement && element.hasAttribute('download')
       };
     });
@@ -229,14 +232,23 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
     if (action.submission.submits && !policy.allowSubmission) {
       throw new Error('Form submission is not allowed');
     }
-    if (action.submission.submits && action.submission.method !== 'POST') {
+    const getNavigatesAway =
+      action.submission.submits &&
+      action.submission.method !== 'POST' &&
+      Boolean(action.submission.declaredAction?.trim()) &&
+      action.submission.declaredAction !== '#';
+    if (getNavigatesAway) {
       throw new Error('Form submissions must use POST');
     }
 
     const popupOffset = this.popupUrls.length;
     const downloadOffset = this.downloadNames.length;
     const blockedOffset = this.blockedRequests;
-    if (action.submission.submits && policy.allowSubmission) {
+    if (
+      action.submission.submits &&
+      policy.allowSubmission &&
+      action.submission.method === 'POST'
+    ) {
       this.pendingSubmissionApproval = true;
     }
     try {
@@ -264,6 +276,17 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
       this.pendingSubmissionApproval = false;
       throw new Error('Network escape blocked by policy');
     }
+    if (action.submission.submits && action.submission.method !== 'POST') {
+      let search = '';
+      try {
+        search = new URL(this.page.url()).search;
+      } catch {
+        // Keep malformed page URLs from leaking into the POST-policy check.
+      }
+      if (search) {
+        throw new Error('Form submissions must use POST');
+      }
+    }
     return {
       url: this.page.url(),
       ...(this.popupUrls.length > popupOffset
@@ -276,7 +299,21 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
     };
   }
 
+  private fieldLocators(label: string) {
+    return [
+      this.page.getByLabel(label, { exact: true }),
+      this.page.getByPlaceholder(label, { exact: true }),
+      this.page.getByRole('textbox', { name: label, exact: true })
+    ];
+  }
+
   async fillByLabel(label: string, value: string): Promise<void> {
+    for (const locator of this.fieldLocators(label)) {
+      if ((await locator.count()) > 0) {
+        await locator.fill(value);
+        return;
+      }
+    }
     await this.page.getByLabel(label, { exact: true }).fill(value);
   }
 
@@ -285,7 +322,7 @@ export class PlaywrightBrowserDriver implements BrowserDriver {
       path,
       fullPage: true,
       animations: 'disabled',
-      mask: maskedLabels.map((label) => this.page.getByLabel(label, { exact: true }))
+      mask: maskedLabels.flatMap((label) => this.fieldLocators(label))
     });
   }
 

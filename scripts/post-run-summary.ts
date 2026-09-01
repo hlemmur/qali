@@ -13,6 +13,7 @@ import {
   REPORT_ATTACHMENT_MAX_BYTES,
   REPORT_ATTACHMENT_MAX_COUNT,
   describeExecutionCase,
+  parseExplorationDebrief,
   renderHtmlReport,
   reportAssetObjectKey,
   signReportAccess,
@@ -130,6 +131,14 @@ export function materializeGenerationSidecar(
 export function slackRunSummaryCallbackFields(summary: RunSummary): {
   generation?: { focus: string };
   generatedTests?: { count: number; area?: string; titles?: string[] };
+  exploration?: {
+    focus?: string;
+    truncated?: boolean;
+    verdict?: string;
+    findings?: string[];
+    questions?: string[];
+    assumptions?: string[];
+  };
 } {
   const generation =
     typeof summary.generation?.focus === 'string' && summary.generation.focus.trim()
@@ -144,9 +153,28 @@ export function slackRunSummaryCallbackFields(summary: RunSummary): {
           : {})
       }
     : undefined;
+  const exploration = summary.exploration
+    ? {
+        ...(summary.exploration.focus ? { focus: summary.exploration.focus } : {}),
+        ...(summary.exploration.truncated ? { truncated: true } : {}),
+        ...(summary.exploration.verdict
+          ? { verdict: summary.exploration.verdict.slice(0, 400) }
+          : {}),
+        ...(summary.exploration.findings?.length
+          ? { findings: summary.exploration.findings.slice(0, 8) }
+          : {}),
+        ...(summary.exploration.questions?.length
+          ? { questions: summary.exploration.questions.slice(0, 8) }
+          : {}),
+        ...(summary.exploration.assumptions?.length
+          ? { assumptions: summary.exploration.assumptions.slice(0, 8) }
+          : {})
+      }
+    : undefined;
   return {
     ...(generation ? { generation } : {}),
-    ...(generatedTests ? { generatedTests } : {})
+    ...(generatedTests ? { generatedTests } : {}),
+    ...(exploration && Object.keys(exploration).length ? { exploration } : {})
   };
 }
 
@@ -504,14 +532,14 @@ function loadGenerationSummary(projectRoot: string): RunSummary['generation'] | 
   };
 }
 
-function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] | undefined {
+export function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] | undefined {
   const sidecar = readJson(join(projectRoot, 'derived/reports/exploration.json'));
   if (!sidecar || sidecar.intent !== 'explore-project') return undefined;
   const budget =
     sidecar.budget && typeof sidecar.budget === 'object'
       ? (sidecar.budget as Record<string, unknown>)
       : undefined;
-  return {
+  const loaded: NonNullable<RunSummary['exploration']> = {
     ...(typeof sidecar.focus === 'string' ? { focus: sidecar.focus } : {}),
     ...(typeof sidecar.charter === 'string' ? { charter: sidecar.charter } : {}),
     ...(budget && typeof budget.maxSteps === 'number' && typeof budget.timeBudgetMs === 'number'
@@ -570,6 +598,22 @@ function loadExplorationSummary(projectRoot: string): RunSummary['exploration'] 
         }
       : {})
   };
+  const debriefPath = join(projectRoot, 'derived/reports/exploration.md');
+  if (!existsSync(debriefPath)) return loaded;
+  try {
+    const parsed = parseExplorationDebrief(readFileSync(debriefPath, 'utf8'));
+    return {
+      ...loaded,
+      debriefMarkdown: parsed.debriefMarkdown,
+      ...(parsed.verdict ? { verdict: parsed.verdict } : {}),
+      truncated: parsed.truncated || loaded.truncated === true,
+      ...(parsed.findings.length ? { findings: parsed.findings } : {}),
+      ...(parsed.questions.length ? { questions: parsed.questions } : {}),
+      ...(parsed.nextActions.length ? { nextActions: parsed.nextActions } : {})
+    };
+  } catch {
+    return loaded;
+  }
 }
 
 export async function postRunSummary(): Promise<void> {
@@ -744,8 +788,7 @@ export async function postRunSummary(): Promise<void> {
     ...(errors.length ? { errors } : {}),
     ...(Array.isArray(report.evidence) ? { evidence: report.evidence } : {}),
     ...(counts ? { counts } : {}),
-    ...(snapshot ? { qualitySnapshot: snapshot } : {}),
-    ...(htmlSummary.exploration ? { exploration: htmlSummary.exploration } : {})
+    ...(snapshot ? { qualitySnapshot: snapshot } : {})
   });
 
   const url = `${workerBase}/github/run-summary`;

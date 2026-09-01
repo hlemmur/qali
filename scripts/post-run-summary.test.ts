@@ -9,6 +9,7 @@ import {
   findRunReport,
   generatedTestsPayload,
   hostedSessionFields,
+  loadExplorationSummary,
   slackRunSummaryCallbackFields,
   prepareFailureScreenshots,
   publishHostedReport,
@@ -421,5 +422,70 @@ describe('hostedSessionFields', () => {
         titles: ['case 0', 'case 1', 'case 2', 'case 3', 'case 4']
       }
     });
+  });
+
+  it('sends the exploration verdict, not the debrief dump or skill names', () => {
+    expect(
+      slackRunSummaryCallbackFields({
+        runId: '1',
+        status: 'passed',
+        intent: 'explore-project',
+        exploration: {
+          focus: 'login',
+          truncated: true,
+          verdict: 'Login shell was reached; inventory was not explored.',
+          findings: ['Login form is visible'],
+          debriefMarkdown: '# huge debrief\n'.repeat(80),
+          skills: ['browser-exploration'],
+          profile: 'browser-exploration'
+        }
+      })
+    ).toEqual({
+      exploration: {
+        focus: 'login',
+        truncated: true,
+        verdict: 'Login shell was reached; inventory was not explored.',
+        findings: ['Login form is visible']
+      }
+    });
+  });
+});
+
+describe('loadExplorationSummary', () => {
+  it('prefers exploration.md debrief over the sidecar dump', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qali-explore-debrief-'));
+    mkdirSync(join(root, 'derived/reports'), { recursive: true });
+    writeFileSync(
+      join(root, 'derived/reports/exploration.json'),
+      JSON.stringify({
+        intent: 'explore-project',
+        focus: 'app',
+        findings: ['assumption'],
+        skills: ['browser-exploration']
+      })
+    );
+    writeFileSync(
+      join(root, 'derived/reports/exploration.md'),
+      `# Exploration Report
+
+## What ran
+
+Run status: **truncated**. Login shell was reached; fill timed out before inventory.
+
+## Findings
+
+- Login page loads at origin.
+
+## Next actions
+
+1. Fix fill, then re-explore.
+`
+    );
+    const loaded = loadExplorationSummary(root);
+    expect(loaded?.debriefMarkdown).toContain('Login shell was reached');
+    expect(loaded?.verdict).toMatch(/Login shell was reached/i);
+    expect(loaded?.truncated).toBe(true);
+    expect(loaded?.findings?.[0]).toMatch(/Login page loads/i);
+    expect(loaded?.nextActions?.[0]).toMatch(/Fix fill/i);
   });
 });

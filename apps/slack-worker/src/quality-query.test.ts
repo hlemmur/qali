@@ -30,6 +30,17 @@ describe('quality query answers', () => {
     expect(formatQualityQueryAnswer(snapshot, { topic: 'coverage' })).toContain('1/1');
     expect(formatQualityQueryAnswer(snapshot, { topic: 'schedule' })).toContain('17 6 * * *');
     expect(formatQualityQueryAnswer(null)).toMatch(/without running Playwright/i);
+    expect(
+      formatQualityQueryAnswer(
+        {
+          ...snapshot,
+          knownIssues: ['Login fill timed out'],
+          openQuestions: ['Exact error copy for invalid credentials'],
+          expectedResults: ['Placeholder fields are fillable']
+        },
+        { topic: 'expected' }
+      )
+    ).toMatch(/Placeholder fields are fillable/);
   });
 
   it('merges last-run facts into an existing snapshot', () => {
