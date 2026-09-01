@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from typing import Literal, Protocol
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, ConfigDict
+from slack_sdk.signature import Clock, SignatureVerifier
+
+
+class SlackIngressSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    signing_secret: str
+    workspace_id: str
+    channel_id: str
+    owner_user_id: str
+
+
+class OnboardProjectJob(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    job_id: str
+    kind: Literal["onboard_project"] = "onboard_project"
+    source_event_id: str
+    workspace_id: str
+    channel_id: str
+    requester_user_id: str
+    thread_ts: str
+    request_text: str
+
+
+class _SlackEvent(BaseModel):
+    type: Literal["app_mention"]
+    user: str
+    channel: str
+    ts: str
+    text: str
+
+
+class _SlackEnvelope(BaseModel):
+    type: Literal["event_callback"]
+    team_id: str
+    event_id: str
+    event: _SlackEvent
+
+
+class JobRepository(Protocol):
+    async def create(self, job: OnboardProjectJob) -> None: ...
+
+
+class TaskDispatcher(Protocol):
+    async def dispatch(self, job: OnboardProjectJob) -> None: ...
+
+
+class InMemoryJobRepository:
+    def __init__(self) -> None:
+        self._jobs: list[OnboardProjectJob] = []
+
+    async def create(self, job: OnboardProjectJob) -> None:
+        self._jobs.append(job)
+
+    def list_jobs(self) -> list[OnboardProjectJob]:
+        return list(self._jobs)
+
+
+class InMemoryTaskDispatcher:
+    def __init__(self) -> None:
+        self._job_ids: list[str] = []
+
+    async def dispatch(self, job: OnboardProjectJob) -> None:
+        self._job_ids.append(job.job_id)
+
+    def dispatched_job_ids(self) -> list[str]:
+        return list(self._job_ids)
+
+
+class _CallableClock(Clock):
+    def __init__(self, now: Callable[[], float]) -> None:
+        self._now = now
+
+    def now(self) -> float:
+        return self._now()
+
+
+def create_slack_router(
+    *,
+    settings: SlackIngressSettings,
+    jobs: JobRepository,
+    tasks: TaskDispatcher,
+    clock: Callable[[], float],
+) -> APIRouter:
+    router = APIRouter()
+    verifier = SignatureVerifier(
+        signing_secret=settings.signing_secret,
+        clock=_CallableClock(clock),
+    )
+
+    @router.post("/slack/events")
+    async def receive_slack_event(request: Request) -> dict[str, bool]:
+        body = await request.body()
+        if not verifier.is_valid(
+            body=body,
+            timestamp=request.headers.get("x-slack-request-timestamp"),
+            signature=request.headers.get("x-slack-signature"),
+        ):
+            raise HTTPException(status_code=401, detail="invalid Slack signature")
+
+        try:
+            envelope = _SlackEnvelope.model_validate(json.loads(body))
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="invalid Slack event") from exc
+
+        event = envelope.event
+        if (
+            envelope.team_id != settings.workspace_id
+            or event.channel != settings.channel_id
+            or event.user != settings.owner_user_id
+        ):
+            raise HTTPException(status_code=403, detail="Slack event is not authorized")
+
+        job = OnboardProjectJob(
+            job_id=f"slack:{envelope.event_id}",
+            source_event_id=envelope.event_id,
+            workspace_id=envelope.team_id,
+            channel_id=event.channel,
+            requester_user_id=event.user,
+            thread_ts=event.ts,
+            request_text=event.text,
+        )
+        await jobs.create(job)
+        await tasks.dispatch(job)
+        return {"ok": True}
+
+    return router
+
+
+__all__ = [
+    "InMemoryJobRepository",
+    "InMemoryTaskDispatcher",
+    "OnboardProjectJob",
+    "SlackIngressSettings",
+    "create_slack_router",
+]
