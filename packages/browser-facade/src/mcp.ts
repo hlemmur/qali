@@ -90,14 +90,14 @@ export function browserToolDefinitions(facade: RestrictedBrowserFacade): Browser
     },
     {
       name: 'browser_fill',
-      description: 'Fill an exact accessible label with a caller-provided non-secret value.',
+      description: 'Fill an exact accessible label, placeholder, or textbox name.',
       inputSchema: fillSchema,
       handler: safeHandler(facade, fillSchema, ({ label, value }) => facade.fill(label, value))
     },
     {
       name: 'browser_fill_named',
       description:
-        'Fill a named credential or test-data field without returning the configured value.',
+        'Fill Username/Password-style fields from named credential or test-data without returning the value. Matches label, placeholder, or textbox name.',
       inputSchema: namedFillSchema,
       handler: safeHandler(facade, namedFillSchema, ({ label, source, field }) =>
         facade.fillNamed(label, source, field)

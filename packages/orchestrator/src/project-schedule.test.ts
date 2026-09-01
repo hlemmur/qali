@@ -39,7 +39,7 @@ describe('project schedule', () => {
     expect(matchingScheduledJobs(paused, '17 6 * * *')).toEqual([]);
   });
 
-  it('round-trips a generated schedule file and reads the sauce-demo pack', async () => {
+  it('round-trips a generated schedule file and reads the paused sauce-demo pack', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'qali-schedule-'));
     writeProjectSchedule(workspace, scheduleTemplate('conservative'));
     const loaded = loadProjectSchedule(workspace);
@@ -56,8 +56,9 @@ describe('project schedule', () => {
 
     const sauceDemo = loadProjectSchedule('projects/sauce-demo');
     expect(sauceDemo.template).toBe('conservative');
-    expect(scheduleAllowsIntent(sauceDemo, 'quality-pulse')).toBe(true);
-    expect(scheduleAllowsIntent(sauceDemo, 'run-test-suite')).toBe(true);
+    expect(sauceDemo.paused).toBe(true);
+    expect(scheduleAllowsIntent(sauceDemo, 'quality-pulse')).toBe(false);
+    expect(scheduleAllowsIntent(sauceDemo, 'run-test-suite')).toBe(false);
     expect(collectScheduleCrons([sauceDemo])).toEqual(['17 4 * * 0', '17 5 * * *', '17 6 * * *']);
   });
 });
