@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Callable
 from typing import Literal, Protocol
 
@@ -90,6 +91,11 @@ class _CallableClock(Clock):
         return self._now()
 
 
+def _is_onboarding_request(text: str) -> bool:
+    command = re.sub(r"^\s*<@[^>]+>\s*", "", text).strip().casefold()
+    return command == "onboard project" or command.startswith("onboard project ")
+
+
 def create_slack_router(
     *,
     settings: SlackIngressSettings,
@@ -125,6 +131,9 @@ def create_slack_router(
             or event.user != settings.owner_user_id
         ):
             raise HTTPException(status_code=403, detail="Slack event is not authorized")
+
+        if not _is_onboarding_request(event.text):
+            return {"ok": True}
 
         job = OnboardProjectJob(
             job_id=f"slack:{envelope.event_id}",
