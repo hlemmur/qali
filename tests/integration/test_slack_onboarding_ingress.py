@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
+    OnboardProjectJob,
     SlackIngressSettings,
     create_slack_router,
 )
@@ -22,6 +23,18 @@ def _signed_headers(body: bytes, timestamp: int, secret: str) -> dict[str, str]:
         "x-slack-request-timestamp": str(timestamp),
         "x-slack-signature": f"v0={digest}",
     }
+
+
+class _FailOnceTaskDispatcher:
+    def __init__(self) -> None:
+        self.attempts = 0
+        self.dispatched_job_ids: list[str] = []
+
+    async def dispatch(self, job: OnboardProjectJob) -> None:
+        self.attempts += 1
+        if self.attempts == 1:
+            raise RuntimeError("temporary task service failure")
+        self.dispatched_job_ids.append(job.job_id)
 
 
 @pytest.mark.asyncio
@@ -132,6 +145,55 @@ async def test_duplicate_event_delivery_dispatches_exactly_once() -> None:
     assert second.status_code == 200
     assert [job.job_id for job in jobs.list_jobs()] == ["slack:Ev-duplicate"]
     assert tasks.dispatched_job_ids() == ["slack:Ev-duplicate"]
+
+
+@pytest.mark.asyncio
+async def test_retry_dispatches_job_after_transient_task_failure() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    tasks = _FailOnceTaskDispatcher()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=tasks,
+            clock=lambda: now,
+        )
+    )
+    payload = {
+        "type": "event_callback",
+        "team_id": "T-QALI",
+        "event_id": "Ev-retry",
+        "event": {
+            "type": "app_mention",
+            "user": "U-OWNER",
+            "channel": "C-QALI",
+            "ts": "1788220800.002500",
+            "text": "<@U-QALI> onboard project Example",
+        },
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    headers = _signed_headers(body, now, secret)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        with pytest.raises(RuntimeError, match="temporary task service failure"):
+            await client.post("/slack/events", content=body, headers=headers)
+        retry = await client.post("/slack/events", content=body, headers=headers)
+
+    assert retry.status_code == 200
+    assert [job.job_id for job in jobs.list_jobs()] == ["slack:Ev-retry"]
+    assert tasks.attempts == 2
+    assert tasks.dispatched_job_ids == ["slack:Ev-retry"]
 
 
 @pytest.mark.asyncio

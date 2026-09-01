@@ -58,6 +58,8 @@ class JobRepository(Protocol):
 
 
 class TaskDispatcher(Protocol):
+    """Dispatch a job idempotently using its deterministic job ID."""
+
     async def dispatch(self, job: OnboardProjectJob) -> None: ...
 
 
@@ -79,10 +81,12 @@ class InMemoryJobRepository:
 
 class InMemoryTaskDispatcher:
     def __init__(self) -> None:
-        self._job_ids: list[str] = []
+        self._job_ids: dict[str, None] = {}
+        self._lock = asyncio.Lock()
 
     async def dispatch(self, job: OnboardProjectJob) -> None:
-        self._job_ids.append(job.job_id)
+        async with self._lock:
+            self._job_ids.setdefault(job.job_id, None)
 
     def dispatched_job_ids(self) -> list[str]:
         return list(self._job_ids)
@@ -153,9 +157,8 @@ def create_slack_router(
             thread_ts=event.ts,
             request_text=event.text,
         )
-        created = await jobs.create(job)
-        if created:
-            await tasks.dispatch(job)
+        await jobs.create(job)
+        await tasks.dispatch(job)
         return {"ok": True}
 
     return router
