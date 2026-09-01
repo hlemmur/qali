@@ -164,7 +164,9 @@ def create_slack_router(
 __all__ = [
     "InMemoryJobRepository",
     "InMemoryTaskDispatcher",
+    "JobRepository",
     "OnboardProjectJob",
     "SlackIngressSettings",
+    "TaskDispatcher",
     "create_slack_router",
 ]
