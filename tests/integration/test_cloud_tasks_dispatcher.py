@@ -3,7 +3,11 @@ from typing import Any
 import pytest
 from google.api_core.exceptions import AlreadyExists
 
-from app.cloud_tasks_dispatcher import CloudTasksDispatcher, CloudTasksSettings
+from app.cloud_tasks_dispatcher import (
+    CloudTasksDispatcher,
+    CloudTasksSettings,
+    create_cloud_tasks_dispatcher,
+)
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -152,3 +156,37 @@ async def test_dispatch_uses_configured_worker_oidc_audience() -> None:
     assert client.requests[0]["task"]["http_request"]["oidc_token"]["audience"] == (
         "https://qali-worker.example.test/"
     )
+
+
+@pytest.mark.asyncio
+async def test_runtime_factory_uses_default_credentials_client(
+    monkeypatch: Any,
+) -> None:
+    client = _RecordingCloudTasksClient()
+    monkeypatch.setattr(
+        "app.cloud_tasks_dispatcher.tasks_v2.CloudTasksAsyncClient",
+        lambda: client,
+    )
+    dispatcher = create_cloud_tasks_dispatcher(
+        CloudTasksSettings(
+            project_id="qali-507317",
+            location="europe-west1",
+            queue_id="qali-jobs",
+            worker_url="https://qali-worker.example.test/internal/jobs",
+            oidc_audience="https://qali-worker.example.test",
+            service_account_email="qali-tasks@qali-507317.iam.gserviceaccount.com",
+        )
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-runtime",
+        source_event_id="Ev-runtime",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.004000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+
+    await dispatcher.dispatch(job)
+
+    assert len(client.requests) == 1

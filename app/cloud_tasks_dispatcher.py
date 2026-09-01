@@ -4,6 +4,7 @@ import hashlib
 from typing import Any, Protocol
 
 from google.api_core.exceptions import AlreadyExists
+from google.cloud import tasks_v2
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
 from app.slack_ingress import OnboardProjectJob
@@ -88,4 +89,17 @@ def _task_id(job_id: str) -> str:
     return f"qali-job-{digest}"
 
 
-__all__ = ["CloudTasksDispatcher", "CloudTasksSettings"]
+def create_cloud_tasks_dispatcher(
+    settings: CloudTasksSettings,
+) -> CloudTasksDispatcher:
+    return CloudTasksDispatcher(
+        settings=settings,
+        client=tasks_v2.CloudTasksAsyncClient(),
+    )
+
+
+__all__ = [
+    "CloudTasksDispatcher",
+    "CloudTasksSettings",
+    "create_cloud_tasks_dispatcher",
+]
