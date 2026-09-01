@@ -1,7 +1,6 @@
 import { type Locator, type Page } from '@playwright/test';
 
 export class LoginPage {
-  readonly path = '/';
   readonly usernameInput: Locator;
   readonly passwordInput: Locator;
   readonly loginButton: Locator;
@@ -15,8 +14,13 @@ export class LoginPage {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(this.path);
-    await this.page.waitForLoadState('domcontentloaded');
+    await this.page.goto('/');
+  }
+
+  async signIn(username: string, password: string): Promise<void> {
+    await this.fillUsername(username);
+    await this.fillPassword(password);
+    await this.submit();
   }
 
   async fillUsername(username: string): Promise<void> {
@@ -32,8 +36,6 @@ export class LoginPage {
   }
 
   async login(username: string, password: string): Promise<void> {
-    await this.fillUsername(username);
-    await this.fillPassword(password);
-    await this.submit();
+    await this.signIn(username, password);
   }
 }
