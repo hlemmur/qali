@@ -10,12 +10,13 @@ from app.slack_ingress import OnboardProjectJob
 
 
 class CloudTasksSettings(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     project_id: str
     location: str
     queue_id: str
     worker_url: HttpUrl
+    oidc_audience: HttpUrl
     service_account_email: str
 
 
@@ -58,6 +59,7 @@ class CloudTasksDispatcher:
             task_id,
         )
         worker_url = str(settings.worker_url)
+        oidc_audience = str(settings.oidc_audience)
         try:
             await self._client.create_task(
                 request={
@@ -71,7 +73,7 @@ class CloudTasksDispatcher:
                             "body": job.model_dump_json().encode(),
                             "oidc_token": {
                                 "service_account_email": settings.service_account_email,
-                                "audience": worker_url,
+                                "audience": oidc_audience,
                             },
                         },
                     },

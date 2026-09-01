@@ -45,6 +45,7 @@ async def test_dispatch_creates_deterministic_authenticated_worker_task() -> Non
             location="europe-west1",
             queue_id="qali-jobs",
             worker_url="https://qali-worker.example.test/internal/jobs",
+            oidc_audience="https://qali-worker.example.test/internal/jobs",
             service_account_email="qali-tasks@qali-507317.iam.gserviceaccount.com",
         ),
         client=client,
@@ -100,6 +101,7 @@ async def test_duplicate_task_name_is_treated_as_successful_dispatch() -> None:
             location="europe-west1",
             queue_id="qali-jobs",
             worker_url="https://qali-worker.example.test/internal/jobs",
+            oidc_audience="https://qali-worker.example.test/internal/jobs",
             service_account_email="qali-tasks@qali-507317.iam.gserviceaccount.com",
         ),
         client=client,
@@ -119,3 +121,34 @@ async def test_duplicate_task_name_is_treated_as_successful_dispatch() -> None:
 
     assert len(client.requests) == 2
     assert client.task_ids[0] == client.task_ids[1]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_uses_configured_worker_oidc_audience() -> None:
+    client = _RecordingCloudTasksClient()
+    dispatcher = CloudTasksDispatcher(
+        settings=CloudTasksSettings(
+            project_id="qali-507317",
+            location="europe-west1",
+            queue_id="qali-jobs",
+            worker_url="https://qali-worker.example.test/internal/jobs",
+            oidc_audience="https://qali-worker.example.test",
+            service_account_email="qali-tasks@qali-507317.iam.gserviceaccount.com",
+        ),
+        client=client,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-audience",
+        source_event_id="Ev-audience",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.003000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+
+    await dispatcher.dispatch(job)
+
+    assert client.requests[0]["task"]["http_request"]["oidc_token"]["audience"] == (
+        "https://qali-worker.example.test/"
+    )
