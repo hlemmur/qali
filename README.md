@@ -48,6 +48,17 @@ agents-cli playground
 
 You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
 
+Run the standalone Slack ingress locally with explicit mock adapters:
+
+```bash
+QALI_MODE=mock uv run uvicorn 'app.slack_app:create_slack_ingress_app_from_env' \
+  --factory --host 127.0.0.1 --port 8081
+```
+
+`GET http://127.0.0.1:8081/healthz` returns a visible `MOCK MODE` badge. Live
+mode intentionally fails closed until the durable Firestore and Cloud Tasks adapters
+are implemented; local mock settings must never be used for a deployment.
+
 ## Commands
 
 | Command              | Description                                                                                 |
