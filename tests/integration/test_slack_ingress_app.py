@@ -2,7 +2,10 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.slack_app import create_slack_ingress_app
+from app.slack_app import (
+    create_slack_ingress_app,
+    create_slack_ingress_app_from_env,
+)
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
@@ -40,3 +43,13 @@ async def test_mock_ingress_app_exposes_visible_mode_badge_and_slack_route() -> 
         "badge": "MOCK MODE",
     }
     assert slack_response.status_code == 401
+
+
+def test_runtime_factory_requires_explicit_mock_mode() -> None:
+    with pytest.raises(RuntimeError, match="QALI_MODE must be set explicitly"):
+        create_slack_ingress_app_from_env({})
+
+    app = create_slack_ingress_app_from_env({"QALI_MODE": "mock"})
+
+    assert isinstance(app, FastAPI)
+    assert app.state.qali_mode == "mock"
