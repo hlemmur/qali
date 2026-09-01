@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 from google.api_core.exceptions import AlreadyExists
+from pydantic import ValidationError
 
 from app.cloud_tasks_dispatcher import (
     CloudTasksDispatcher,
@@ -190,3 +191,19 @@ async def test_runtime_factory_uses_default_credentials_client(
     await dispatcher.dispatch(job)
 
     assert len(client.requests) == 1
+
+
+@pytest.mark.parametrize("insecure_field", ["worker_url", "oidc_audience"])
+def test_runtime_settings_reject_insecure_http_targets(insecure_field: str) -> None:
+    values = {
+        "project_id": "qali-507317",
+        "location": "europe-west1",
+        "queue_id": "qali-jobs",
+        "worker_url": "https://qali-worker.example.test/internal/jobs",
+        "oidc_audience": "https://qali-worker.example.test",
+        "service_account_email": ("qali-tasks@qali-507317.iam.gserviceaccount.com"),
+    }
+    values[insecure_field] = "http://qali-worker.example.test"
+
+    with pytest.raises(ValidationError, match="must use HTTPS"):
+        CloudTasksSettings(**values)

@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import tasks_v2
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
 
 from app.slack_ingress import OnboardProjectJob
 
@@ -19,6 +19,13 @@ class CloudTasksSettings(BaseModel):
     worker_url: HttpUrl
     oidc_audience: HttpUrl
     service_account_email: str
+
+    @field_validator("worker_url", "oidc_audience")
+    @classmethod
+    def require_https(cls, value: HttpUrl) -> HttpUrl:
+        if value.scheme != "https":
+            raise ValueError("Cloud Tasks worker targets must use HTTPS")
+        return value
 
 
 class CloudTasksClient(Protocol):
