@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Protocol
 
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,13 +42,16 @@ class FirestoreJobRepository:
         document = self._client.collection(self._settings.collection).document(
             _document_id(job.job_id)
         )
-        await document.create(
-            {
-                **job.model_dump(mode="json"),
-                "status": "pending",
-                "created_at": firestore_v1.SERVER_TIMESTAMP,
-            }
-        )
+        try:
+            await document.create(
+                {
+                    **job.model_dump(mode="json"),
+                    "status": "pending",
+                    "created_at": firestore_v1.SERVER_TIMESTAMP,
+                }
+            )
+        except AlreadyExists:
+            return False
         return True
 
 
