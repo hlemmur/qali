@@ -283,3 +283,63 @@ async def test_unverifiable_slack_requests_are_rejected() -> None:
     assert replayed_request.status_code == 401
     assert jobs.list_jobs() == []
     assert tasks.dispatched_job_ids() == []
+
+
+@pytest.mark.asyncio
+async def test_events_outside_private_qali_scope_are_rejected() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    tasks = InMemoryTaskDispatcher()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=tasks,
+            clock=lambda: now,
+        )
+    )
+    unauthorized_events = [
+        ("T-OTHER", "C-QALI", "U-OWNER"),
+        ("T-QALI", "C-OTHER", "U-OWNER"),
+        ("T-QALI", "C-QALI", "U-OTHER"),
+    ]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        responses = []
+        for index, (workspace_id, channel_id, user_id) in enumerate(
+            unauthorized_events
+        ):
+            payload = {
+                "type": "event_callback",
+                "team_id": workspace_id,
+                "event_id": f"Ev-unauthorized-{index}",
+                "event": {
+                    "type": "app_mention",
+                    "user": user_id,
+                    "channel": channel_id,
+                    "ts": f"1788220800.00{index + 5}000",
+                    "text": "<@U-QALI> onboard project Example",
+                },
+            }
+            body = json.dumps(payload, separators=(",", ":")).encode()
+            responses.append(
+                await client.post(
+                    "/slack/events",
+                    content=body,
+                    headers=_signed_headers(body, now, secret),
+                )
+            )
+
+    assert [response.status_code for response in responses] == [403, 403, 403]
+    assert jobs.list_jobs() == []
+    assert tasks.dispatched_job_ids() == []
