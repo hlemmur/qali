@@ -227,3 +227,59 @@ async def test_signed_url_verification_returns_challenge() -> None:
     assert response.json() == {"challenge": "challenge-token"}
     assert jobs.list_jobs() == []
     assert tasks.dispatched_job_ids() == []
+
+
+@pytest.mark.asyncio
+async def test_unverifiable_slack_requests_are_rejected() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    tasks = InMemoryTaskDispatcher()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=tasks,
+            clock=lambda: now,
+        )
+    )
+    payload = {
+        "type": "event_callback",
+        "team_id": "T-QALI",
+        "event_id": "Ev-unverified",
+        "event": {
+            "type": "app_mention",
+            "user": "U-OWNER",
+            "channel": "C-QALI",
+            "ts": "1788220800.004000",
+            "text": "<@U-QALI> onboard project Example",
+        },
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        invalid_signature = await client.post(
+            "/slack/events",
+            content=body,
+            headers=_signed_headers(body, now, "wrong-secret"),
+        )
+        stale_timestamp = now - 301
+        replayed_request = await client.post(
+            "/slack/events",
+            content=body,
+            headers=_signed_headers(body, stale_timestamp, secret),
+        )
+
+    assert invalid_signature.status_code == 401
+    assert replayed_request.status_code == 401
+    assert jobs.list_jobs() == []
+    assert tasks.dispatched_job_ids() == []
