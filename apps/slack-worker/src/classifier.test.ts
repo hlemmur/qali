@@ -161,4 +161,47 @@ describe('intent classification fallbacks', () => {
       focus: { targetUrl: 'https://example.com/', origin: 'https://example.com' }
     });
   });
+
+  it('treats Slack thread follow-ups after exploration as generate, report, or clarify', () => {
+    const afterExplore = (text: string): InboundWork => ({
+      ...work(text),
+      threadContext: {
+        priorIntent: 'explore-project',
+        priorFeature: 'login',
+        requestId: 'EvExplore'
+      }
+    });
+    expect(heuristicClassify(afterExplore('go ahead and generate tests from this'))).toMatchObject({
+      intent: 'generate-test-suite',
+      focus: { feature: 'login', sourceRequestId: 'EvExplore' }
+    });
+    expect(heuristicClassify(afterExplore('report the issues'))).toMatchObject({
+      intent: 'query-project',
+      focus: { topic: 'history', feature: 'login' }
+    });
+    expect(heuristicClassify(afterExplore('can you clarify the assumptions?'))).toMatchObject({
+      intent: 'query-project',
+      focus: { topic: 'expected', feature: 'login' }
+    });
+  });
+
+  it('keeps generate-from-exploration even when Workers AI returns explore', async () => {
+    const primary: IntentClassifier = {
+      classify: async () => ({
+        intent: 'explore-project',
+        projectId: 'sauce-demo',
+        focus: { classification: 'workers-ai' }
+      })
+    };
+    const resilient = new ResilientIntentClassifier(primary);
+    await expect(
+      resilient.classify({
+        ...work('generate tests from this'),
+        threadContext: { priorIntent: 'explore-project', priorFeature: 'login' }
+      })
+    ).resolves.toMatchObject({
+      intent: 'generate-test-suite',
+      focus: { feature: 'login' }
+    });
+  });
 });

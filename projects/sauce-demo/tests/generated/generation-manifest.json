@@ -1,0 +1,63 @@
+{
+  "generationRequestId": "Ev0BQDNFRY5U",
+  "projectId": "sauce-demo",
+  "featureIntent": "discoveries",
+  "resolvedScope": "design-coverage proposed scenarios SCN-001 and SCN-002",
+  "workflowStep": "generate-tests",
+  "harnessProfileId": "test-generation",
+  "generatedAt": "2026-08-15",
+  "model": "composer-2.5",
+  "inputSourceHashes": {
+    "coverage-map.md": "3a3ff4039d7a14d11fd4ebeb508aa8b7a4136ff4f475d87a366b38ebe1731378"
+  },
+  "authority": {
+    "executionOverride": "Allow execution with blocking questions: yes (decisions.md)",
+    "approvedScenarios": 0,
+    "proposedScenariosUsed": ["SCN-001", "SCN-002"]
+  },
+  "outputs": {
+    "testFiles": [
+      "e2e/tests/smoke/scn-001-sign-in-inventory.spec.ts",
+      "e2e/tests/smoke/scn-002-add-to-cart.spec.ts"
+    ],
+    "supportFiles": [
+      "playwright.config.ts",
+      "package.json",
+      "tsconfig.json",
+      "e2e/fixtures/base.fixture.ts",
+      "e2e/helpers/test-data.ts",
+      "e2e/pages/login.page.ts",
+      "e2e/pages/inventory.page.ts",
+      "e2e/pages/cart.page.ts"
+    ],
+    "pipelineArtifacts": "pipeline-artifacts.md"
+  },
+  "coverage": {
+    "requirementsCovered": ["REQ-001", "REQ-002"],
+    "requirementsDeferred": ["REQ-003"],
+    "journeysCovered": ["JRN-001", "JRN-002"],
+    "risksAddressed": ["RSK-001", "RSK-002", "RSK-003"],
+    "gaps": [
+      {
+        "id": "SCN-003",
+        "requirement": "REQ-003",
+        "reason": "Q-COV-001 — no locked/invalid account matrix"
+      },
+      {
+        "id": "Q-COV-003",
+        "reason": "Feature intent discoveries has no governed REQ/journey linkage"
+      }
+    ]
+  },
+  "tags": {
+    "smoke": 2,
+    "regression": 0
+  },
+  "verification": {
+    "shellBlocked": true,
+    "typescript": "not-run",
+    "playwrightList": "not-run",
+    "note": "Validators skipped per trusted-skill-instructions (no shell)"
+  },
+  "status": "implemented"
+}

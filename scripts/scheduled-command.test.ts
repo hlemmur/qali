@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { scheduleTemplate } from '../packages/orchestrator/src/project-schedule.js';
 import { buildScheduledCommand } from './scheduled-command.js';
 
 describe('scheduled command', () => {
@@ -14,7 +15,8 @@ describe('scheduled command', () => {
         projectId: 'sauce-demo',
         intent: 'quality-pulse',
         receivedAt: '2026-08-13T10:00:00.000Z',
-        requestId: 'scheduled-123'
+        requestId: 'scheduled-123',
+        schedule: scheduleTemplate('conservative')
       })
     ).toMatchObject({
       intent: 'quality-pulse',

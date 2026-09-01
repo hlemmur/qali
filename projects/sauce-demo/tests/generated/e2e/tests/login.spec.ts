@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures/base.fixture';
+import { test, expect } from '../fixtures/base.fixture.js';
 /**
  * Login flow — deep coverage for Sauce Demo authentication.
  * Sources: REQ-001, REQ-003, JRN-001, DATA-001, DATA-002, D-002, D-003
