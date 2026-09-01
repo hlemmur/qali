@@ -4,7 +4,11 @@ import pytest
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 
-from app.firestore_job_repository import FirestoreJobRepository, FirestoreJobSettings
+from app.firestore_job_repository import (
+    FirestoreJobRepository,
+    FirestoreJobSettings,
+    create_firestore_job_repository,
+)
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -67,7 +71,11 @@ class _DuplicateRejectingFirestoreClient(_RecordingFirestoreClient):
 async def test_create_persists_typed_pending_job_once() -> None:
     client = _RecordingFirestoreClient()
     repository = FirestoreJobRepository(
-        settings=FirestoreJobSettings(collection="jobs"),
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
         client=client,
     )
     job = OnboardProjectJob(
@@ -100,7 +108,11 @@ async def test_create_persists_typed_pending_job_once() -> None:
 async def test_duplicate_job_creation_returns_false_without_overwrite() -> None:
     client = _DuplicateRejectingFirestoreClient()
     repository = FirestoreJobRepository(
-        settings=FirestoreJobSettings(collection="jobs"),
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
         client=client,
     )
     job = OnboardProjectJob(
@@ -122,3 +134,43 @@ async def test_duplicate_job_creation_returns_false_without_overwrite() -> None:
         client.collection_reference.document_ids[0]
         == (client.collection_reference.document_ids[1])
     )
+
+
+@pytest.mark.asyncio
+async def test_runtime_factory_uses_configured_firestore_database(
+    monkeypatch: Any,
+) -> None:
+    client = _RecordingFirestoreClient()
+    constructor_arguments: list[dict[str, str]] = []
+
+    def create_client(**kwargs: str) -> _RecordingFirestoreClient:
+        constructor_arguments.append(kwargs)
+        return client
+
+    monkeypatch.setattr(
+        "app.firestore_job_repository.firestore_v1.AsyncClient",
+        create_client,
+    )
+    repository = create_firestore_job_repository(
+        FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        )
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-runtime",
+        source_event_id="Ev-runtime",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.003000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+
+    created = await repository.create(job)
+
+    assert created is True
+    assert constructor_arguments == [
+        {"project": "qali-507317", "database": "(default)"}
+    ]

@@ -13,6 +13,8 @@ from app.slack_ingress import OnboardProjectJob
 class FirestoreJobSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    project_id: str = Field(min_length=1)
+    database_id: str = Field(min_length=1)
     collection: str = Field(default="jobs", min_length=1)
 
 
@@ -60,4 +62,20 @@ def _document_id(job_id: str) -> str:
     return f"qali-job-{digest}"
 
 
-__all__ = ["FirestoreJobRepository", "FirestoreJobSettings"]
+def create_firestore_job_repository(
+    settings: FirestoreJobSettings,
+) -> FirestoreJobRepository:
+    return FirestoreJobRepository(
+        settings=settings,
+        client=firestore_v1.AsyncClient(
+            project=settings.project_id,
+            database=settings.database_id,
+        ),
+    )
+
+
+__all__ = [
+    "FirestoreJobRepository",
+    "FirestoreJobSettings",
+    "create_firestore_job_repository",
+]
