@@ -48,6 +48,11 @@ class _SlackEnvelope(BaseModel):
     event: _SlackEvent
 
 
+class _SlackUrlVerification(BaseModel):
+    type: Literal["url_verification"]
+    challenge: str
+
+
 class JobRepository(Protocol):
     async def create(self, job: OnboardProjectJob) -> bool: ...
 
@@ -110,7 +115,7 @@ def create_slack_router(
     )
 
     @router.post("/slack/events")
-    async def receive_slack_event(request: Request) -> dict[str, bool]:
+    async def receive_slack_event(request: Request) -> dict[str, bool | str]:
         body = await request.body()
         if not verifier.is_valid(
             body=body,
@@ -120,7 +125,11 @@ def create_slack_router(
             raise HTTPException(status_code=401, detail="invalid Slack signature")
 
         try:
-            envelope = _SlackEnvelope.model_validate(json.loads(body))
+            payload = json.loads(body)
+            if isinstance(payload, dict) and payload.get("type") == "url_verification":
+                verification = _SlackUrlVerification.model_validate(payload)
+                return {"challenge": verification.challenge}
+            envelope = _SlackEnvelope.model_validate(payload)
         except (json.JSONDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="invalid Slack event") from exc
 

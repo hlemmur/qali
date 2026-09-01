@@ -182,3 +182,48 @@ async def test_non_onboarding_mention_is_acknowledged_without_dispatch() -> None
     assert response.json() == {"ok": True}
     assert jobs.list_jobs() == []
     assert tasks.dispatched_job_ids() == []
+
+
+@pytest.mark.asyncio
+async def test_signed_url_verification_returns_challenge() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    tasks = InMemoryTaskDispatcher()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=tasks,
+            clock=lambda: now,
+        )
+    )
+    body = json.dumps(
+        {
+            "type": "url_verification",
+            "token": "deprecated-verification-token",
+            "challenge": "challenge-token",
+        },
+        separators=(",", ":"),
+    ).encode()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        response = await client.post(
+            "/slack/events",
+            content=body,
+            headers=_signed_headers(body, now, secret),
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"challenge": "challenge-token"}
+    assert jobs.list_jobs() == []
+    assert tasks.dispatched_job_ids() == []
