@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures/base.fixture.js';
+import { test, expect } from '../fixtures/base.fixture.js';
 /**
  * Scenario: SCN-001 — Sign in and view inventory
  * Requirement: REQ-001 (named demo account reaches product inventory)

@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures/base.fixture.js';
+import { test, expect } from '../fixtures/base.fixture.js';
 /**
  * Scenario: SCN-002 — Add a product to the cart
  * Requirement: REQ-002 (authenticated shopper adds product from inventory)

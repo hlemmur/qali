@@ -6,6 +6,8 @@ import { loadDemoCredentials, type DemoCredentials } from '../helpers/test-data.
 
 type AppFixtures = {
   credentials: DemoCredentials;
+  standardUsername: string;
+  demoPassword: string;
   loginPage: LoginPage;
   inventoryPage: InventoryPage;
   cartPage: CartPage;
@@ -14,6 +16,12 @@ type AppFixtures = {
 export const test = base.extend<AppFixtures>({
   credentials: async ({}, use) => {
     await use(loadDemoCredentials());
+  },
+  standardUsername: async ({ credentials }, use) => {
+    await use(credentials.username);
+  },
+  demoPassword: async ({ credentials }, use) => {
+    await use(credentials.password);
   },
   loginPage: async ({ page }, use) => {
     await use(new LoginPage(page));
