@@ -2,14 +2,14 @@
 
 ## Overview
 
-Build Qali 2.0 as a production-shaped MVP with one generic capability: a Slack-controlled, bounded multi-agent coordinator system that onboards one web project and autonomously tests one requested frontend feature at a time through isolated Playwright MCP. Use specialist agents inside a deterministic custom-logic workflow, progressive QA skills, test-driven development, durable project knowledge, bounded review gates, and final qualification with real Slack, Gemini, GCP, Playwright MCP, and SauceDemo integrations.
+Build Qali 2.0 as a production-shaped private MVP with one generic capability: a Slack-controlled, bounded multi-agent coordinator system that onboards one web project and autonomously tests one requested frontend feature at a time through isolated Playwright MCP. Use specialist agents inside a deterministic custom-logic workflow, progressive QA skills, test-driven development, durable project knowledge, bounded review gates, and final qualification with real Slack, the Gemini Developer API free tier, minimal GCP services, Playwright MCP, and SauceDemo integrations.
 
 ## Work status
 
 - [ ] Create the approved Agents CLI foundation, coordinator workflow graph, typed specialist contracts, architecture records, CI checks, and initial repository baseline.
 - [ ] Deliver the coordinator-led Slack-to-knowledge onboarding slice with the Knowledge Analyst, secure credentials, managed storage, bounded quality review, automated tests using test-only service doubles, and real-integration verification.
 - [ ] Deliver the Product Alignment, QA Strategy, Risk, Test Design, Browser Execution, Failure Investigation, and Quality Review specialist flow; qualify it first with SauceDemo cart.
-- [ ] Run live Gemini evaluations, production hardening, approved Cloud Run deployment, and deployed Slack/SauceDemo E2E verification.
+- [ ] Run live free-tier Gemini evaluations, private-deployment hardening, approved Cloud Run deployment, and deployed Slack/SauceDemo E2E verification without automatic paid-model fallback.
 
 ## Scope and acceptance boundary
 
@@ -17,6 +17,7 @@ Build Qali 2.0 as a production-shaped MVP with one generic capability: a Slack-c
 - SauceDemo’s shopping cart is the first qualification and demonstration target. It must remain fixture/config data; no production domain, workflow, prompt, adapter, or storage path may depend on `cart`, SauceDemo selectors, its URL, or its credentials.
 - Onboarding and issue follow-up are supporting paths, not additional product features.
 - One Slack workspace and one designated project channel map to one Qali project and one target URL.
+- During development and qualification, access is restricted to the owner in the private `#test-qali` channel through the existing Qali Slack app. Customer or public access requires a later explicit release decision and a fresh review of Gemini service terms, privacy, capacity, and paid-service requirements.
 - Explicitly defer whole-application or multi-feature runs, API/mobile/desktop testing, GitHub/Jira connectors, multi-tenancy, cross-browser coverage, self-modifying harnesses, automatic permanent test-code generation, and non-Gemini providers.
 - If a request names multiple features or an application-wide scope, Qali asks the Slack requester to choose one feature. It may autonomously include minimal prerequisite flows, such as login or navigation, while clearly keeping them outside the assessed feature scope.
 - “Any feature” means a browser-accessible frontend feature that Qali can reach with the onboarded environment, credentials, knowledge, and project action policy. Consequential production actions remain denied unless project configuration explicitly provides a safe test path.
@@ -85,8 +86,8 @@ flowchart LR
 - Keep every specialist invocation isolated to its minimum input schema, phase-specific instructions, and allowed tools. Persist typed handoffs and reviewer verdicts so the coordinator can resume without replaying hidden conversational context.
 - Run Playwright MCP as a localhost-only child process in the Cloud Run container, not as a public endpoint. Pin its package/container version, use `--headless --isolated`, restrict target origins, disable unrestricted file access and vision by default, and set Cloud Run request concurrency to one per browser worker. The adapter owns session creation and cleanup.
 - Put a deny-by-default browser facade in front of MCP. Expose only navigation, accessibility snapshot, role/ref actions, named credential fill, deterministic observation, and evidence capture; never expose raw credentials or unrestricted MCP tools to an agent.
-- Keep credentials out of prompts and browser-agent context. Slack posts a button that opens onboarding; non-secret data can use a modal, but credentials use a single-use, short-lived HTTPS secret form because Slack has no true secret input. Store values directly in Secret Manager, return only credential references, and suppress request-body logging.
-- Use Gemini through Vertex AI with Application Default Credentials locally and a least-privilege service account on Cloud Run. Do not create or distribute a `GEMINI_API_KEY`. Select an available stable Gemini model from the approved GCP project and region immediately before implementation, then pin its exact model ID in configuration and each runtime manifest. Keep the provider behind ADK/model configuration so later providers remain possible without implementing them now.
+- Keep credentials out of prompts and browser-agent context. During the private MVP, provision target credentials manually and directly in Secret Manager and expose only credential references to Qali. Defer the single-use, short-lived HTTPS credential form until customer onboarding is added; Slack has no true secret input, so secrets must never be pasted into Slack or chat.
+- Use the Gemini Developer API free tier during development, debugging, evaluation, and private qualification. Store its API key in Secret Manager, select an available free-tier Flash model immediately before implementation, and pin its exact model ID in configuration and each runtime manifest. Apply strict request/token budgets, fail closed when free quota is exhausted, and never fall back automatically to paid quota or a paid model. Keep the provider behind ADK/model configuration so a later explicitly approved paid production service can replace it.
 
 ## Knowledge, memory, and artifacts
 
@@ -96,9 +97,10 @@ flowchart LR
   - `knowledge/`: Qali-compiled Markdown wiki with `index.md`, project/feature pages, source citations, assumptions, contradictions, and confidence. This is the operational source of truth; conflicts are resolved against immutable raw provenance.
   - `observations/`: append-only evidence, requester clarifications, discovered behavior, and run learnings. Observations can propose knowledge changes but cannot silently redefine expected behavior.
   - `derived/` and `runs/`: regenerated risks, charters, scenarios, plans/results, reports, traces, snapshots, screenshots, and issue evidence. Derived documents may never rewrite source facts.
-- Use Firestore for project/channel mapping, jobs, idempotency, source metadata, issue status, and artifact pointers. Use Agent Platform Sessions for Slack-thread short-term context and Memory Bank for project-scoped cross-thread clarifications/decisions. Memory is a retrieval aid, never the source of truth.
+- Use Firestore for project/channel mapping, jobs, idempotency, source metadata, issue status, artifact pointers, resumable Slack-thread context, and project-scoped clarification/decision indexes. Store canonical project knowledge and immutable artifacts in GCS. Do not use paid Agent Platform Sessions or Memory Bank in the private MVP; memory is a retrieval aid, never the source of truth.
 - Adopt Karpathy’s compiled-wiki pattern: immutable raw sources, incrementally maintained Markdown knowledge, `index.md` for progressive disclosure, and a chronological log. Do not add embedding RAG in the MVP; add an ADR trigger to adopt managed Agent Platform Search only when corpus size or retrieval evals show the index/search approach is insufficient.
 - Store operational JSON and human-readable Markdown together. Use immutable per-run audit events rather than fragile concurrent appends, then materialize `logs/testing-log.md` and `issues/index.md` projections.
+- Retain project sources and compiled knowledge until the project is deleted; run reports and structured results for 90 days; screenshots, traces, and browser evidence for 30 days; redacted audit events for 90 days; and secrets until rotation or explicit deletion. Delete failed or abandoned uploads within 24 hours. Enforce these periods with lifecycle policies and deterministic cleanup jobs.
 
 Planned storage layout:
 
@@ -152,7 +154,7 @@ projects/{project_id}/
 - [app/services](app/services): deterministic onboarding and feature-testing workflow graphs, specialist invocation, review gates, finding follow-up, and audit projection.
 - [app/adapters/slack](app/adapters/slack): signature verification, events, views/buttons, progress updates, and thread/session mapping.
 - [app/adapters/browser](app/adapters/browser): restricted Playwright MCP facade, lifecycle, isolated sessions, named credential injection, observations, oracles, and evidence export.
-- [app/adapters/storage](app/adapters/storage): production GCS, Firestore, Sessions/Memory Bank, and Secret Manager implementations behind protocols.
+- [app/adapters/storage](app/adapters/storage): GCS, Firestore-backed durable session/decision indexes, and Secret Manager implementations behind protocols.
 - [harness](harness): progressive skill index, QA playbooks, workflow rules, prompts, schemas, and runtime manifest; no project-specific data.
 - [tests/unit](tests/unit), [tests/integration](tests/integration), [tests/contract](tests/contract), [tests/e2e](tests/e2e), and [tests/eval](tests/eval): deterministic code tests with test-only doubles, adapter contracts, real-integration E2E journeys, and ADK behavioral evals.
 - [docs/architecture.md](docs/architecture.md), [docs/adr](docs/adr), [docs/user-guide.md](docs/user-guide.md), and [docs/development-log.md](docs/development-log.md): maintained design and operation records.
@@ -162,12 +164,13 @@ projects/{project_id}/
 Follow vertical red-green-refactor slices: one observable behavior test, minimal implementation, green verification, then refactor. Pytest validates deterministic code and boundaries; Agents CLI eval validates nondeterministic agent behavior. Never assert prose LLM output in pytest.
 
 - Unit: coordinator routing, workflow transitions, specialist schemas/tool allowlists, review/revision limits, scope/action policy, URL validation, redaction, risk coverage, oracles, failure classification, finding fingerprints, and audit projection.
-- Integration: use test-only doubles for Slack, Cloud Tasks, Firestore/GCS/Secret Manager/Sessions, specialist model decisions, and Playwright MCP responses to verify isolated contexts, typed handoffs, strategy/risk fan-out and synthesis, review feedback, resume behavior, retries, idempotency, progress updates, and failure paths.
+- Integration: use test-only doubles for Slack, Cloud Tasks, Firestore/GCS/Secret Manager, specialist model decisions, and Playwright MCP responses to verify isolated contexts, typed handoffs, strategy/risk fan-out and synthesis, review feedback, resume behavior, retries, idempotency, progress updates, and failure paths.
 - Contract: validate Slack payload schemas and pinned Playwright MCP tool responses independently of Gemini; run selected sandbox/live contract checks before release.
 - Add at least two unrelated synthetic feature fixtures, such as profile editing and catalog filtering, and run both through the application-service workflow in tests. This is the architectural check that feature names, selectors, routes, or expected outcomes are not hardcoded.
 - ADK eval: evaluate each specialist’s grounded output and the complete coordinator trajectory for missing onboarding, varied feature requests, product alignment, risk completeness, ambiguity, prerequisite handling, scenario traceability, browser tool safety, failure-triage accuracy, reviewer independence, concise results, grounded follow-up, and injection resistance. Keep held-out cases for the final gate.
 - Integration progression: use test-only model and browser doubles while scaffolding deterministic services; then connect real Playwright MCP to SauceDemo with scripted plans; then enable live Gemini; finally run deployed Slack-to-browser E2E through real GCP services. Require two clean isolated cart runs and one intentionally failing oracle path with preserved evidence.
 - PR checks run lint/format/type checks, unit/integration/contract tests, secret scanning, dependency/container checks, and stable eval subsets that do not require external credentials. Real-integration gates run in an approved environment before release. Deployment remains a manual `agents-cli deploy` action after explicit approval.
+- Deterministic tests, schema checks, policy checks, and security probes require 100% pass with zero secret leakage or forbidden tool/action violations. Core ADK behavioral evaluations require at least 90% in two consecutive runs; held-out evaluations require at least 85% with no critical safety or grounding failure. Any regression in a previously passing critical case blocks release.
 
 ## Execution sequence and PR gates
 
@@ -175,11 +178,22 @@ Follow vertical red-green-refactor slices: one observable behavior test, minimal
 
 - Before bootstrap or scaffolding, inspect what can be determined safely from the repository and connected accounts, then ask the user only for unresolved decisions. Ask one question at a time and wait for the answer before asking the next.
 - Confirm the public Slack interface and highest-priority observable behaviors for the first TDD tracer bullets.
-- Confirm the GCP organization/account, project ID, billing status, region, resource-name prefix, and who may approve resource creation. Use Vertex AI service-account authentication by default unless the user explicitly chooses another supported mode.
+- Confirm the GCP organization/account, project ID, billing status, region, resource-name prefix, budget, and who may approve resource creation. Use the Gemini Developer API free tier for the private MVP unless the user explicitly approves a paid service later.
 - Confirm the Slack workspace, designated project channel, Slack app ownership/configuration, and externally reachable HTTPS domain for the single-use credential form. Never ask the user to paste secret values into chat.
 - Confirm the first target environment, allowed origins/actions, test-data reset policy, and how credential references will be provisioned. SauceDemo remains qualification data rather than production logic.
 - Agree measurable ADK eval thresholds, deterministic release gates, retention/redaction periods, and the human approvers for remote-main replacement, integration resource creation, and production deployment.
 - Materialize the approved answers in [.agents-cli-spec.md](.agents-cli-spec.md), self-review it, and obtain explicit approval before running any scaffold, cloud-resource, or implementation command.
+
+Approved private-MVP configuration:
+
+- GCP project `qali-507317` (project number `104724129371`), billing enabled, standard region `europe-west1`, with a 100 SEK monthly alert budget as the absolute owner-defined financial boundary.
+- One GCP project only. Keep pre-release resources minimal, labeled, scale-to-zero, and isolated by resource name; do not create a second environment project.
+- Gemini Developer API free tier only during development and private qualification. Exhausted quota stops work cleanly; paid activation or fallback requires the owner’s explicit approval.
+- Existing Qali Slack app and private `#test-qali` channel; access restricted to the owner for now.
+- Onboarding sources: Slack text/clarifications, approved HTTPS URLs, and MD/TXT/PDF uploads.
+- Project-agnostic deny-by-default action policy: onboarding supplies origins, credential references, allowed action categories, consequential-action denials, test-data rules, and cleanup. SauceDemo/cart details exist only in qualification fixtures.
+- Target credentials are provisioned manually in Secret Manager during the private MVP; the public single-use credential form is deferred.
+- The owner is the sole approver for remote-main replacement, cloud-resource changes, deployment, paid usage, and access expansion.
 
 ### Mandatory Agents CLI and ADK skill protocol
 
@@ -208,7 +222,7 @@ At every phase boundary, add the skill/version used, official recipe or referenc
 ### PR 1: Slack job and onboarding slice
 
 - Implement the separate signed Slack ingress and authenticated worker services, coordinator, three-second acknowledgement, Cloud Tasks enqueue/idempotency, same-thread progress updates, onboarding graph, Knowledge Analyst, knowledge quality gate, safe source adapters, one-time credential capture, and production storage adapters.
-- Extend the generated Terraform in this PR with the minimum approved integration environment needed to verify the slice: ingress and worker Cloud Run services, Cloud Tasks, Firestore, GCS, Secret Manager, least-privilege service accounts/IAM, and Agent Platform Sessions if the implemented coordinator depends on them. Create those resources only after presenting the plan and receiving explicit approval.
+- Extend the generated Terraform in this PR with the minimum approved integration resources needed to verify the slice in `qali-507317`: scale-to-zero ingress and worker Cloud Run services, Cloud Tasks, Firestore, GCS, Secret Manager, lifecycle rules, budget-aware quotas, and least-privilege service accounts/IAM. Do not add Agent Platform Sessions or Memory Bank. Create resources only after presenting the plan and receiving explicit approval.
 - Use test-only service doubles during TDD, then verify the onboarding path with real Slack and the PR 1 GCP integration environment. Do not defer infrastructure required by this acceptance gate to a later PR.
 - Gate on duplicate Slack delivery, unsafe URL/file rejection, no-secret logging, insufficient-knowledge warning, and project-ready acceptance tests.
 
@@ -220,8 +234,8 @@ At every phase boundary, add the skill/version used, official recipe or referenc
 
 ### PR 3: Production integration and release slice
 
-- Add qualified live Gemini-on-Vertex-AI configuration and ADK eval-fix iterations; harden injection, budget, timeout, retry, concurrency, and redaction behavior.
-- Run `agents-cli scaffold enhance . --deployment-target cloud_run --session-type agent_platform_sessions --cicd-runner skip`, then promote and harden the generated Terraform and PR 1 integration modules for production. Add Memory Bank support, production scaling/retention/alerts, and any remaining least-privilege IAM without recreating resources ad hoc or abandoning generated infrastructure conventions.
+- Add qualified live Gemini Developer API free-tier configuration and ADK eval-fix iterations; harden injection, free-quota exhaustion, request/token budgets, timeout, retry, concurrency, and redaction behavior.
+- Run `agents-cli scaffold enhance . --deployment-target cloud_run --cicd-runner skip`, then promote and harden the generated Terraform and PR 1 modules for the private deployment. Use Firestore/GCS durability, scale-to-zero settings, retention/alerts, and least-privilege IAM without recreating resources ad hoc or abandoning generated infrastructure conventions.
 - Build the Chromium/MCP-capable container, scan it, deploy manually only after presenting all test/eval evidence and receiving explicit approval, then run the full Slack onboarding/feature-test/follow-up E2E against the deployed branch using SauceDemo cart as the qualification target.
 - Verify Cloud Trace, redacted logs, durable artifacts, restart/session recovery, Slack retry idempotency, rollback procedure, and post-deployment smoke checks.
 
@@ -241,6 +255,6 @@ At every phase boundary, add the skill/version used, official recipe or referenc
 - Every run records which specialists executed, their typed handoffs, reviewer decisions, workflow version, and deterministic verdict inputs without exposing hidden reasoning or secrets.
 - The same application-service workflow passes tests for at least two unrelated synthetic feature fixtures; production code contains no SauceDemo/cart routes, selectors, credentials, expectations, or branches.
 - A confirmed failure has a stable ID, one-line Slack summary, reproducible evidence, and an accurate follow-up report with steps, expected/actual behavior, and evidence reference.
-- Short-term thread context survives Cloud Run restarts; project knowledge and explicit decisions are available in later threads without treating memory as authority.
+- Firestore-backed short-term thread context survives Cloud Run restarts; project knowledge and explicit decisions are available in later threads through Firestore/GCS indexes without treating retrieved memory as authority.
 - Only production integrations are runtime-composable; test doubles and fixtures remain confined to test code.
 - Deterministic suites, no-hardcoding checks, contract tests, held-out ADK evals, security probes, two isolated SauceDemo cart qualification runs, deployed real Slack/Gemini/GCP/Playwright E2E, observability checks, and rollback smoke checks all meet their recorded gates.
