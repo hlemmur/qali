@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable
 from typing import Literal, Protocol
@@ -47,7 +48,7 @@ class _SlackEnvelope(BaseModel):
 
 
 class JobRepository(Protocol):
-    async def create(self, job: OnboardProjectJob) -> None: ...
+    async def create(self, job: OnboardProjectJob) -> bool: ...
 
 
 class TaskDispatcher(Protocol):
@@ -56,13 +57,18 @@ class TaskDispatcher(Protocol):
 
 class InMemoryJobRepository:
     def __init__(self) -> None:
-        self._jobs: list[OnboardProjectJob] = []
+        self._jobs: dict[str, OnboardProjectJob] = {}
+        self._lock = asyncio.Lock()
 
-    async def create(self, job: OnboardProjectJob) -> None:
-        self._jobs.append(job)
+    async def create(self, job: OnboardProjectJob) -> bool:
+        async with self._lock:
+            if job.job_id in self._jobs:
+                return False
+            self._jobs[job.job_id] = job
+            return True
 
     def list_jobs(self) -> list[OnboardProjectJob]:
-        return list(self._jobs)
+        return list(self._jobs.values())
 
 
 class InMemoryTaskDispatcher:
@@ -129,8 +135,9 @@ def create_slack_router(
             thread_ts=event.ts,
             request_text=event.text,
         )
-        await jobs.create(job)
-        await tasks.dispatch(job)
+        created = await jobs.create(job)
+        if created:
+            await tasks.dispatch(job)
         return {"ok": True}
 
     return router
