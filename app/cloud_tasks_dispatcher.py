@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Protocol
 
+from google.api_core.exceptions import AlreadyExists
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
 from app.slack_ingress import OnboardProjectJob
@@ -57,24 +58,27 @@ class CloudTasksDispatcher:
             task_id,
         )
         worker_url = str(settings.worker_url)
-        await self._client.create_task(
-            request={
-                "parent": parent,
-                "task": {
-                    "name": task_name,
-                    "http_request": {
-                        "http_method": "POST",
-                        "url": worker_url,
-                        "headers": {"Content-Type": "application/json"},
-                        "body": job.model_dump_json().encode(),
-                        "oidc_token": {
-                            "service_account_email": settings.service_account_email,
-                            "audience": worker_url,
+        try:
+            await self._client.create_task(
+                request={
+                    "parent": parent,
+                    "task": {
+                        "name": task_name,
+                        "http_request": {
+                            "http_method": "POST",
+                            "url": worker_url,
+                            "headers": {"Content-Type": "application/json"},
+                            "body": job.model_dump_json().encode(),
+                            "oidc_token": {
+                                "service_account_email": settings.service_account_email,
+                                "audience": worker_url,
+                            },
                         },
                     },
-                },
-            }
-        )
+                }
+            )
+        except AlreadyExists:
+            return
 
 
 def _task_id(job_id: str) -> str:
