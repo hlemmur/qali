@@ -13,6 +13,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.cloud_tasks_dispatcher import task_id_for_job
+from app.job_lifecycle import ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -59,7 +60,13 @@ def create_worker_app(
                 status_code=409,
                 detail="Cloud Tasks name does not match the job payload",
             )
-        await handler.handle(job, execution_count=execution_count)
+        try:
+            await handler.handle(job, execution_count=execution_count)
+        except ProjectBusyError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="project job is already running",
+            ) from exc
         return {"ok": True}
 
     return app

@@ -10,7 +10,7 @@ from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
 )
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -42,6 +42,13 @@ class _RecordingTransaction:
     def __init__(self) -> None:
         self.updates: list[dict[str, Any]] = []
 
+    def set(
+        self,
+        document: _RecordingDocument,
+        fields: dict[str, Any],
+    ) -> None:
+        document.document_data = fields.copy()
+
     def update(
         self,
         document: _RecordingDocument,
@@ -50,6 +57,9 @@ class _RecordingTransaction:
         self.updates.append(fields)
         assert document.document_data is not None
         document.document_data.update(fields)
+
+    def delete(self, document: _RecordingDocument) -> None:
+        document.document_data = None
 
 
 class _TransactionRunner:
@@ -187,6 +197,48 @@ async def test_pending_job_can_be_claimed_for_processing_once() -> None:
             "started_at": firestore_v1.SERVER_TIMESTAMP,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_firestore_serializes_jobs_for_one_project() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    first = OnboardProjectJob(
+        job_id="slack:Ev-firestore-project-first",
+        source_event_id="Ev-firestore-project-first",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.023000",
+        request_text="<@U-QALI> onboard project First",
+    )
+    second = OnboardProjectJob(
+        job_id="slack:Ev-firestore-project-second",
+        source_event_id="Ev-firestore-project-second",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.024000",
+        request_text="<@U-QALI> onboard project Second",
+    )
+    await repository.create(first)
+    await repository.create(second)
+
+    assert await repository.claim(first.job_id) == first
+    with pytest.raises(ProjectBusyError):
+        await repository.claim(second.job_id)
+
+    assert await repository.complete(first.job_id) is True
+    assert await repository.claim(second.job_id) == second
 
 
 @pytest.mark.asyncio

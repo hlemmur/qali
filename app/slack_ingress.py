@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from slack_sdk.signature import Clock, SignatureVerifier
 
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 
 
 class SlackIngressSettings(BaseModel):
@@ -71,6 +71,7 @@ class InMemoryJobRepository:
         self._claimed_job_ids: set[str] = set()
         self._completed_job_ids: set[str] = set()
         self._failed_job_ids: set[str] = set()
+        self._active_job_id_by_project: dict[tuple[str, str], str] = {}
         self._lock = asyncio.Lock()
 
     async def create(self, job: OnboardProjectJob) -> bool:
@@ -90,7 +91,12 @@ class InMemoryJobRepository:
                 or job_id in self._failed_job_ids
             ):
                 return None
+            project_key = (job.workspace_id, job.channel_id)
+            active_job_id = self._active_job_id_by_project.get(project_key)
+            if active_job_id is not None and active_job_id != job_id:
+                raise ProjectBusyError
             self._claimed_job_ids.add(job_id)
+            self._active_job_id_by_project[project_key] = job_id
             return job
 
     async def complete(self, job_id: str) -> bool:
@@ -102,6 +108,7 @@ class InMemoryJobRepository:
             ):
                 return False
             self._completed_job_ids.add(job_id)
+            self._release_project(job_id)
             return True
 
     async def release(self, job_id: str, *, reason: JobRetryReason) -> bool:
@@ -114,6 +121,7 @@ class InMemoryJobRepository:
             ):
                 return False
             self._claimed_job_ids.remove(job_id)
+            self._release_project(job_id)
             return True
 
     async def fail(self, job_id: str, *, reason: JobFailureReason) -> bool:
@@ -126,7 +134,14 @@ class InMemoryJobRepository:
             ):
                 return False
             self._failed_job_ids.add(job_id)
+            self._release_project(job_id)
             return True
+
+    def _release_project(self, job_id: str) -> None:
+        job = self._jobs[job_id]
+        project_key = (job.workspace_id, job.channel_id)
+        if self._active_job_id_by_project.get(project_key) == job_id:
+            del self._active_job_id_by_project[project_key]
 
     def list_jobs(self) -> list[OnboardProjectJob]:
         return list(self._jobs.values())

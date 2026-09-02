@@ -319,3 +319,43 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for fail-closed execution metadata and durable retry exhaustion.
+
+## 2026-09-02 — Phase 3: project-level job serialization
+
+Isolated change: serialized onboarding jobs by the private MVP's one-project-per-Slack-channel mapping in both the Firestore production repository and the in-memory mock repository.
+
+Reason: Cloud Tasks may dispatch distinct jobs concurrently. Qali must allow only one running job for a project so onboarding and later project-scoped workflows cannot race each other or mutate project state out of order.
+
+Skill and API guidance:
+
+- `tdd`
+- Installed `google-cloud-firestore` 2.29 `AsyncTransaction.set`, `delete`, and `update` signatures were inspected before implementing the durable lock writes.
+
+TDD evidence:
+
+- Red: two pending mock jobs for the same workspace/channel could both be claimed.
+- Green: the mock repository now owns one active job per project key under its existing async lock and releases ownership only after a successful complete, retry release, or terminal failure transition.
+- Red: the Firestore repository likewise allowed two same-project jobs to transition to `running`.
+- Green: claim now reads the job and hashed project-lock document before atomically writing both; a competing same-project claim remains pending until the owner completes.
+- Green blast radius: retry release and both terminal transitions retain their existing behavior while deleting only the lock owned by that job.
+- Review red: the worker treated a contended claim like an idempotent no-op, returned HTTP 200, and caused Cloud Tasks to delete the blocked job's task while the job remained pending.
+- Review green: repositories now distinguish project contention with `ProjectBusyError`; worker ingress translates only that condition to HTTP 503, and an HTTP integration test proves the blocked task succeeds on redelivery after the active job completes.
+
+Safety and scope:
+
+- The serialization key is derived from the authorized Slack workspace/channel mapping, not request text, project names, target URLs, or feature-specific data.
+- Firestore lock document IDs contain only a SHA-256 digest of the scope; raw workspace/channel values are not placed in document paths.
+- Lifecycle transitions verify lock ownership in the same transaction before deleting it, preventing one job from releasing another job's lock.
+- Live mode requires `FIRESTORE_JOB_LOCKS_COLLECTION`; mock mode remains self-contained with its in-memory lock map and visible mock badge.
+- No cloud call, resource, deployment, secret, model, or live integration was used.
+- Stale-lock lease recovery and coordinator/onboarding composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `19 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `31 passed` after the review fix.
+- `uv run pytest tests/integration/test_slack_ingress_app.py -q` — `16 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `57 passed` after the review fix.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for project-level serialization with durable Firestore locks, mock parity, and explicit live configuration.

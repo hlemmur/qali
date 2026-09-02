@@ -23,6 +23,7 @@ def _live_environment() -> dict[str, str]:
         "GOOGLE_CLOUD_PROJECT": "qali-507317",
         "FIRESTORE_DATABASE_ID": "(default)",
         "FIRESTORE_JOBS_COLLECTION": "jobs",
+        "FIRESTORE_JOB_LOCKS_COLLECTION": "job-locks",
         "CLOUD_TASKS_LOCATION": "europe-west1",
         "CLOUD_TASKS_QUEUE_ID": "qali-jobs",
         "QALI_WORKER_URL": "https://qali-worker.example.test/internal/jobs",
@@ -110,6 +111,7 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
             "project_id": "qali-507317",
             "database_id": "(default)",
             "collection": "jobs",
+            "lock_collection": "job-locks",
         }
     ]
     assert [settings.model_dump(mode="json") for settings in cloud_tasks_settings] == [
@@ -134,6 +136,7 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
         "GOOGLE_CLOUD_PROJECT",
         "FIRESTORE_DATABASE_ID",
         "FIRESTORE_JOBS_COLLECTION",
+        "FIRESTORE_JOB_LOCKS_COLLECTION",
         "CLOUD_TASKS_LOCATION",
         "CLOUD_TASKS_QUEUE_ID",
         "QALI_WORKER_URL",

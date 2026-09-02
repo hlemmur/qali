@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
@@ -57,6 +57,38 @@ async def test_mock_job_repository_claims_pending_job_once() -> None:
 
     assert claimed == job
     assert duplicate_claim is None
+
+
+@pytest.mark.asyncio
+async def test_mock_job_repository_serializes_jobs_for_one_project() -> None:
+    jobs = InMemoryJobRepository()
+    first = OnboardProjectJob(
+        job_id="slack:Ev-project-first",
+        source_event_id="Ev-project-first",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.021000",
+        request_text="<@U-QALI> onboard project First",
+    )
+    second = OnboardProjectJob(
+        job_id="slack:Ev-project-second",
+        source_event_id="Ev-project-second",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.022000",
+        request_text="<@U-QALI> onboard project Second",
+    )
+    await jobs.create(first)
+    await jobs.create(second)
+
+    assert await jobs.claim(first.job_id) == first
+    with pytest.raises(ProjectBusyError):
+        await jobs.claim(second.job_id)
+
+    assert await jobs.complete(first.job_id) is True
+    assert await jobs.claim(second.job_id) == second
 
 
 @pytest.mark.asyncio
