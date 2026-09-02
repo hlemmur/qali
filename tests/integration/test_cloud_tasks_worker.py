@@ -3,8 +3,13 @@ from typing import Any
 import httpx
 import pytest
 
-from app.cloud_tasks_dispatcher import CloudTasksDispatcher, CloudTasksSettings
-from app.slack_ingress import OnboardProjectJob
+from app.cloud_tasks_dispatcher import (
+    CloudTasksDispatcher,
+    CloudTasksSettings,
+    task_id_for_job,
+)
+from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
+from app.worker_handler import LifecycleJobHandler
 from app.worker_ingress import WorkerIngressSettings, create_worker_app
 
 
@@ -34,6 +39,26 @@ class _RecordingJobHandler:
 
     async def handle(self, job: OnboardProjectJob) -> None:
         self.jobs.append(job)
+
+
+class _RecordingJobProcessor:
+    def __init__(self) -> None:
+        self.jobs: list[OnboardProjectJob] = []
+
+    async def process(self, job: OnboardProjectJob) -> None:
+        self.jobs.append(job)
+
+
+class _FailOnceJobProcessor(_RecordingJobProcessor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempts = 0
+
+    async def process(self, job: OnboardProjectJob) -> None:
+        self.attempts += 1
+        if self.attempts == 1:
+            raise RuntimeError("synthetic processor failure")
+        await super().process(job)
 
 
 @pytest.mark.asyncio
@@ -84,6 +109,98 @@ async def test_dispatched_cloud_task_reaches_typed_worker_handler() -> None:
     assert response.status_code == 200
     assert response.json() == {"ok": True}
     assert handler.jobs == [job]
+
+
+@pytest.mark.asyncio
+async def test_worker_processes_and_completes_job_once_across_redelivery() -> None:
+    jobs = InMemoryJobRepository()
+    processor = _RecordingJobProcessor()
+    handler = LifecycleJobHandler(jobs=jobs, processor=processor)
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-lifecycle",
+        source_event_id="Ev-worker-lifecycle",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.013000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    headers = {
+        "Content-Type": "application/json",
+        "X-CloudTasks-QueueName": "qali-jobs",
+        "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+    }
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://worker.test",
+    ) as client:
+        first = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=headers,
+        )
+        redelivery = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=headers,
+        )
+
+    assert first.status_code == 200
+    assert redelivery.status_code == 200
+    assert processor.jobs == [job]
+    assert await jobs.claim(job.job_id) is None
+
+
+@pytest.mark.asyncio
+async def test_worker_releases_failed_job_for_cloud_tasks_retry() -> None:
+    jobs = InMemoryJobRepository()
+    processor = _FailOnceJobProcessor()
+    handler = LifecycleJobHandler(jobs=jobs, processor=processor)
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-retry",
+        source_event_id="Ev-worker-retry",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.014000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    headers = {
+        "Content-Type": "application/json",
+        "X-CloudTasks-QueueName": "qali-jobs",
+        "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+    }
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://worker.test",
+    ) as client:
+        failed = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=headers,
+        )
+        retry = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=headers,
+        )
+
+    assert failed.status_code == 500
+    assert retry.status_code == 200
+    assert processor.attempts == 2
+    assert processor.jobs == [job]
 
 
 @pytest.mark.asyncio
