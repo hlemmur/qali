@@ -201,6 +201,10 @@ class FirestoreJobRepository:
                 or data.get("thread_ts") != message.thread_ts
             ):
                 return False
+            job = OnboardProjectJob.model_validate(data)
+            lock_document = self._project_lock_document(job)
+            if not await _owns_lock(transaction, lock_document, job_id):
+                return False
             existing_message_ts = data.get("progress_message_ts")
             if existing_message_ts is not None:
                 return existing_message_ts == message.message_ts
