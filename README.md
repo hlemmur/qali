@@ -56,8 +56,10 @@ QALI_MODE=mock uv run uvicorn 'app.slack_app:create_slack_ingress_app_from_env' 
 ```
 
 `GET http://127.0.0.1:8081/healthz` returns a visible `MOCK MODE` badge. Live
-mode intentionally fails closed until the durable Firestore and Cloud Tasks adapters
-are implemented; local mock settings must never be used for a deployment.
+mode composes the Firestore job repository and Cloud Tasks dispatcher only when every
+required Slack, GCP, queue, worker, OIDC, and service-account setting is present. It
+uses Application Default Credentials and fails during startup when configuration is
+missing or invalid. Local mock settings must never be used for a deployment.
 
 ## Commands
 
