@@ -5,13 +5,16 @@ import json
 import re
 import time
 from collections.abc import Callable
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from slack_sdk.signature import Clock, SignatureVerifier
 
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
+
+if TYPE_CHECKING:
+    from app.slack_progress import ProgressMessage
 
 
 class SlackIngressSettings(BaseModel):
@@ -80,6 +83,7 @@ class InMemoryJobRepository:
         self._completed_job_ids: set[str] = set()
         self._failed_job_ids: set[str] = set()
         self._active_job_by_project: dict[tuple[str, str], tuple[str, float]] = {}
+        self._progress_by_job_id: dict[str, ProgressMessage] = {}
         self._clock = clock
         self._lease_seconds = lease_seconds
         self._lock = asyncio.Lock()
@@ -132,6 +136,32 @@ class InMemoryJobRepository:
             self._completed_job_ids.add(job_id)
             self._release_project(job_id)
             return True
+
+    async def attach_progress(
+        self,
+        job_id: str,
+        message: ProgressMessage,
+    ) -> bool:
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if (
+                job is None
+                or job_id not in self._claimed_job_ids
+                or job_id in self._completed_job_ids
+                or job_id in self._failed_job_ids
+                or message.channel_id != job.channel_id
+                or message.thread_ts != job.thread_ts
+            ):
+                return False
+            existing = self._progress_by_job_id.get(job_id)
+            if existing is not None:
+                return existing == message
+            self._progress_by_job_id[job_id] = message
+            return True
+
+    async def get_progress(self, job_id: str) -> ProgressMessage | None:
+        async with self._lock:
+            return self._progress_by_job_id.get(job_id)
 
     async def release(self, job_id: str, *, reason: JobRetryReason) -> bool:
         JobRetryReason(reason)

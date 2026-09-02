@@ -435,3 +435,38 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for bounded same-thread Slack progress reporting with production adapter and mock parity.
+
+## 2026-09-02 — Phase 3: durable Slack progress reference
+
+Isolated change: added immutable progress-message reference persistence to the Firestore production job repository and the in-memory mock repository.
+
+Reason: a retried or restarted onboarding worker must update the existing Slack progress message rather than post another message and fragment the workflow history.
+
+Skill and method:
+
+- `tdd`
+- Reused the existing transactional Firestore job seam and typed `ProgressMessage` contract from the preceding adapter slice.
+
+TDD evidence:
+
+- Red: the mock job repository could not bind or recover a progress message across retry release and reclaim.
+- Green: a running mock job binds one channel/thread/message reference, preserves it across retry, and rejects a replacement timestamp.
+- Red: the Firestore production repository had no durable attach/read operations.
+- Green: Firestore atomically attaches the first progress timestamp only to the matching running job and reconstructs the typed reference from canonical stored channel/thread fields after retry.
+- Immutability guard: both implementations accept an idempotent repeat of the same reference but reject attempts to bind a different message.
+
+Safety and scope:
+
+- Attachment requires the progress channel and parent thread to match the canonical job; a redelivered task payload cannot redirect updates elsewhere.
+- Firestore stores only the bot-message timestamp plus a server attachment timestamp; it does not duplicate Slack text, project sources, job text, URLs, or secrets.
+- Completed, failed, missing, and non-running jobs cannot acquire a new progress reference.
+- No Slack API call, cloud call, resource, deployment, secret, or model was used.
+- Creating/reusing the reference inside the onboarding processor remains the next composition slice.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `23 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/unit -q` — `65 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for immutable durable Slack progress references with Firestore and mock parity.

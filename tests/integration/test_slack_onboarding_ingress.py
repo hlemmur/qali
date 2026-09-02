@@ -14,6 +14,7 @@ from app.slack_ingress import (
     SlackIngressSettings,
     create_slack_router,
 )
+from app.slack_progress import ProgressMessage
 
 
 def _signed_headers(body: bytes, timestamp: int, secret: str) -> dict[str, str]:
@@ -84,6 +85,40 @@ async def test_mock_running_job_is_reclaimed_after_its_lease_expires() -> None:
     now[0] += 902
 
     assert await jobs.claim(job.job_id) == job
+
+
+@pytest.mark.asyncio
+async def test_mock_progress_reference_survives_job_retry() -> None:
+    jobs = InMemoryJobRepository()
+    job = OnboardProjectJob(
+        job_id="slack:Ev-mock-progress-reference",
+        source_event_id="Ev-mock-progress-reference",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.032000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    message = ProgressMessage(
+        channel_id=job.channel_id,
+        thread_ts=job.thread_ts,
+        message_ts="1788220801.032000",
+    )
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    assert await jobs.attach_progress(job.job_id, message) is True
+    assert (
+        await jobs.attach_progress(
+            job.job_id,
+            message.model_copy(update={"message_ts": "1788220802.032000"}),
+        )
+        is False
+    )
+    assert await jobs.release(job.job_id, reason=JobRetryReason.PROCESSOR_ERROR) is True
+    assert await jobs.claim(job.job_id) == job
+
+    assert await jobs.get_progress(job.job_id) == message
 
 
 @pytest.mark.asyncio
