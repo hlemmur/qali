@@ -544,3 +544,43 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for deterministic HTTPS/origin/host safety policy with explicit DNS and redirect enforcement seams.
+
+## 2026-09-02 — Phase 3: bounded onboarding source fetcher
+
+Isolated change: added a deterministic source-fetch orchestration boundary that resolves and validates every HTTPS hop, binds transport calls to approved public addresses, limits redirects and response bytes, and accepts only onboarding document media types.
+
+Reason: source ingestion must remain fail-closed across DNS resolution and redirects without using live network access during TDD or letting a generic HTTP client silently re-resolve an approved hostname.
+
+Skill and method:
+
+- `tdd`
+- Kept resolution and the address-bound transport behind narrow protocols so integration tests exercise the complete policy flow with test-only doubles.
+
+TDD evidence:
+
+- Red: no source fetch adapter existed.
+- Green: an approved source is normalized, resolved, revalidated with all returned addresses, fetched through a byte-bounded address-aware transport, and returned as typed content.
+- Red: redirects were handled as generic HTTP failures.
+- Green: redirects are bounded and every next URL is policy-validated before another DNS or transport call.
+- Red: title-cased HTTP response headers prevented valid redirect and content-type handling.
+- Green: response header names are normalized case-insensitively at each hop.
+- Red: an empty DNS result reached the transport with no approved addresses.
+- Green: unresolved hosts fail before any transport request.
+- Red: arbitrary binary media types were accepted.
+- Green: only HTML, plain text, Markdown, and PDF sources are returned; the adapter also verifies the response body remains within the configured byte cap.
+
+Safety and scope:
+
+- The transport protocol receives the complete approved address tuple and maximum byte count. A production implementation must connect only to those addresses and must not independently re-resolve the hostname.
+- Every redirect repeats URL normalization, exact-origin approval, DNS resolution, public-address validation, and bound transport invocation.
+- Redirect count is configurable from zero to five; response bodies are checked even when the transport claims to enforce the limit.
+- No live DNS lookup, HTTP request, cloud call, deployment, secret, browser action, file write, or model invocation was used.
+- The production resolver/transport, malware and prompt-injection screening, and immutable raw-source storage remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_source_fetcher.py -q` — `6 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/unit -q` — `85 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, redirect-aware source-fetch orchestration with explicit address-binding and mock-safe evidence.
