@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from slack_sdk.signature import Clock, SignatureVerifier
 
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 
 
 class SlackIngressSettings(BaseModel):
@@ -94,7 +94,7 @@ class InMemoryJobRepository:
             project_key = (job.workspace_id, job.channel_id)
             active_job_id = self._active_job_id_by_project.get(project_key)
             if active_job_id is not None and active_job_id != job_id:
-                return None
+                raise ProjectBusyError
             self._claimed_job_ids.add(job_id)
             self._active_job_id_by_project[project_key] = job_id
             return job

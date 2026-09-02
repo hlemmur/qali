@@ -11,4 +11,8 @@ class JobFailureReason(StrEnum):
     RETRY_EXHAUSTED = "retry_exhausted"
 
 
-__all__ = ["JobFailureReason", "JobRetryReason"]
+class ProjectBusyError(RuntimeError):
+    """A different job currently owns the project's execution lock."""
+
+
+__all__ = ["JobFailureReason", "JobRetryReason", "ProjectBusyError"]

@@ -80,6 +80,19 @@ class _BlockingJobProcessor:
         await asyncio.Event().wait()
 
 
+class _BlockingFirstJobProcessor:
+    def __init__(self) -> None:
+        self.jobs: list[OnboardProjectJob] = []
+        self.first_started = asyncio.Event()
+        self.release_first = asyncio.Event()
+
+    async def process(self, job: OnboardProjectJob) -> None:
+        self.jobs.append(job)
+        if len(self.jobs) == 1:
+            self.first_started.set()
+            await self.release_first.wait()
+
+
 @pytest.mark.parametrize("timeout_seconds", [0, 901])
 def test_worker_timeout_budget_must_be_within_fifteen_minutes(
     timeout_seconds: float,
@@ -184,6 +197,67 @@ async def test_worker_processes_and_completes_job_once_across_redelivery() -> No
     assert redelivery.status_code == 200
     assert processor.jobs == [job]
     assert await jobs.claim(job.job_id) is None
+
+
+@pytest.mark.asyncio
+async def test_worker_retries_same_project_job_after_active_job_completes() -> None:
+    jobs = InMemoryJobRepository()
+    processor = _BlockingFirstJobProcessor()
+    handler = LifecycleJobHandler(jobs=jobs, processor=processor)
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    first = OnboardProjectJob(
+        job_id="slack:Ev-worker-project-first",
+        source_event_id="Ev-worker-project-first",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.025000",
+        request_text="<@U-QALI> onboard project First",
+    )
+    second = OnboardProjectJob(
+        job_id="slack:Ev-worker-project-second",
+        source_event_id="Ev-worker-project-second",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.026000",
+        request_text="<@U-QALI> onboard project Second",
+    )
+    await jobs.create(first)
+    await jobs.create(second)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://worker.test",
+    ) as client:
+        first_request = asyncio.create_task(
+            client.post(
+                "/internal/jobs",
+                content=first.model_dump_json(),
+                headers=_worker_headers(first, execution_count=0),
+            )
+        )
+        await processor.first_started.wait()
+        blocked = await client.post(
+            "/internal/jobs",
+            content=second.model_dump_json(),
+            headers=_worker_headers(second, execution_count=0),
+        )
+        processor.release_first.set()
+        first_response = await first_request
+        retry = await client.post(
+            "/internal/jobs",
+            content=second.model_dump_json(),
+            headers=_worker_headers(second, execution_count=1),
+        )
+
+    assert blocked.status_code == 503
+    assert first_response.status_code == 200
+    assert retry.status_code == 200
+    assert processor.jobs == [first, second]
 
 
 @pytest.mark.asyncio
@@ -438,3 +512,16 @@ async def test_worker_rejects_payload_that_does_not_match_task_name() -> None:
 
     assert response.status_code == 409
     assert handler.jobs == []
+
+
+def _worker_headers(
+    job: OnboardProjectJob,
+    *,
+    execution_count: int,
+) -> dict[str, str]:
+    return {
+        "Content-Type": "application/json",
+        "X-CloudTasks-QueueName": "qali-jobs",
+        "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+        "X-CloudTasks-TaskExecutionCount": str(execution_count),
+    }

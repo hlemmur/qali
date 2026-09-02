@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
@@ -84,7 +84,8 @@ async def test_mock_job_repository_serializes_jobs_for_one_project() -> None:
     await jobs.create(second)
 
     assert await jobs.claim(first.job_id) == first
-    assert await jobs.claim(second.job_id) is None
+    with pytest.raises(ProjectBusyError):
+        await jobs.claim(second.job_id)
 
     assert await jobs.complete(first.job_id) is True
     assert await jobs.claim(second.job_id) == second

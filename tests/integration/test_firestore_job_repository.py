@@ -10,7 +10,7 @@ from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
 )
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -234,7 +234,8 @@ async def test_firestore_serializes_jobs_for_one_project() -> None:
     await repository.create(second)
 
     assert await repository.claim(first.job_id) == first
-    assert await repository.claim(second.job_id) is None
+    with pytest.raises(ProjectBusyError):
+        await repository.claim(second.job_id)
 
     assert await repository.complete(first.job_id) is True
     assert await repository.claim(second.job_id) == second

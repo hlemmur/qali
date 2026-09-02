@@ -8,7 +8,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.job_lifecycle import JobFailureReason, JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -130,7 +130,7 @@ class FirestoreJobRepository:
                 and lock_data is not None
                 and lock_data.get("active_job_id") != job_id
             ):
-                return None
+                raise ProjectBusyError
             transaction.set(
                 lock_document,
                 {

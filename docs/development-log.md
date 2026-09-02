@@ -338,6 +338,8 @@ TDD evidence:
 - Red: the Firestore repository likewise allowed two same-project jobs to transition to `running`.
 - Green: claim now reads the job and hashed project-lock document before atomically writing both; a competing same-project claim remains pending until the owner completes.
 - Green blast radius: retry release and both terminal transitions retain their existing behavior while deleting only the lock owned by that job.
+- Review red: the worker treated a contended claim like an idempotent no-op, returned HTTP 200, and caused Cloud Tasks to delete the blocked job's task while the job remained pending.
+- Review green: repositories now distinguish project contention with `ProjectBusyError`; worker ingress translates only that condition to HTTP 503, and an HTTP integration test proves the blocked task succeeds on redelivery after the active job completes.
 
 Safety and scope:
 
@@ -351,8 +353,9 @@ Safety and scope:
 Commands and evidence:
 
 - `uv run pytest tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `19 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `31 passed` after the review fix.
 - `uv run pytest tests/integration/test_slack_ingress_app.py -q` — `16 passed`.
-- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `56 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `57 passed` after the review fix.
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for project-level serialization with durable Firestore locks, mock parity, and explicit live configuration.
