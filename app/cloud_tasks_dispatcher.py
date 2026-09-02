@@ -59,7 +59,7 @@ class CloudTasksDispatcher:
             settings.location,
             settings.queue_id,
         )
-        task_id = _task_id(job.job_id)
+        task_id = task_id_for_job(job.job_id)
         task_name = self._client.task_path(
             settings.project_id,
             settings.location,
@@ -91,7 +91,7 @@ class CloudTasksDispatcher:
             return
 
 
-def _task_id(job_id: str) -> str:
+def task_id_for_job(job_id: str) -> str:
     digest = hashlib.sha256(job_id.encode()).hexdigest()
     return f"qali-job-{digest}"
 
@@ -109,4 +109,5 @@ __all__ = [
     "CloudTasksDispatcher",
     "CloudTasksSettings",
     "create_cloud_tasks_dispatcher",
+    "task_id_for_job",
 ]

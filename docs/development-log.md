@@ -78,3 +78,47 @@ Deviations and limitations:
 - GCP authentication, cloud resources, Slack secrets, Gemini API key provisioning, deployment, and live model usage remain untouched.
 
 Phase result: passed for scaffolding and local deterministic validation. Phase 3 may begin after reloading the ADK-code and TDD guidance and inspecting the installed ADK signatures required by the first tracer bullet.
+
+## 2026-09-02 — Phase 3: Cloud Tasks worker intake
+
+Isolated change: added a typed internal worker intake boundary for the onboarding jobs emitted by the Cloud Tasks dispatcher.
+
+Reason: the Slack ingress must acknowledge quickly and hand work to a separate worker service without weakening the typed job contract or trusting request headers as caller identity.
+
+Skills and guidance:
+
+- `google-agents-cli-workflow` 1.4.2
+- `google-agents-cli-adk-code` 1.4.2
+- `tdd`
+- `google-agents-cli-adk-code/references/samples.md`
+
+Official source:
+
+- Repository: `google/adk-samples`
+- Revision: `05b34ce388fa4c988434874a3d8ffcc0495f8527`
+- Recipe: `ambient-expense-agent`
+- Files studied: `AGENTS.md`, `expense_agent/fast_api_app.py`, and `tests/test_integration.py`
+
+Reuse and deviations:
+
+- Reused the recipe's typed event boundary and in-process ASGI integration-test pattern.
+- Kept Qali's existing Cloud Tasks transport rather than adopting the recipe's Pub/Sub trigger.
+- Kept durable job state outside ADK sessions rather than adopting the recipe's in-memory session behavior.
+- Delegated caller authentication to private Cloud Run IAM with an OIDC task service account. The application checks Cloud Tasks queue and deterministic task-name provenance, but does not misrepresent informational headers as proof of identity.
+- No Terraform, cloud resource, deployment, live credential, or model call was introduced.
+
+TDD evidence:
+
+- Red: the producer-to-worker contract test failed because no worker intake module existed.
+- Green: the exact serialized dispatcher payload reached the worker handler as the same typed onboarding job.
+- Red: a request naming an unconfigured queue was accepted.
+- Green: the worker rejects queue mismatches before invoking the handler.
+- Red: a task name could be paired with a different job payload.
+- Green: dispatcher and worker now share the deterministic task-ID function, and mismatches are rejected before processing.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `38 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for the isolated worker intake boundary. Production route composition and durable job claiming remain separate follow-up slices.
