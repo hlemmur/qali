@@ -5,7 +5,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.job_lifecycle import JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -13,6 +13,7 @@ class JobExecutionSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     timeout_seconds: float = Field(default=900, gt=0, le=900)
+    max_delivery_attempts: int = Field(default=3, ge=2)
 
 
 class JobLifecycleRepository(Protocol):
@@ -21,6 +22,8 @@ class JobLifecycleRepository(Protocol):
     async def complete(self, job_id: str) -> bool: ...
 
     async def release(self, job_id: str, *, reason: JobRetryReason) -> bool: ...
+
+    async def fail(self, job_id: str, *, reason: JobFailureReason) -> bool: ...
 
 
 class JobProcessor(Protocol):
@@ -39,9 +42,20 @@ class LifecycleJobHandler:
         self._processor = processor
         self._settings = settings or JobExecutionSettings()
 
-    async def handle(self, job: OnboardProjectJob) -> None:
+    async def handle(
+        self,
+        job: OnboardProjectJob,
+        *,
+        execution_count: int = 0,
+    ) -> None:
         claimed_job = await self._jobs.claim(job.job_id)
         if claimed_job is None:
+            return
+        if execution_count >= self._settings.max_delivery_attempts - 1:
+            await self._jobs.fail(
+                claimed_job.job_id,
+                reason=JobFailureReason.RETRY_EXHAUSTED,
+            )
             return
         try:
             async with asyncio.timeout(self._settings.timeout_seconds):

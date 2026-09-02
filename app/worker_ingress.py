@@ -23,7 +23,12 @@ class WorkerIngressSettings(BaseModel):
 
 
 class JobHandler(Protocol):
-    async def handle(self, job: OnboardProjectJob) -> None: ...
+    async def handle(
+        self,
+        job: OnboardProjectJob,
+        *,
+        execution_count: int = 0,
+    ) -> None: ...
 
 
 def create_worker_app(
@@ -42,6 +47,10 @@ def create_worker_app(
         job: OnboardProjectJob,
         queue_name: Annotated[str, Header(alias="X-CloudTasks-QueueName")],
         task_name: Annotated[str, Header(alias="X-CloudTasks-TaskName")],
+        execution_count: Annotated[
+            int,
+            Header(alias="X-CloudTasks-TaskExecutionCount", ge=0),
+        ],
     ) -> dict[str, bool]:
         if queue_name != settings.queue_name:
             raise HTTPException(status_code=403, detail="unexpected Cloud Tasks queue")
@@ -50,7 +59,7 @@ def create_worker_app(
                 status_code=409,
                 detail="Cloud Tasks name does not match the job payload",
             )
-        await handler.handle(job)
+        await handler.handle(job, execution_count=execution_count)
         return {"ok": True}
 
     return app
