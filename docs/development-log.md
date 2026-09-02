@@ -399,3 +399,39 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for bounded stale-lock recovery with mock, Firestore, worker-boundary, and explicit live-configuration evidence.
+
+## 2026-09-02 — Phase 3: same-thread Slack progress adapter
+
+Isolated change: added a typed Slack progress adapter that posts one onboarding status message under the originating Slack message and updates that same bot-authored message through bounded stages, plus an inspectable in-memory implementation for mock mode.
+
+Reason: the onboarding acceptance path requires concise progress in the original thread without creating a stream of messages or exposing internal IDs and arbitrary workflow text.
+
+Skill and official guidance:
+
+- `tdd`
+- Slack `chat.postMessage` documentation: the parent message timestamp is supplied as `thread_ts` to create a thread reply.
+- Slack `chat.update` documentation: the bot-authored progress message is updated by its channel and returned message `ts` using the `chat:write` scope.
+- Installed `slack_sdk.web.async_client.AsyncWebClient` signatures were inspected before defining the client protocol.
+
+TDD evidence:
+
+- Red: no progress adapter module existed.
+- Green: `SlackProgressReporter.start` posts the fixed received state once with link/media unfurling disabled and returns a typed channel/thread/message reference; `update` targets that same message timestamp.
+- Red: local mock mode had no token-free progress implementation.
+- Green: `InMemorySlackProgressReporter` mirrors start/update behavior under an async lock and exposes one record with a visible `MOCK MODE` badge.
+
+Safety and scope:
+
+- Runtime callers choose only `OnboardingProgressStage` values; they cannot send arbitrary model text, job IDs, source content, URLs, or secret-bearing error details through this adapter.
+- Slack API responses must contain a non-empty message timestamp before an updateable reference is returned.
+- No Slack token is read or stored by the adapter model; the production factory accepts an injected token and creates the installed async client without making a call.
+- No live Slack call, cloud call, resource, deployment, secret, or model was used.
+- Persisting the progress reference with workflow state and composing it into the onboarding processor remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_slack_progress.py -q` — `2 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/unit -q` — `63 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded same-thread Slack progress reporting with production adapter and mock parity.
