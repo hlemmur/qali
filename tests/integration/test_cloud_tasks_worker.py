@@ -1,7 +1,9 @@
+import asyncio
 from typing import Any
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from app.cloud_tasks_dispatcher import (
     CloudTasksDispatcher,
@@ -9,7 +11,7 @@ from app.cloud_tasks_dispatcher import (
     task_id_for_job,
 )
 from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
-from app.worker_handler import LifecycleJobHandler
+from app.worker_handler import JobExecutionSettings, LifecycleJobHandler
 from app.worker_ingress import WorkerIngressSettings, create_worker_app
 
 
@@ -59,6 +61,24 @@ class _FailOnceJobProcessor(_RecordingJobProcessor):
         if self.attempts == 1:
             raise RuntimeError("synthetic processor failure")
         await super().process(job)
+
+
+class _BlockingJobProcessor:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+
+    async def process(self, job: OnboardProjectJob) -> None:
+        del job
+        self.started.set()
+        await asyncio.Event().wait()
+
+
+@pytest.mark.parametrize("timeout_seconds", [0, 901])
+def test_worker_timeout_budget_must_be_within_fifteen_minutes(
+    timeout_seconds: float,
+) -> None:
+    with pytest.raises(ValidationError):
+        JobExecutionSettings(timeout_seconds=timeout_seconds)
 
 
 @pytest.mark.asyncio
@@ -201,6 +221,56 @@ async def test_worker_releases_failed_job_for_cloud_tasks_retry() -> None:
     assert retry.status_code == 200
     assert processor.attempts == 2
     assert processor.jobs == [job]
+
+
+@pytest.mark.asyncio
+async def test_worker_timeout_releases_job_for_retry() -> None:
+    jobs = InMemoryJobRepository()
+    handler = LifecycleJobHandler(
+        jobs=jobs,
+        processor=_BlockingJobProcessor(),
+        settings=JobExecutionSettings(timeout_seconds=0.01),
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-timeout",
+        source_event_id="Ev-worker-timeout",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.015000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+
+    with pytest.raises(TimeoutError):
+        await handler.handle(job)
+
+    assert await jobs.claim(job.job_id) == job
+
+
+@pytest.mark.asyncio
+async def test_worker_cancellation_releases_job_for_retry() -> None:
+    jobs = InMemoryJobRepository()
+    processor = _BlockingJobProcessor()
+    handler = LifecycleJobHandler(jobs=jobs, processor=processor)
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-cancelled",
+        source_event_id="Ev-worker-cancelled",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.016000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    processing = asyncio.create_task(handler.handle(job))
+    await processor.started.wait()
+
+    processing.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await processing
+    assert await jobs.claim(job.job_id) == job
 
 
 @pytest.mark.asyncio
