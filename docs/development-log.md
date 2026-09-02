@@ -252,3 +252,35 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for bounded worker execution with timeout and cancellation release.
+
+## 2026-09-02 — Phase 3: terminal job failure
+
+Isolated change: added a guarded `running` to `failed` transition to the Firestore and in-memory job repositories.
+
+Reason: retry exhaustion needs an explicit, durable terminal state before Cloud Tasks delivery metadata and retry-threshold policy are connected. Without it, exhausted jobs could remain retryable or stranded as `running`.
+
+Skill and method:
+
+- `tdd`
+- Production-interface parity verified in both the Firestore repository and the local mock repository.
+
+TDD evidence:
+
+- Red: a running Firestore job had no terminal failure operation or bounded failure reason.
+- Green: failure atomically accepts only `running`, records a server failure timestamp and `JobFailureReason.RETRY_EXHAUSTED`, and rejects a duplicate transition.
+- Red: the mock repository could not represent terminal failure and allowed later lifecycle operations.
+- Green: mock failure now runs under the repository lock and blocks subsequent claim, complete, release, and duplicate failure operations.
+
+Safety and scope:
+
+- Failure causes use a bounded `StrEnum`; arbitrary exception or secret-bearing text is not persisted.
+- Invalid or duplicate state transitions return `False` without writes.
+- No cloud call, resource, deployment, secret, model, or live integration was used.
+- Cloud Tasks delivery metadata, retry thresholds, and worker composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `51 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for guarded terminal failure in production and mock repositories.

@@ -7,4 +7,8 @@ class JobRetryReason(StrEnum):
     CANCELLED = "cancelled"
 
 
-__all__ = ["JobRetryReason"]
+class JobFailureReason(StrEnum):
+    RETRY_EXHAUSTED = "retry_exhausted"
+
+
+__all__ = ["JobFailureReason", "JobRetryReason"]

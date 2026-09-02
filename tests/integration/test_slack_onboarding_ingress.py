@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.job_lifecycle import JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
@@ -86,6 +86,45 @@ async def test_mock_job_repository_releases_retry_and_completes_once() -> None:
     assert reclaimed == job
     assert completed is True
     assert duplicate_completion is False
+
+
+@pytest.mark.asyncio
+async def test_mock_job_repository_terminal_failure_cannot_transition_again() -> None:
+    jobs = InMemoryJobRepository()
+    job = OnboardProjectJob(
+        job_id="slack:Ev-mock-failed",
+        source_event_id="Ev-mock-failed",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.018000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    failed = await jobs.fail(
+        job.job_id,
+        reason=JobFailureReason.RETRY_EXHAUSTED,
+    )
+
+    assert failed is True
+    assert (
+        await jobs.fail(
+            job.job_id,
+            reason=JobFailureReason.RETRY_EXHAUSTED,
+        )
+        is False
+    )
+    assert await jobs.claim(job.job_id) is None
+    assert await jobs.complete(job.job_id) is False
+    assert (
+        await jobs.release(
+            job.job_id,
+            reason=JobRetryReason.PROCESSOR_ERROR,
+        )
+        is False
+    )
 
 
 @pytest.mark.asyncio

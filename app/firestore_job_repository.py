@@ -8,7 +8,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.job_lifecycle import JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -167,6 +167,29 @@ class FirestoreJobRepository:
             return True
 
         return await self._transactions.run(release_running)
+
+    async def fail(self, job_id: str, *, reason: JobFailureReason) -> bool:
+        reason = JobFailureReason(reason)
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def fail_running(transaction: FirestoreTransaction) -> bool:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None or data.get("status") != "running":
+                return False
+            transaction.update(
+                document,
+                {
+                    "status": "failed",
+                    "failure_reason": reason.value,
+                    "failed_at": firestore_v1.SERVER_TIMESTAMP,
+                },
+            )
+            return True
+
+        return await self._transactions.run(fail_running)
 
 
 def _document_id(job_id: str) -> str:

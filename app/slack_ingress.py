@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from slack_sdk.signature import Clock, SignatureVerifier
 
-from app.job_lifecycle import JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason
 
 
 class SlackIngressSettings(BaseModel):
@@ -70,6 +70,7 @@ class InMemoryJobRepository:
         self._jobs: dict[str, OnboardProjectJob] = {}
         self._claimed_job_ids: set[str] = set()
         self._completed_job_ids: set[str] = set()
+        self._failed_job_ids: set[str] = set()
         self._lock = asyncio.Lock()
 
     async def create(self, job: OnboardProjectJob) -> bool:
@@ -82,14 +83,23 @@ class InMemoryJobRepository:
     async def claim(self, job_id: str) -> OnboardProjectJob | None:
         async with self._lock:
             job = self._jobs.get(job_id)
-            if job is None or job_id in self._claimed_job_ids:
+            if (
+                job is None
+                or job_id in self._claimed_job_ids
+                or job_id in self._completed_job_ids
+                or job_id in self._failed_job_ids
+            ):
                 return None
             self._claimed_job_ids.add(job_id)
             return job
 
     async def complete(self, job_id: str) -> bool:
         async with self._lock:
-            if job_id not in self._claimed_job_ids or job_id in self._completed_job_ids:
+            if (
+                job_id not in self._claimed_job_ids
+                or job_id in self._completed_job_ids
+                or job_id in self._failed_job_ids
+            ):
                 return False
             self._completed_job_ids.add(job_id)
             return True
@@ -97,9 +107,25 @@ class InMemoryJobRepository:
     async def release(self, job_id: str, *, reason: JobRetryReason) -> bool:
         JobRetryReason(reason)
         async with self._lock:
-            if job_id not in self._claimed_job_ids or job_id in self._completed_job_ids:
+            if (
+                job_id not in self._claimed_job_ids
+                or job_id in self._completed_job_ids
+                or job_id in self._failed_job_ids
+            ):
                 return False
             self._claimed_job_ids.remove(job_id)
+            return True
+
+    async def fail(self, job_id: str, *, reason: JobFailureReason) -> bool:
+        JobFailureReason(reason)
+        async with self._lock:
+            if (
+                job_id not in self._claimed_job_ids
+                or job_id in self._completed_job_ids
+                or job_id in self._failed_job_ids
+            ):
+                return False
+            self._failed_job_ids.add(job_id)
             return True
 
     def list_jobs(self) -> list[OnboardProjectJob]:
