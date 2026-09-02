@@ -10,6 +10,7 @@ from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
 )
+from app.job_lifecycle import JobRetryReason
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -185,6 +186,104 @@ async def test_pending_job_can_be_claimed_for_processing_once() -> None:
             "status": "running",
             "started_at": firestore_v1.SERVER_TIMESTAMP,
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_running_job_can_be_completed_once() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-complete",
+        source_event_id="Ev-complete",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.010000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await repository.create(job)
+    await repository.claim(job.job_id)
+
+    completed = await repository.complete(job.job_id)
+    duplicate_completion = await repository.complete(job.job_id)
+
+    assert completed is True
+    assert duplicate_completion is False
+    assert transactions.transaction.updates == [
+        {
+            "status": "running",
+            "started_at": firestore_v1.SERVER_TIMESTAMP,
+        },
+        {
+            "status": "completed",
+            "completed_at": firestore_v1.SERVER_TIMESTAMP,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_running_job_can_be_released_and_claimed_for_retry() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-retry-release",
+        source_event_id="Ev-retry-release",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.011000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await repository.create(job)
+    await repository.claim(job.job_id)
+
+    released = await repository.release(
+        job.job_id,
+        reason=JobRetryReason.PROCESSOR_ERROR,
+    )
+    duplicate_release = await repository.release(
+        job.job_id,
+        reason=JobRetryReason.PROCESSOR_ERROR,
+    )
+    reclaimed = await repository.claim(job.job_id)
+
+    assert released is True
+    assert duplicate_release is False
+    assert reclaimed == job
+    assert transactions.transaction.updates == [
+        {
+            "status": "running",
+            "started_at": firestore_v1.SERVER_TIMESTAMP,
+        },
+        {
+            "status": "pending",
+            "retry_reason": "processor_error",
+            "released_at": firestore_v1.SERVER_TIMESTAMP,
+            "started_at": firestore_v1.DELETE_FIELD,
+        },
+        {
+            "status": "running",
+            "started_at": firestore_v1.SERVER_TIMESTAMP,
+        },
     ]
 
 

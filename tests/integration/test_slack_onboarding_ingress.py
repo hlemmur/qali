@@ -6,6 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from app.job_lifecycle import JobRetryReason
 from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
@@ -56,6 +57,35 @@ async def test_mock_job_repository_claims_pending_job_once() -> None:
 
     assert claimed == job
     assert duplicate_claim is None
+
+
+@pytest.mark.asyncio
+async def test_mock_job_repository_releases_retry_and_completes_once() -> None:
+    jobs = InMemoryJobRepository()
+    job = OnboardProjectJob(
+        job_id="slack:Ev-mock-lifecycle",
+        source_event_id="Ev-mock-lifecycle",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.012000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    released = await jobs.release(
+        job.job_id,
+        reason=JobRetryReason.PROCESSOR_ERROR,
+    )
+    reclaimed = await jobs.claim(job.job_id)
+    completed = await jobs.complete(job.job_id)
+    duplicate_completion = await jobs.complete(job.job_id)
+
+    assert released is True
+    assert reclaimed == job
+    assert completed is True
+    assert duplicate_completion is False
 
 
 @pytest.mark.asyncio

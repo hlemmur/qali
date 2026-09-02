@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.job_lifecycle import JobRetryReason
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -49,22 +50,23 @@ class FirestoreTransaction(Protocol):
     ) -> None: ...
 
 
-TransactionOperation = Callable[
-    [FirestoreTransaction], Awaitable[OnboardProjectJob | None]
-]
+TransactionResult = TypeVar("TransactionResult")
+TransactionOperation = Callable[[FirestoreTransaction], Awaitable[TransactionResult]]
 
 
 class TransactionRunner(Protocol):
     async def run(
-        self, operation: TransactionOperation
-    ) -> OnboardProjectJob | None: ...
+        self, operation: TransactionOperation[TransactionResult]
+    ) -> TransactionResult: ...
 
 
 class _FirestoreTransactionRunner:
     def __init__(self, client: FirestoreClient) -> None:
         self._client = client
 
-    async def run(self, operation: TransactionOperation) -> OnboardProjectJob | None:
+    async def run(
+        self, operation: TransactionOperation[TransactionResult]
+    ) -> TransactionResult:
         transaction = self._client.transaction()
         transactional_operation = firestore_v1.async_transactional(operation)
         return await transactional_operation(transaction)
@@ -120,6 +122,51 @@ class FirestoreJobRepository:
             return OnboardProjectJob.model_validate(data)
 
         return await self._transactions.run(claim_pending)
+
+    async def complete(self, job_id: str) -> bool:
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def complete_running(transaction: FirestoreTransaction) -> bool:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None or data.get("status") != "running":
+                return False
+            transaction.update(
+                document,
+                {
+                    "status": "completed",
+                    "completed_at": firestore_v1.SERVER_TIMESTAMP,
+                },
+            )
+            return True
+
+        return await self._transactions.run(complete_running)
+
+    async def release(self, job_id: str, *, reason: JobRetryReason) -> bool:
+        reason = JobRetryReason(reason)
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def release_running(transaction: FirestoreTransaction) -> bool:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None or data.get("status") != "running":
+                return False
+            transaction.update(
+                document,
+                {
+                    "status": "pending",
+                    "retry_reason": reason.value,
+                    "released_at": firestore_v1.SERVER_TIMESTAMP,
+                    "started_at": firestore_v1.DELETE_FIELD,
+                },
+            )
+            return True
+
+        return await self._transactions.run(release_running)
 
 
 def _document_id(job_id: str) -> str:
