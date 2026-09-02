@@ -18,6 +18,7 @@ class FirestoreJobSettings(BaseModel):
     project_id: str = Field(min_length=1)
     database_id: str = Field(min_length=1)
     collection: str = Field(default="jobs", min_length=1)
+    lock_collection: str = Field(default="job_locks", min_length=1)
 
 
 class FirestoreDocument(Protocol):
@@ -43,11 +44,19 @@ class FirestoreClient(Protocol):
 
 
 class FirestoreTransaction(Protocol):
+    def set(
+        self,
+        document: FirestoreDocument,
+        fields: dict[str, Any],
+    ) -> None: ...
+
     def update(
         self,
         document: FirestoreDocument,
         fields: dict[str, Any],
     ) -> None: ...
+
+    def delete(self, document: FirestoreDocument) -> None: ...
 
 
 TransactionResult = TypeVar("TransactionResult")
@@ -112,6 +121,23 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "pending":
                 return None
+            job = OnboardProjectJob.model_validate(data)
+            lock_document = self._project_lock_document(job)
+            lock_snapshot = await lock_document.get(transaction=transaction)
+            lock_data = lock_snapshot.to_dict()
+            if (
+                lock_snapshot.exists
+                and lock_data is not None
+                and lock_data.get("active_job_id") != job_id
+            ):
+                return None
+            transaction.set(
+                lock_document,
+                {
+                    "active_job_id": job_id,
+                    "acquired_at": firestore_v1.SERVER_TIMESTAMP,
+                },
+            )
             transaction.update(
                 document,
                 {
@@ -119,7 +145,7 @@ class FirestoreJobRepository:
                     "started_at": firestore_v1.SERVER_TIMESTAMP,
                 },
             )
-            return OnboardProjectJob.model_validate(data)
+            return job
 
         return await self._transactions.run(claim_pending)
 
@@ -133,6 +159,10 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
+            job = OnboardProjectJob.model_validate(data)
+            lock_document = self._project_lock_document(job)
+            if not await _owns_lock(transaction, lock_document, job_id):
+                return False
             transaction.update(
                 document,
                 {
@@ -140,6 +170,7 @@ class FirestoreJobRepository:
                     "completed_at": firestore_v1.SERVER_TIMESTAMP,
                 },
             )
+            transaction.delete(lock_document)
             return True
 
         return await self._transactions.run(complete_running)
@@ -155,6 +186,10 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
+            job = OnboardProjectJob.model_validate(data)
+            lock_document = self._project_lock_document(job)
+            if not await _owns_lock(transaction, lock_document, job_id):
+                return False
             transaction.update(
                 document,
                 {
@@ -164,6 +199,7 @@ class FirestoreJobRepository:
                     "started_at": firestore_v1.DELETE_FIELD,
                 },
             )
+            transaction.delete(lock_document)
             return True
 
         return await self._transactions.run(release_running)
@@ -179,6 +215,10 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
+            job = OnboardProjectJob.model_validate(data)
+            lock_document = self._project_lock_document(job)
+            if not await _owns_lock(transaction, lock_document, job_id):
+                return False
             transaction.update(
                 document,
                 {
@@ -187,14 +227,36 @@ class FirestoreJobRepository:
                     "failed_at": firestore_v1.SERVER_TIMESTAMP,
                 },
             )
+            transaction.delete(lock_document)
             return True
 
         return await self._transactions.run(fail_running)
+
+    def _project_lock_document(self, job: OnboardProjectJob) -> FirestoreDocument:
+        return self._client.collection(self._settings.lock_collection).document(
+            _project_lock_id(job)
+        )
+
+
+async def _owns_lock(
+    transaction: FirestoreTransaction,
+    lock_document: FirestoreDocument,
+    job_id: str,
+) -> bool:
+    snapshot = await lock_document.get(transaction=transaction)
+    data = snapshot.to_dict()
+    return snapshot.exists and data is not None and data.get("active_job_id") == job_id
 
 
 def _document_id(job_id: str) -> str:
     digest = hashlib.sha256(job_id.encode()).hexdigest()
     return f"qali-job-{digest}"
+
+
+def _project_lock_id(job: OnboardProjectJob) -> str:
+    scope = f"{job.workspace_id}\0{job.channel_id}"
+    digest = hashlib.sha256(scope.encode()).hexdigest()
+    return f"qali-project-lock-{digest}"
 
 
 def create_firestore_job_repository(

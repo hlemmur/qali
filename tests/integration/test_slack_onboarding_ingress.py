@@ -60,6 +60,37 @@ async def test_mock_job_repository_claims_pending_job_once() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mock_job_repository_serializes_jobs_for_one_project() -> None:
+    jobs = InMemoryJobRepository()
+    first = OnboardProjectJob(
+        job_id="slack:Ev-project-first",
+        source_event_id="Ev-project-first",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.021000",
+        request_text="<@U-QALI> onboard project First",
+    )
+    second = OnboardProjectJob(
+        job_id="slack:Ev-project-second",
+        source_event_id="Ev-project-second",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.022000",
+        request_text="<@U-QALI> onboard project Second",
+    )
+    await jobs.create(first)
+    await jobs.create(second)
+
+    assert await jobs.claim(first.job_id) == first
+    assert await jobs.claim(second.job_id) is None
+
+    assert await jobs.complete(first.job_id) is True
+    assert await jobs.claim(second.job_id) == second
+
+
+@pytest.mark.asyncio
 async def test_mock_job_repository_releases_retry_and_completes_once() -> None:
     jobs = InMemoryJobRepository()
     job = OnboardProjectJob(

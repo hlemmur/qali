@@ -76,6 +76,7 @@ def create_slack_ingress_app_from_env(
             project_id=project_id,
             database_id=_required(values, "FIRESTORE_DATABASE_ID"),
             collection=_required(values, "FIRESTORE_JOBS_COLLECTION"),
+            lock_collection=_required(values, "FIRESTORE_JOB_LOCKS_COLLECTION"),
         )
         cloud_tasks_settings = CloudTasksSettings(
             project_id=project_id,
