@@ -284,3 +284,38 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for guarded terminal failure in production and mock repositories.
+
+## 2026-09-02 — Phase 3: worker retry exhaustion
+
+Isolated change: added fail-closed Cloud Tasks execution metadata intake and a bounded delivery-attempt policy that reserves the final delivery for durable terminal failure.
+
+Reason: Cloud Tasks can delete an exhausted task after its retry policy ends. Qali must persist `failed` before that happens, without running the processor again on the reserved terminal delivery.
+
+Skill and official guidance:
+
+- `tdd`
+- Google Cloud Tasks HTTP-target request-header documentation: `X-CloudTasks-TaskExecutionCount` counts previous handler responses and excludes dispatch failures that never received a handler response; the first delivery carries zero.
+- Google Cloud Tasks `RetryConfig` documentation: `max_attempts` includes the first delivery.
+
+TDD evidence:
+
+- Red: `JobExecutionSettings` rejected the delivery-attempt policy and the final delivery still reached the processor.
+- Green: a delivery whose execution count reaches `max_delivery_attempts - 1` claims the job, persists `JobFailureReason.RETRY_EXHAUSTED`, acknowledges the task, and never invokes the processor.
+- Red: omitting the documented execution-count header silently defaulted the delivery to its first attempt.
+- Green: the worker HTTP boundary now requires a non-negative execution count and rejects a missing value with `422` before invoking the handler.
+
+Safety and scope:
+
+- Delivery headers remain provenance metadata behind the private Cloud Run IAM boundary; they are not caller authentication.
+- The default policy allows two processing deliveries and reserves the third for terminalization. The eventual Cloud Tasks queue `max_attempts` must be configured to the same value.
+- Terminal failure stores only the bounded reason code; no retry-reason header, exception text, or secret-bearing value is persisted.
+- No cloud call, resource, deployment, secret, model, or live integration was used.
+- Queue infrastructure configuration and coordinator composition remain separate slices requiring their own validation and approval boundaries.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py -q` — `11 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `53 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fail-closed execution metadata and durable retry exhaustion.

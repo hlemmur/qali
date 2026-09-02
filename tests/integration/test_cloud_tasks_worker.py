@@ -10,6 +10,7 @@ from app.cloud_tasks_dispatcher import (
     CloudTasksSettings,
     task_id_for_job,
 )
+from app.job_lifecycle import JobFailureReason
 from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
 from app.worker_handler import JobExecutionSettings, LifecycleJobHandler
 from app.worker_ingress import WorkerIngressSettings, create_worker_app
@@ -39,7 +40,13 @@ class _RecordingJobHandler:
     def __init__(self) -> None:
         self.jobs: list[OnboardProjectJob] = []
 
-    async def handle(self, job: OnboardProjectJob) -> None:
+    async def handle(
+        self,
+        job: OnboardProjectJob,
+        *,
+        execution_count: int = 0,
+    ) -> None:
+        del execution_count
         self.jobs.append(job)
 
 
@@ -123,6 +130,7 @@ async def test_dispatched_cloud_task_reaches_typed_worker_handler() -> None:
                 "Content-Type": "application/json",
                 "X-CloudTasks-QueueName": "qali-jobs",
                 "X-CloudTasks-TaskName": task["name"].rsplit("/", 1)[-1],
+                "X-CloudTasks-TaskExecutionCount": "0",
             },
         )
 
@@ -154,6 +162,7 @@ async def test_worker_processes_and_completes_job_once_across_redelivery() -> No
         "Content-Type": "application/json",
         "X-CloudTasks-QueueName": "qali-jobs",
         "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+        "X-CloudTasks-TaskExecutionCount": "0",
     }
 
     async with httpx.AsyncClient(
@@ -200,6 +209,7 @@ async def test_worker_releases_failed_job_for_cloud_tasks_retry() -> None:
         "Content-Type": "application/json",
         "X-CloudTasks-QueueName": "qali-jobs",
         "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+        "X-CloudTasks-TaskExecutionCount": "0",
     }
 
     async with httpx.AsyncClient(
@@ -221,6 +231,56 @@ async def test_worker_releases_failed_job_for_cloud_tasks_retry() -> None:
     assert retry.status_code == 200
     assert processor.attempts == 2
     assert processor.jobs == [job]
+
+
+@pytest.mark.asyncio
+async def test_worker_terminally_fails_job_before_exhausted_delivery() -> None:
+    jobs = InMemoryJobRepository()
+    processor = _RecordingJobProcessor()
+    handler = LifecycleJobHandler(
+        jobs=jobs,
+        processor=processor,
+        settings=JobExecutionSettings(max_delivery_attempts=3),
+    )
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-exhausted",
+        source_event_id="Ev-worker-exhausted",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.019000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://worker.test",
+    ) as client:
+        response = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers={
+                "Content-Type": "application/json",
+                "X-CloudTasks-QueueName": "qali-jobs",
+                "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+                "X-CloudTasks-TaskExecutionCount": "2",
+            },
+        )
+
+    assert response.status_code == 200
+    assert processor.jobs == []
+    assert (
+        await jobs.fail(
+            job.job_id,
+            reason=JobFailureReason.RETRY_EXHAUSTED,
+        )
+        is False
+    )
 
 
 @pytest.mark.asyncio
@@ -274,6 +334,41 @@ async def test_worker_cancellation_releases_job_for_retry() -> None:
 
 
 @pytest.mark.asyncio
+async def test_worker_rejects_delivery_without_execution_count() -> None:
+    handler = _RecordingJobHandler()
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-missing-execution-count",
+        source_event_id="Ev-missing-execution-count",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.020000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://worker.test",
+    ) as client:
+        response = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers={
+                "Content-Type": "application/json",
+                "X-CloudTasks-QueueName": "qali-jobs",
+                "X-CloudTasks-TaskName": task_id_for_job(job.job_id),
+            },
+        )
+
+    assert response.status_code == 422
+    assert handler.jobs == []
+
+
+@pytest.mark.asyncio
 async def test_worker_rejects_task_from_unconfigured_queue() -> None:
     handler = _RecordingJobHandler()
     app = create_worker_app(
@@ -301,6 +396,7 @@ async def test_worker_rejects_task_from_unconfigured_queue() -> None:
                 "Content-Type": "application/json",
                 "X-CloudTasks-QueueName": "untrusted-queue",
                 "X-CloudTasks-TaskName": "qali-job-untrusted",
+                "X-CloudTasks-TaskExecutionCount": "0",
             },
         )
 
@@ -336,6 +432,7 @@ async def test_worker_rejects_payload_that_does_not_match_task_name() -> None:
                 "Content-Type": "application/json",
                 "X-CloudTasks-QueueName": "qali-jobs",
                 "X-CloudTasks-TaskName": "qali-job-for-another-payload",
+                "X-CloudTasks-TaskExecutionCount": "0",
             },
         )
 
