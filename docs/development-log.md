@@ -584,3 +584,64 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for bounded, redirect-aware source-fetch orchestration with explicit address-binding and mock-safe evidence.
+
+## 2026-09-03 — Phase 3: production source network adapters
+
+Isolated change: added the production system-DNS resolver and aiohttp HTTPS
+transport required by the bounded onboarding source fetcher.
+
+Reason: validating DNS results before a request is insufficient if the HTTP
+client resolves the hostname again. The production transport must preserve the
+original URL hostname for the HTTP Host header and TLS verification while
+connecting only to the exact address set already approved by `SourceUrlPolicy`.
+
+Skill and official guidance:
+
+- `tdd`
+- aiohttp's `AbstractResolver` and `TCPConnector` documentation for custom DNS
+  resolution, plus its streaming response API for bounded reads.
+- Installed aiohttp 3.14.3 signatures and resolver result shape were inspected
+  before implementation.
+
+TDD evidence:
+
+- Red: no production resolver or network transport existed.
+- Green: `SystemSourceResolver` converts OS address records into stable,
+  deduplicated numeric IPv4/IPv6 strings for policy validation.
+- Red: aiohttp had no resolver constrained to the policy-approved address set.
+- Green: `ApprovedAddressResolver` returns only numeric pinned endpoints for the
+  expected hostname and never falls back to system DNS.
+- Red: the bounded fetcher protocol had no production HTTPS implementation.
+- Green: `AiohttpBoundSourceTransport` reaches a deliberately non-resolving
+  `.test` hostname through its injected approved address while validating a TLS
+  certificate for the original hostname and preserving its Host header.
+- Guard cases prove a hostname-mismatched certificate is rejected, redirects
+  are returned without being followed, and decoded response content exceeding
+  the byte cap is aborted.
+
+Safety and scope:
+
+- Each request owns a one-connection, force-closed connector with DNS caching
+  disabled and a resolver containing only the approved address tuple.
+- Automatic redirects and environment-derived proxies are disabled; the outer
+  fetcher remains responsible for revalidating every redirect hop.
+- TLS certificate verification is enabled by default and the original hostname
+  is supplied explicitly for SNI/hostname checking.
+- Response content is streamed into a bounded buffer with identity encoding
+  requested; the decoded body cannot be returned above the configured cap.
+- The cryptography package is a development-only dependency used to generate
+  ephemeral local test certificates; no private key or certificate fixture is
+  committed.
+- No live DNS lookup, external HTTP request, cloud call, resource, deployment,
+  secret, browser action, or model invocation was used.
+- Source screening, immutable raw-source persistence, and onboarding workflow
+  composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_source_network.py tests/integration/test_source_fetcher.py tests/unit/test_source_url_policy.py -q` — `22 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/integration/test_source_network.py tests/unit -q` — `91 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+- `uv run pytest tests/unit tests/integration -q -x` — the new and existing offline tests passed until the unchanged generated `tests/integration/test_agent.py` attempted a live Gemini call and failed because no API key was supplied. No live key was introduced for this slice.
+
+Phase result: passed for production DNS resolution and address-pinned HTTPS transport with local TLS integration evidence and the offline regression gate.
