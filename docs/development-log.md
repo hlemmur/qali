@@ -154,3 +154,37 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for atomic one-time job claiming in production and mock repositories.
+
+## 2026-09-02 — Phase 3: job completion and retry release
+
+Isolated change: added guarded `running` to `completed` and `running` to `pending` retry transitions to the Firestore and in-memory job repositories.
+
+Reason: a worker must finish a claimed job durably on success and must release transient failures before returning an error to Cloud Tasks. Without release, a redelivery would find the job stranded in `running` and silently skip it.
+
+Skill and API guidance:
+
+- `tdd`
+- Installed `google-cloud-firestore` 2.29 async transaction behavior inspected in the preceding claim slice.
+
+TDD evidence:
+
+- Red: a claimed Firestore job had no completion operation.
+- Green: completion atomically accepts only `running`, records the server completion timestamp, and rejects duplicate completion.
+- Red: a failed running job had no safe path back to the retryable state.
+- Green: release atomically returns `running` to `pending`, clears the stale start timestamp, records a server release timestamp and bounded retry reason, and permits a later claim.
+- Red: the mock repository did not mirror completion or release behavior.
+- Green: mock completion and retry release now run under the same async lock and enforce the same state order.
+
+Safety and scope:
+
+- Retry causes use `JobRetryReason`, a bounded `StrEnum`; arbitrary exception or secret-bearing text is not accepted as lifecycle state.
+- Invalid or duplicate state transitions return `False` without writes.
+- No cloud call, resource, deployment, secret, live model, or live integration was used.
+- Worker processor composition, terminal failure policy, budgets, and project-level serialization remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `43 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for guarded completion and retry release in production and mock repositories.
