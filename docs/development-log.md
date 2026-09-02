@@ -220,3 +220,35 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for deterministic claim-process-complete and release-on-error worker handling.
+
+## 2026-09-02 — Phase 3: worker deadline and cancellation release
+
+Isolated change: bounded every worker processor invocation with a configurable maximum 15-minute deadline and added cleanup for timeout and external cancellation.
+
+Reason: the implementation plan requires a 15-minute job budget and graceful cancellation/failure states. A timed-out or cancelled request must not leave its durable job permanently claimed as `running`.
+
+Skill and method:
+
+- `tdd`
+- Async deadline behavior implemented with Python's structured `asyncio.timeout` context.
+
+TDD evidence:
+
+- Red: a blocking processor could run indefinitely and retain its claim.
+- Green: `JobExecutionSettings` defaults to 900 seconds, rejects non-positive or greater-than-900 values, and timeout releases with `JobRetryReason.TIMEOUT` before propagating `TimeoutError`.
+- Red: cancelling an active handler propagated `CancelledError` without lifecycle cleanup.
+- Green: cancellation shields a release with `JobRetryReason.CANCELLED` before re-raising, allowing later retry.
+
+Safety and scope:
+
+- Timeout configuration is frozen and rejects unknown fields.
+- Timeout and cancellation reasons remain bounded codes; no exception text is persisted.
+- No cloud call, resource, deployment, secret, model, or live integration was used.
+- Terminal retry thresholds, stale-lease recovery, project-level serialization, and coordinator composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `49 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded worker execution with timeout and cancellation release.
