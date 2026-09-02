@@ -13,6 +13,26 @@ from app.slack_ingress import (
 )
 
 
+def _live_environment() -> dict[str, str]:
+    return {
+        "QALI_MODE": "live",
+        "SLACK_SIGNING_SECRET": "live-signing-secret",
+        "SLACK_WORKSPACE_ID": "T-QALI",
+        "SLACK_CHANNEL_ID": "C-QALI",
+        "SLACK_OWNER_USER_ID": "U-OWNER",
+        "GOOGLE_CLOUD_PROJECT": "qali-507317",
+        "FIRESTORE_DATABASE_ID": "(default)",
+        "FIRESTORE_JOBS_COLLECTION": "jobs",
+        "CLOUD_TASKS_LOCATION": "europe-west1",
+        "CLOUD_TASKS_QUEUE_ID": "qali-jobs",
+        "QALI_WORKER_URL": "https://qali-worker.example.test/internal/jobs",
+        "QALI_WORKER_OIDC_AUDIENCE": "https://qali-worker.example.test",
+        "QALI_TASKS_SERVICE_ACCOUNT_EMAIL": (
+            "qali-tasks@qali-507317.iam.gserviceaccount.com"
+        ),
+    }
+
+
 @pytest.mark.asyncio
 async def test_mock_ingress_app_exposes_visible_mode_badge_and_slack_route() -> None:
     app = create_slack_ingress_app(
@@ -81,25 +101,7 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
         create_tasks,
         raising=False,
     )
-    app = create_slack_ingress_app_from_env(
-        {
-            "QALI_MODE": "live",
-            "SLACK_SIGNING_SECRET": "live-signing-secret",
-            "SLACK_WORKSPACE_ID": "T-QALI",
-            "SLACK_CHANNEL_ID": "C-QALI",
-            "SLACK_OWNER_USER_ID": "U-OWNER",
-            "GOOGLE_CLOUD_PROJECT": "qali-507317",
-            "FIRESTORE_DATABASE_ID": "(default)",
-            "FIRESTORE_JOBS_COLLECTION": "jobs",
-            "CLOUD_TASKS_LOCATION": "europe-west1",
-            "CLOUD_TASKS_QUEUE_ID": "qali-jobs",
-            "QALI_WORKER_URL": "https://qali-worker.example.test/internal/jobs",
-            "QALI_WORKER_OIDC_AUDIENCE": "https://qali-worker.example.test",
-            "QALI_TASKS_SERVICE_ACCOUNT_EMAIL": (
-                "qali-tasks@qali-507317.iam.gserviceaccount.com"
-            ),
-        }
-    )
+    app = create_slack_ingress_app_from_env(_live_environment())
 
     assert isinstance(app, FastAPI)
     assert app.state.qali_mode == "live"
@@ -120,3 +122,30 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
             "service_account_email": ("qali-tasks@qali-507317.iam.gserviceaccount.com"),
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "missing_variable",
+    [
+        "SLACK_SIGNING_SECRET",
+        "SLACK_WORKSPACE_ID",
+        "SLACK_CHANNEL_ID",
+        "SLACK_OWNER_USER_ID",
+        "GOOGLE_CLOUD_PROJECT",
+        "FIRESTORE_DATABASE_ID",
+        "FIRESTORE_JOBS_COLLECTION",
+        "CLOUD_TASKS_LOCATION",
+        "CLOUD_TASKS_QUEUE_ID",
+        "QALI_WORKER_URL",
+        "QALI_WORKER_OIDC_AUDIENCE",
+        "QALI_TASKS_SERVICE_ACCOUNT_EMAIL",
+    ],
+)
+def test_live_runtime_fails_closed_when_configuration_is_missing(
+    missing_variable: str,
+) -> None:
+    environment = _live_environment()
+    del environment[missing_variable]
+
+    with pytest.raises(RuntimeError, match=missing_variable):
+        create_slack_ingress_app_from_env(environment)
