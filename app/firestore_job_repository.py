@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from google.api_core.exceptions import AlreadyExists
@@ -21,6 +22,14 @@ class FirestoreJobSettings(BaseModel):
 class FirestoreDocument(Protocol):
     async def create(self, document_data: dict[str, Any]) -> Any: ...
 
+    async def get(self, *, transaction: Any) -> FirestoreSnapshot: ...
+
+
+class FirestoreSnapshot(Protocol):
+    exists: bool
+
+    def to_dict(self) -> dict[str, Any] | None: ...
+
 
 class FirestoreCollection(Protocol):
     def document(self, document_id: str) -> FirestoreDocument: ...
@@ -29,6 +38,37 @@ class FirestoreCollection(Protocol):
 class FirestoreClient(Protocol):
     def collection(self, collection_name: str) -> FirestoreCollection: ...
 
+    def transaction(self) -> Any: ...
+
+
+class FirestoreTransaction(Protocol):
+    def update(
+        self,
+        document: FirestoreDocument,
+        fields: dict[str, Any],
+    ) -> None: ...
+
+
+TransactionOperation = Callable[
+    [FirestoreTransaction], Awaitable[OnboardProjectJob | None]
+]
+
+
+class TransactionRunner(Protocol):
+    async def run(
+        self, operation: TransactionOperation
+    ) -> OnboardProjectJob | None: ...
+
+
+class _FirestoreTransactionRunner:
+    def __init__(self, client: FirestoreClient) -> None:
+        self._client = client
+
+    async def run(self, operation: TransactionOperation) -> OnboardProjectJob | None:
+        transaction = self._client.transaction()
+        transactional_operation = firestore_v1.async_transactional(operation)
+        return await transactional_operation(transaction)
+
 
 class FirestoreJobRepository:
     def __init__(
@@ -36,9 +76,11 @@ class FirestoreJobRepository:
         *,
         settings: FirestoreJobSettings,
         client: FirestoreClient,
+        transactions: TransactionRunner | None = None,
     ) -> None:
         self._settings = settings
         self._client = client
+        self._transactions = transactions or _FirestoreTransactionRunner(client)
 
     async def create(self, job: OnboardProjectJob) -> bool:
         document = self._client.collection(self._settings.collection).document(
@@ -55,6 +97,29 @@ class FirestoreJobRepository:
         except AlreadyExists:
             return False
         return True
+
+    async def claim(self, job_id: str) -> OnboardProjectJob | None:
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def claim_pending(
+            transaction: FirestoreTransaction,
+        ) -> OnboardProjectJob | None:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None or data.get("status") != "pending":
+                return None
+            transaction.update(
+                document,
+                {
+                    "status": "running",
+                    "started_at": firestore_v1.SERVER_TIMESTAMP,
+                },
+            )
+            return OnboardProjectJob.model_validate(data)
+
+        return await self._transactions.run(claim_pending)
 
 
 def _document_id(job_id: str) -> str:

@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -16,20 +17,66 @@ class _RecordingDocument:
     def __init__(self, document_id: str) -> None:
         self.document_id = document_id
         self.created_documents: list[dict[str, Any]] = []
+        self.document_data: dict[str, Any] | None = None
 
     async def create(self, document_data: dict[str, Any]) -> None:
         self.created_documents.append(document_data)
+        self.document_data = document_data.copy()
+
+    async def get(self, *, transaction: object) -> "_Snapshot":
+        del transaction
+        return _Snapshot(self.document_data)
+
+
+class _Snapshot:
+    def __init__(self, document_data: dict[str, Any] | None) -> None:
+        self.exists = document_data is not None
+        self._document_data = document_data
+
+    def to_dict(self) -> dict[str, Any] | None:
+        return None if self._document_data is None else self._document_data.copy()
+
+
+class _RecordingTransaction:
+    def __init__(self) -> None:
+        self.updates: list[dict[str, Any]] = []
+
+    def update(
+        self,
+        document: _RecordingDocument,
+        fields: dict[str, Any],
+    ) -> None:
+        self.updates.append(fields)
+        assert document.document_data is not None
+        document.document_data.update(fields)
+
+
+class _TransactionRunner:
+    def __init__(self) -> None:
+        self.transaction = _RecordingTransaction()
+
+    async def run(
+        self,
+        operation: Callable[
+            [_RecordingTransaction], Awaitable[OnboardProjectJob | None]
+        ],
+    ) -> OnboardProjectJob | None:
+        return await operation(self.transaction)
 
 
 class _RecordingCollection:
     def __init__(self) -> None:
         self.document_ids: list[str] = []
         self.documents: list[_RecordingDocument] = []
+        self._documents_by_id: dict[str, _RecordingDocument] = {}
 
     def document(self, document_id: str) -> _RecordingDocument:
         self.document_ids.append(document_id)
+        if existing := self._documents_by_id.get(document_id):
+            return existing
         document = _RecordingDocument(document_id)
         self.documents.append(document)
+        self._documents_by_id[document_id] = document
         return document
 
 
@@ -100,6 +147,43 @@ async def test_create_persists_typed_pending_job_once() -> None:
             **job.model_dump(mode="json"),
             "status": "pending",
             "created_at": firestore_v1.SERVER_TIMESTAMP,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pending_job_can_be_claimed_for_processing_once() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-claim",
+        source_event_id="Ev-claim",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.008000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await repository.create(job)
+
+    claimed = await repository.claim(job.job_id)
+    duplicate_claim = await repository.claim(job.job_id)
+
+    assert claimed == job
+    assert duplicate_claim is None
+    assert transactions.transaction.updates == [
+        {
+            "status": "running",
+            "started_at": firestore_v1.SERVER_TIMESTAMP,
         }
     ]
 

@@ -38,6 +38,27 @@ class _FailOnceTaskDispatcher:
 
 
 @pytest.mark.asyncio
+async def test_mock_job_repository_claims_pending_job_once() -> None:
+    jobs = InMemoryJobRepository()
+    job = OnboardProjectJob(
+        job_id="slack:Ev-mock-claim",
+        source_event_id="Ev-mock-claim",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.009000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+
+    claimed = await jobs.claim(job.job_id)
+    duplicate_claim = await jobs.claim(job.job_id)
+
+    assert claimed == job
+    assert duplicate_claim is None
+
+
+@pytest.mark.asyncio
 async def test_valid_onboarding_mention_creates_and_dispatches_job() -> None:
     now = 1_788_220_800
     secret = "test-signing-secret"
