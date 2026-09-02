@@ -470,3 +470,40 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for immutable durable Slack progress references with Firestore and mock parity.
+
+## 2026-09-02 — Phase 3: onboarding progress composition
+
+Isolated change: composed the injected onboarding processor with durable Slack progress creation, retry reuse, bounded status transitions, and the existing in-memory mock reporter.
+
+Reason: the worker must expose one concise status message in the originating Slack thread while keeping lifecycle control deterministic and avoiding a second message after a normal processor retry.
+
+Skill and official guidance:
+
+- `tdd`
+- Slack `chat.postMessage` documentation and the installed Python SDK were inspected for message-idempotency support before defining the boundary.
+- The official method reference exposes duplicate-message errors related to `client_msg_id`, but the installed typed SDK signature does not provide a sufficiently explicit durable-idempotency contract for Qali to treat a post-before-persist crash as solved.
+
+TDD evidence:
+
+- Red: no onboarding progress composition module existed.
+- Green: the wrapper creates and durably attaches one progress reference, advances it through reviewing sources, delegates the typed onboarding job, and marks the same message ready.
+- Red: a delegate failure left the progress message at reviewing sources.
+- Green: a delegate failure updates the bounded failed state and re-raises so the existing lifecycle handler retains retry ownership.
+- Red: a retry posted a second mock message and then failed the immutable attachment guard.
+- Green: retries read the durable reference first, update the existing message, and complete with exactly one mock progress record.
+
+Safety and scope:
+
+- The wrapper emits only fixed `OnboardingProgressStage` values; exception text, request text, URLs, credentials, and model output never enter Slack progress content.
+- Cancellation remains owned by the lifecycle handler and is not mislabeled as a processor failure.
+- The post-before-attach crash window remains explicit; no undocumented Slack behavior is treated as an exactly-once guarantee.
+- No Slack API call, cloud call, resource, deployment, secret, browser, or model was used.
+- Wiring the Knowledge Analyst and knowledge-quality workflow into the injected delegate remains a separate slice.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_onboarding_processor.py -q` — `3 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/unit -q` — `69 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic onboarding progress composition with durable retry reuse and mock-visible status evidence.
