@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -187,10 +188,10 @@ async def test_pending_job_can_be_claimed_for_processing_once() -> None:
     await repository.create(job)
 
     claimed = await repository.claim(job.job_id)
-    duplicate_claim = await repository.claim(job.job_id)
 
     assert claimed == job
-    assert duplicate_claim is None
+    with pytest.raises(ProjectBusyError):
+        await repository.claim(job.job_id)
     assert transactions.transaction.updates == [
         {
             "status": "running",
@@ -239,6 +240,42 @@ async def test_firestore_serializes_jobs_for_one_project() -> None:
 
     assert await repository.complete(first.job_id) is True
     assert await repository.claim(second.job_id) == second
+
+
+@pytest.mark.asyncio
+async def test_firestore_reclaims_running_job_after_lease_expiry() -> None:
+    now = [datetime(2026, 9, 2, tzinfo=UTC)]
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+            lease_seconds=901,
+        ),
+        client=client,
+        transactions=transactions,
+        clock=lambda: now[0],
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-firestore-stale-lock",
+        source_event_id="Ev-firestore-stale-lock",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.028000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await repository.create(job)
+
+    assert await repository.claim(job.job_id) == job
+    with pytest.raises(ProjectBusyError):
+        await repository.claim(job.job_id)
+
+    now[0] += timedelta(seconds=902)
+
+    assert await repository.claim(job.job_id) == job
 
 
 @pytest.mark.asyncio

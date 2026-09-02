@@ -77,6 +77,7 @@ def create_slack_ingress_app_from_env(
             database_id=_required(values, "FIRESTORE_DATABASE_ID"),
             collection=_required(values, "FIRESTORE_JOBS_COLLECTION"),
             lock_collection=_required(values, "FIRESTORE_JOB_LOCKS_COLLECTION"),
+            lease_seconds=_required_int(values, "FIRESTORE_JOB_LEASE_SECONDS"),
         )
         cloud_tasks_settings = CloudTasksSettings(
             project_id=project_id,
@@ -115,6 +116,14 @@ def _required(values: Mapping[str, str], name: str) -> str:
     if value is None or not value.strip():
         raise RuntimeError(f"{name} must be set in live mode")
     return value
+
+
+def _required_int(values: Mapping[str, str], name: str) -> int:
+    value = _required(values, name)
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
 
 
 __all__ = [

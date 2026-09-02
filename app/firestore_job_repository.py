@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, TypeVar
 
 from google.api_core.exceptions import AlreadyExists
@@ -19,6 +20,7 @@ class FirestoreJobSettings(BaseModel):
     database_id: str = Field(min_length=1)
     collection: str = Field(default="jobs", min_length=1)
     lock_collection: str = Field(default="job_locks", min_length=1)
+    lease_seconds: int = Field(default=960, gt=900, le=3_600)
 
 
 class FirestoreDocument(Protocol):
@@ -88,10 +90,12 @@ class FirestoreJobRepository:
         settings: FirestoreJobSettings,
         client: FirestoreClient,
         transactions: TransactionRunner | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._settings = settings
         self._client = client
         self._transactions = transactions or _FirestoreTransactionRunner(client)
+        self._clock = clock or _utc_now
 
     async def create(self, job: OnboardProjectJob) -> bool:
         document = self._client.collection(self._settings.collection).document(
@@ -119,12 +123,38 @@ class FirestoreJobRepository:
         ) -> OnboardProjectJob | None:
             snapshot = await document.get(transaction=transaction)
             data = snapshot.to_dict()
-            if not snapshot.exists or data is None or data.get("status") != "pending":
+            if not snapshot.exists or data is None:
+                return None
+            status = data.get("status")
+            if status not in {"pending", "running"}:
                 return None
             job = OnboardProjectJob.model_validate(data)
             lock_document = self._project_lock_document(job)
             lock_snapshot = await lock_document.get(transaction=transaction)
             lock_data = lock_snapshot.to_dict()
+            now = self._clock()
+            lease_expires_at = now + timedelta(seconds=self._settings.lease_seconds)
+            if status == "running":
+                if (
+                    not lock_snapshot.exists
+                    or lock_data is None
+                    or lock_data.get("active_job_id") != job_id
+                    or _lease_is_active(lock_data, now)
+                ):
+                    raise ProjectBusyError
+                transaction.set(
+                    lock_document,
+                    {
+                        "active_job_id": job_id,
+                        "acquired_at": firestore_v1.SERVER_TIMESTAMP,
+                        "lease_expires_at": lease_expires_at,
+                    },
+                )
+                transaction.update(
+                    document,
+                    {"lease_recovered_at": firestore_v1.SERVER_TIMESTAMP},
+                )
+                return job
             if (
                 lock_snapshot.exists
                 and lock_data is not None
@@ -136,6 +166,7 @@ class FirestoreJobRepository:
                 {
                     "active_job_id": job_id,
                     "acquired_at": firestore_v1.SERVER_TIMESTAMP,
+                    "lease_expires_at": lease_expires_at,
                 },
             )
             transaction.update(
@@ -257,6 +288,15 @@ def _project_lock_id(job: OnboardProjectJob) -> str:
     scope = f"{job.workspace_id}\0{job.channel_id}"
     digest = hashlib.sha256(scope.encode()).hexdigest()
     return f"qali-project-lock-{digest}"
+
+
+def _lease_is_active(lock_data: dict[str, Any], now: datetime) -> bool:
+    lease_expires_at = lock_data.get("lease_expires_at")
+    return not isinstance(lease_expires_at, datetime) or now < lease_expires_at
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 def create_firestore_job_repository(
