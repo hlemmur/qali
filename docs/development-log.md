@@ -507,3 +507,40 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for deterministic onboarding progress composition with durable retry reuse and mock-visible status evidence.
+
+## 2026-09-02 — Phase 3: onboarding source URL policy
+
+Isolated change: added a deterministic, project-configured source URL policy for onboarding HTTPS sources.
+
+Reason: onboarding must reject unapproved or non-public source targets before any fetch adapter can retrieve project material, while remaining project-agnostic and testable without network access.
+
+Skill and method:
+
+- `tdd`
+- Reused Python standard-library URL parsing and IP-address classification rather than introducing another network or validation dependency.
+
+TDD evidence:
+
+- Red: no source URL policy module existed.
+- Green: an approved HTTPS source is normalized to its lowercase exact origin while preserving its path and query and dropping the client-only fragment.
+- Red: embedded URL credentials were silently removed during normalization.
+- Green: username or password userinfo is rejected before any normalized URL is returned.
+- Red: loopback, private, link-local, IPv6 loopback, and Google metadata targets could pass when configured as approved origins.
+- Green: non-global IP literals and the metadata hostname are rejected before origin approval.
+- Red: the policy had no seam for fetch-time DNS evidence.
+- Green: adapters can supply all resolved addresses, and any invalid or non-global result fails closed.
+
+Safety and scope:
+
+- HTTPS and an exact onboarding-configured origin are both required; approvals are project data, never hardcoded product or feature names.
+- Hostname parsing alone is not treated as SSRF protection. The future fetch adapter must supply every resolved address and call the same policy again for each redirect.
+- The policy performs no DNS lookup, HTTP request, file access, cloud call, deployment, secret read, browser action, or model invocation.
+- Safe bounded fetching, redirect enforcement, content limits, and immutable raw-source persistence remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/unit/test_source_url_policy.py -q` — `10 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/unit -q` — `79 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic HTTPS/origin/host safety policy with explicit DNS and redirect enforcement seams.
