@@ -53,10 +53,37 @@ async def test_mock_job_repository_claims_pending_job_once() -> None:
     await jobs.create(job)
 
     claimed = await jobs.claim(job.job_id)
-    duplicate_claim = await jobs.claim(job.job_id)
 
     assert claimed == job
-    assert duplicate_claim is None
+    with pytest.raises(ProjectBusyError):
+        await jobs.claim(job.job_id)
+
+
+@pytest.mark.asyncio
+async def test_mock_running_job_is_reclaimed_after_its_lease_expires() -> None:
+    now = [1_000.0]
+    jobs = InMemoryJobRepository(
+        clock=lambda: now[0],
+        lease_seconds=901,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-mock-stale-lock",
+        source_event_id="Ev-mock-stale-lock",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.027000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+
+    assert await jobs.claim(job.job_id) == job
+    with pytest.raises(ProjectBusyError):
+        await jobs.claim(job.job_id)
+
+    now[0] += 902
+
+    assert await jobs.claim(job.job_id) == job
 
 
 @pytest.mark.asyncio

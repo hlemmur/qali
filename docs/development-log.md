@@ -359,3 +359,43 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for project-level serialization with durable Firestore locks, mock parity, and explicit live configuration.
+
+## 2026-09-02 — Phase 3: stale project-lock recovery
+
+Isolated change: added bounded execution leases so Cloud Tasks redelivery remains retryable while a job is active and the same running job can be reclaimed after an ungraceful worker loss.
+
+Reason: cancellation and timeout cleanup cannot run if a worker process disappears. Without a recoverable lease, the durable job and project lock would remain `running` forever across Cloud Run restarts.
+
+Skill and API guidance:
+
+- `tdd`
+- Reused the installed Firestore transaction seam from the serialization slice; lease reads and renewal writes stay inside the same transaction.
+
+TDD evidence:
+
+- Red: the in-memory repository had no clock or lease and treated a running job's redelivery as a completed no-op.
+- Green: active same-job delivery raises `ProjectBusyError`; after the bounded lease expires, the owner renews its lease and returns the canonical running job for processing.
+- Red: Firestore settings rejected a lease duration and running jobs could never be reclaimed.
+- Green: Firestore persists `lease_expires_at`, retries active owners, and atomically renews an expired owner with a server recovery timestamp.
+- Worker boundary: a persisted running job returns HTTP 503 before expiry, then the next delivery processes and completes it after deterministic clock advancement.
+- Red: live composition silently inherited a default lease instead of declaring its relationship to the worker budget.
+- Green: live mode now requires `FIRESTORE_JOB_LEASE_SECONDS=960`, sixty seconds beyond the maximum 900-second processor budget; mock mode remains self-contained.
+
+Safety and scope:
+
+- Lease duration is bounded to greater than 900 and at most 3600 seconds.
+- A different job never steals an expired lock; only the recorded owner can recover it, preserving project ordering.
+- Completed and failed redeliveries remain idempotent acknowledgements rather than retries.
+- Lock timestamps contain no Slack text, URL, credential, exception, or secret-bearing value.
+- No cloud call, resource, deployment, secret, model, or live integration was used.
+- Queue retry/backoff infrastructure and coordinator/onboarding composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_job_repository.py tests/integration/test_slack_onboarding_ingress.py -q` — `21 passed`.
+- `uv run pytest tests/integration/test_slack_ingress_app.py -q` — `17 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py::test_worker_recovers_running_job_after_lease_expiry -q` — `1 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `61 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded stale-lock recovery with mock, Firestore, worker-boundary, and explicit live-configuration evidence.

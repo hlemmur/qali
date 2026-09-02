@@ -261,6 +261,53 @@ async def test_worker_retries_same_project_job_after_active_job_completes() -> N
 
 
 @pytest.mark.asyncio
+async def test_worker_recovers_running_job_after_lease_expiry() -> None:
+    now = [1_000.0]
+    jobs = InMemoryJobRepository(
+        clock=lambda: now[0],
+        lease_seconds=901,
+    )
+    processor = _RecordingJobProcessor()
+    handler = LifecycleJobHandler(jobs=jobs, processor=processor)
+    app = create_worker_app(
+        settings=WorkerIngressSettings(queue_name="qali-jobs"),
+        handler=handler,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-worker-stale-lock",
+        source_event_id="Ev-worker-stale-lock",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.029000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://worker.test",
+    ) as client:
+        active = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=_worker_headers(job, execution_count=0),
+        )
+        now[0] += 902
+        recovered = await client.post(
+            "/internal/jobs",
+            content=job.model_dump_json(),
+            headers=_worker_headers(job, execution_count=1),
+        )
+
+    assert active.status_code == 503
+    assert recovered.status_code == 200
+    assert processor.jobs == [job]
+    assert await jobs.claim(job.job_id) is None
+
+
+@pytest.mark.asyncio
 async def test_worker_releases_failed_job_for_cloud_tasks_retry() -> None:
     jobs = InMemoryJobRepository()
     processor = _FailOnceJobProcessor()

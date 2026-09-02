@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from collections.abc import Callable
 from typing import Literal, Protocol
 
@@ -66,12 +67,21 @@ class TaskDispatcher(Protocol):
 
 
 class InMemoryJobRepository:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        lease_seconds: int = 960,
+    ) -> None:
+        if not 900 < lease_seconds <= 3_600:
+            raise ValueError("lease_seconds must be greater than 900 and at most 3600")
         self._jobs: dict[str, OnboardProjectJob] = {}
         self._claimed_job_ids: set[str] = set()
         self._completed_job_ids: set[str] = set()
         self._failed_job_ids: set[str] = set()
-        self._active_job_id_by_project: dict[tuple[str, str], str] = {}
+        self._active_job_by_project: dict[tuple[str, str], tuple[str, float]] = {}
+        self._clock = clock
+        self._lease_seconds = lease_seconds
         self._lock = asyncio.Lock()
 
     async def create(self, job: OnboardProjectJob) -> bool:
@@ -86,17 +96,29 @@ class InMemoryJobRepository:
             job = self._jobs.get(job_id)
             if (
                 job is None
-                or job_id in self._claimed_job_ids
                 or job_id in self._completed_job_ids
                 or job_id in self._failed_job_ids
             ):
                 return None
             project_key = (job.workspace_id, job.channel_id)
-            active_job_id = self._active_job_id_by_project.get(project_key)
-            if active_job_id is not None and active_job_id != job_id:
-                raise ProjectBusyError
+            active_job = self._active_job_by_project.get(project_key)
+            now = self._clock()
+            if active_job is not None:
+                active_job_id, lease_expires_at = active_job
+                if active_job_id != job_id or now < lease_expires_at:
+                    raise ProjectBusyError
+                self._active_job_by_project[project_key] = (
+                    job_id,
+                    now + self._lease_seconds,
+                )
+                return job
+            if job_id in self._claimed_job_ids:
+                return None
             self._claimed_job_ids.add(job_id)
-            self._active_job_id_by_project[project_key] = job_id
+            self._active_job_by_project[project_key] = (
+                job_id,
+                now + self._lease_seconds,
+            )
             return job
 
     async def complete(self, job_id: str) -> bool:
@@ -140,8 +162,9 @@ class InMemoryJobRepository:
     def _release_project(self, job_id: str) -> None:
         job = self._jobs[job_id]
         project_key = (job.workspace_id, job.channel_id)
-        if self._active_job_id_by_project.get(project_key) == job_id:
-            del self._active_job_id_by_project[project_key]
+        active_job = self._active_job_by_project.get(project_key)
+        if active_job is not None and active_job[0] == job_id:
+            del self._active_job_by_project[project_key]
 
     def list_jobs(self) -> list[OnboardProjectJob]:
         return list(self._jobs.values())
