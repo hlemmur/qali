@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
+from app.slack_progress import ProgressMessage
 
 
 class FirestoreJobSettings(BaseModel):
@@ -179,6 +180,63 @@ class FirestoreJobRepository:
             return job
 
         return await self._transactions.run(claim_pending)
+
+    async def attach_progress(
+        self,
+        job_id: str,
+        message: ProgressMessage,
+    ) -> bool:
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def attach_to_running(transaction: FirestoreTransaction) -> bool:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if (
+                not snapshot.exists
+                or data is None
+                or data.get("status") != "running"
+                or data.get("channel_id") != message.channel_id
+                or data.get("thread_ts") != message.thread_ts
+            ):
+                return False
+            existing_message_ts = data.get("progress_message_ts")
+            if existing_message_ts is not None:
+                return existing_message_ts == message.message_ts
+            transaction.update(
+                document,
+                {
+                    "progress_message_ts": message.message_ts,
+                    "progress_attached_at": firestore_v1.SERVER_TIMESTAMP,
+                },
+            )
+            return True
+
+        return await self._transactions.run(attach_to_running)
+
+    async def get_progress(self, job_id: str) -> ProgressMessage | None:
+        document = self._client.collection(self._settings.collection).document(
+            _document_id(job_id)
+        )
+
+        async def read_progress(
+            transaction: FirestoreTransaction,
+        ) -> ProgressMessage | None:
+            snapshot = await document.get(transaction=transaction)
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None:
+                return None
+            message_ts = data.get("progress_message_ts")
+            if not isinstance(message_ts, str) or not message_ts:
+                return None
+            return ProgressMessage(
+                channel_id=data["channel_id"],
+                thread_ts=data["thread_ts"],
+                message_ts=message_ts,
+            )
+
+        return await self._transactions.run(read_progress)
 
     async def complete(self, job_id: str) -> bool:
         document = self._client.collection(self._settings.collection).document(

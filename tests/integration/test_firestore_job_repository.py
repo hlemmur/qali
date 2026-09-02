@@ -13,6 +13,7 @@ from app.firestore_job_repository import (
 )
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
+from app.slack_progress import ProgressMessage
 
 
 class _RecordingDocument:
@@ -276,6 +277,53 @@ async def test_firestore_reclaims_running_job_after_lease_expiry() -> None:
     now[0] += timedelta(seconds=902)
 
     assert await repository.claim(job.job_id) == job
+
+
+@pytest.mark.asyncio
+async def test_firestore_progress_reference_survives_job_retry() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-firestore-progress-reference",
+        source_event_id="Ev-firestore-progress-reference",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.033000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    message = ProgressMessage(
+        channel_id=job.channel_id,
+        thread_ts=job.thread_ts,
+        message_ts="1788220801.033000",
+    )
+    await repository.create(job)
+    await repository.claim(job.job_id)
+
+    assert await repository.attach_progress(job.job_id, message) is True
+    assert (
+        await repository.attach_progress(
+            job.job_id,
+            message.model_copy(update={"message_ts": "1788220802.033000"}),
+        )
+        is False
+    )
+    assert (
+        await repository.release(job.job_id, reason=JobRetryReason.PROCESSOR_ERROR)
+        is True
+    )
+    assert await repository.claim(job.job_id) == job
+
+    assert await repository.get_progress(job.job_id) == message
 
 
 @pytest.mark.asyncio
