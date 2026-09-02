@@ -188,3 +188,35 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for guarded completion and retry release in production and mock repositories.
+
+## 2026-09-02 — Phase 3: deterministic worker lifecycle handler
+
+Isolated change: composed job claiming, injected processing, completion, and retry release behind the worker ingress `JobHandler` contract.
+
+Reason: the Cloud Tasks endpoint needs one deterministic owner for lifecycle ordering before it can invoke the onboarding coordinator. Redelivery must not repeat completed work, and a processor exception must release the claim before Cloud Tasks retries.
+
+Skill and method:
+
+- `tdd`
+- Public behavior verified through the in-process FastAPI worker surface with in-memory production-interface parity.
+
+TDD evidence:
+
+- Red: no lifecycle-aware worker handler existed.
+- Green: the worker claims the durable canonical job, invokes the injected processor, completes it, and acknowledges a redelivery without a second processor call.
+- Red: a processor exception left the job claimed, so the next Cloud Tasks delivery was acknowledged without retrying the processor.
+- Green: processor exceptions now release with `JobRetryReason.PROCESSOR_ERROR` before being re-raised; the HTTP request returns 500 and the next delivery processes successfully.
+
+Safety and scope:
+
+- The handler processes the repository's claimed job rather than trusting the request body after identity lookup.
+- Processor exceptions are not persisted; only the bounded retry reason code reaches job state.
+- The processor remains an injected protocol. No model, coordinator, cloud call, resource, deployment, secret, or live integration was added.
+- Timeout/cancellation policy, terminal failure thresholds, leases, and coordinator composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `45 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic claim-process-complete and release-on-error worker handling.
