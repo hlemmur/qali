@@ -10,7 +10,7 @@ from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
 )
-from app.job_lifecycle import JobRetryReason
+from app.job_lifecycle import JobFailureReason, JobRetryReason
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -283,6 +283,55 @@ async def test_running_job_can_be_released_and_claimed_for_retry() -> None:
         {
             "status": "running",
             "started_at": firestore_v1.SERVER_TIMESTAMP,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_running_job_can_be_failed_once_with_bounded_reason() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-terminal-failure",
+        source_event_id="Ev-terminal-failure",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.017000",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await repository.create(job)
+    await repository.claim(job.job_id)
+
+    failed = await repository.fail(
+        job.job_id,
+        reason=JobFailureReason.RETRY_EXHAUSTED,
+    )
+    duplicate_failure = await repository.fail(
+        job.job_id,
+        reason=JobFailureReason.RETRY_EXHAUSTED,
+    )
+
+    assert failed is True
+    assert duplicate_failure is False
+    assert transactions.transaction.updates == [
+        {
+            "status": "running",
+            "started_at": firestore_v1.SERVER_TIMESTAMP,
+        },
+        {
+            "status": "failed",
+            "failure_reason": "retry_exhausted",
+            "failed_at": firestore_v1.SERVER_TIMESTAMP,
         },
     ]
 
