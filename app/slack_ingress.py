@@ -66,6 +66,7 @@ class TaskDispatcher(Protocol):
 class InMemoryJobRepository:
     def __init__(self) -> None:
         self._jobs: dict[str, OnboardProjectJob] = {}
+        self._claimed_job_ids: set[str] = set()
         self._lock = asyncio.Lock()
 
     async def create(self, job: OnboardProjectJob) -> bool:
@@ -74,6 +75,14 @@ class InMemoryJobRepository:
                 return False
             self._jobs[job.job_id] = job
             return True
+
+    async def claim(self, job_id: str) -> OnboardProjectJob | None:
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job_id in self._claimed_job_ids:
+                return None
+            self._claimed_job_ids.add(job_id)
+            return job
 
     def list_jobs(self) -> list[OnboardProjectJob]:
         return list(self._jobs.values())

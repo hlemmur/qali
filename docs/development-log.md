@@ -122,3 +122,35 @@ Commands and evidence:
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for the isolated worker intake boundary. Production route composition and durable job claiming remain separate follow-up slices.
+
+## 2026-09-02 — Phase 3: durable job claiming
+
+Isolated change: added one-time job claiming to the Firestore production repository and the in-memory mock repository.
+
+Reason: Cloud Tasks can redeliver work, so the worker needs an atomic transition from `pending` to `running` before starting onboarding. A retry or concurrent delivery must not start the same job twice.
+
+Skills and API guidance:
+
+- `tdd`
+- Installed `google-cloud-firestore` 2.29 async client, document, batch, and transaction source for exact transaction signatures and retry semantics.
+
+TDD evidence:
+
+- Red: `FirestoreJobRepository` had no transaction seam or claim operation.
+- Green: a pending document is read and changed to `running` inside one retryable async Firestore transaction, returning the typed job.
+- Guard: a second claim sees the non-pending status and returns `None` without another update.
+- Red: `InMemoryJobRepository` had no claim operation for local mock execution.
+- Green: the mock repository now returns a stored job once under its existing async lock and rejects repeated or missing claims.
+
+Safety and scope:
+
+- The Firestore transaction runner wraps the installed official async transactional API rather than implementing retry behavior locally.
+- No cloud call, resource, deployment, secret, live model, or live integration was used.
+- Worker-handler composition, completion/failure transitions, time budgets, and project-level serialization remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/unit -q` — `40 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for atomic one-time job claiming in production and mock repositories.
