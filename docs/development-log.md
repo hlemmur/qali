@@ -707,3 +707,81 @@ Commands and evidence:
 Phase result: passed for the fail-closed screening orchestration contract with
 ordered malware/instruction verdicts, redacted failures, test-only scanner
 doubles, and the offline regression gate.
+
+## 2026-09-03 — Phase 3: immutable raw-source GCS repository
+
+Isolated change: added the production-shaped GCS repository that accepts only a
+completely screened onboarding source and writes its raw bytes once under the
+project-scoped `raw/{source_id}` prefix with immutable provenance metadata.
+
+Reason: approved source bytes and provenance must survive worker retries without
+allowing overwrite, path escape, unsafe-content bypass, or signed URL leakage.
+This is the durable boundary required before the Knowledge Analyst can compile
+cited project knowledge.
+
+Skill, SDK, and reference guidance:
+
+- `tdd`
+- `google-agents-cli-workflow` 1.4.2 and `google-agents-cli-adk-code` 1.4.2.
+- Preserved the approved GCS adaptation of the explicit write/read lifecycle in
+  `cross-session-memory`; Qali raw sources remain authoritative project artifacts,
+  not conversational memory or ADK session artifacts.
+- Inspected the installed `google-cloud-storage` 3.13.1
+  `Blob.upload_from_string`, `Blob.reload`, `Client.bucket`, and `Bucket.blob`
+  signatures before implementation. Declared the SDK as a direct runtime
+  dependency and refreshed `uv.lock`.
+
+TDD evidence:
+
+- Red: no project-scoped raw-source repository existed.
+- Green: clean screened bytes are uploaded with content type, SHA-256,
+  capture-time, author reference, redacted source URI, and screening identities;
+  `if_generation_match=0` enforces create-only storage.
+- Red: a manually constructed `ScreenedSource` containing a threat could reach
+  the storage client.
+- Green: persistence independently rejects threats before selecting a bucket.
+- Red: clean decisions did not prove both required stages had run.
+- Green: `SourceScreeningDecision` now carries a typed stage and both screening
+  and persistence enforce the exact malware-then-instruction sequence.
+- Red: unsafe project/source identifiers could escape the prescribed object
+  prefix because the initial adapter configuration did not enforce its pattern.
+- Green: explicit full-match validation rejects traversal and unsafe identifiers
+  before any GCS operation.
+- Red: an identical retry received GCS's generation precondition error, and its
+  newly calculated timestamp differed from the immutable object's timestamp.
+- Green: the repository reloads existing metadata, accepts only stable identity
+  matches, and returns the original capture time for an idempotent retry.
+- Red: the same source ID could surface a vendor exception when different bytes
+  attempted to overwrite it.
+- Green: different content or provenance produces a constant, redacted
+  `RawSourceConflict`; the existing object remains unchanged.
+- Red: signed query parameters were persisted in source provenance.
+- Green: stored provenance contains only scheme, authority, and path; a SHA-256
+  correlation value distinguishes the full fetched URI without storing it.
+
+Safety and scope:
+
+- The GCS client is behind narrow protocols and synchronous SDK calls run in a
+  worker thread so the async workflow loop is not blocked. Tests use only
+  in-process service doubles.
+- Object names are fixed to `projects/{project_id}/raw/{source_id}/source`, and
+  both identifiers are constrained before interpolation.
+- Raw bytes are never rewritten. Only an identical content/provenance retry may
+  reuse an existing object after metadata verification.
+- Metadata contains no source query, fragment, raw bytes, scanner exception,
+  credential, or signed URL. Scanner stage identities are explicit and ordered.
+- No bucket, cloud resource, deployment, credential, live network request, model,
+  or external GCS operation was created or used. Firestore source indexing,
+  production scanner adapters, and onboarding workflow composition remain
+  separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_raw_source_repository.py tests/integration/test_source_screening.py -q` — `12 passed`.
+- `uv run pytest tests/integration/test_raw_source_repository.py tests/integration/test_source_screening.py tests/integration/test_source_network.py tests/integration/test_source_fetcher.py tests/unit/test_source_url_policy.py -q` — `34 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/integration/test_source_network.py tests/integration/test_source_screening.py tests/integration/test_raw_source_repository.py tests/unit -q` — `103 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for immutable, project-scoped raw-source persistence with
+complete screening enforcement, create-only GCS writes, idempotent retries,
+redacted provenance, explicit collision failure, and the offline regression gate.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal, Protocol
+from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,9 +13,15 @@ class SourceThreat(StrEnum):
     PROMPT_INJECTION = "prompt_injection"
 
 
+class SourceScreeningStage(StrEnum):
+    MALWARE = "malware"
+    INSTRUCTION = "instruction"
+
+
 class SourceScreeningDecision(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    stage: SourceScreeningStage
     scanner: str = Field(min_length=1)
     threats: tuple[SourceThreat, ...]
 
@@ -38,7 +44,7 @@ class SourceScreeningRejected(ValueError):
 
 
 class SourceScreeningUnavailable(RuntimeError):
-    def __init__(self, stage: Literal["malware", "instruction"]) -> None:
+    def __init__(self, stage: SourceScreeningStage) -> None:
         super().__init__("source screening is unavailable")
         self.stage = stage
 
@@ -55,17 +61,17 @@ class SourceScreeningService:
 
     async def screen(self, source: FetchedSource) -> ScreenedSource:
         decisions: list[SourceScreeningDecision] = []
-        stages: tuple[
-            tuple[Literal["malware", "instruction"], SourceContentScanner], ...
-        ] = (
-            ("malware", self._malware_scanner),
-            ("instruction", self._instruction_scanner),
+        stages: tuple[tuple[SourceScreeningStage, SourceContentScanner], ...] = (
+            (SourceScreeningStage.MALWARE, self._malware_scanner),
+            (SourceScreeningStage.INSTRUCTION, self._instruction_scanner),
         )
         for stage, scanner in stages:
             try:
                 decision = await scanner.scan(source)
             except Exception:
                 raise SourceScreeningUnavailable(stage) from None
+            if decision.stage is not stage:
+                raise SourceScreeningUnavailable(stage)
             decisions.append(decision)
             if decision.threats:
                 raise SourceScreeningRejected(tuple(decisions))
@@ -78,6 +84,7 @@ __all__ = [
     "SourceScreeningDecision",
     "SourceScreeningRejected",
     "SourceScreeningService",
+    "SourceScreeningStage",
     "SourceScreeningUnavailable",
     "SourceThreat",
 ]
