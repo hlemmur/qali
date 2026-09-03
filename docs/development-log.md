@@ -1134,3 +1134,52 @@ Commands and evidence:
 Phase result: passed for path-bound, metadata-verified, hash-verified raw source
 retrieval with redacted failures, frozen snapshots, test-only GCS doubles, and the
 offline regression gate.
+
+## 2026-09-04 — Phase 3: knowledge grounding and readiness gate
+
+Isolated change: added the typed Knowledge Analyst output contract and a
+deterministic policy that separates grounded readiness from insufficient project
+knowledge.
+
+Reason: an agent's prose or self-reported confidence cannot make onboarding ready.
+Every fact and contradiction must cite an available immutable source, while sparse
+or uncertain results must produce explicit, machine-readable insufficiency reasons.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Followed the approved ADK boundary: agent output is represented by strict
+  schemas, while citation validation and the readiness verdict remain deterministic
+  application policy outside the model.
+
+TDD evidence:
+
+- Red: no Knowledge Analyst compilation schema, citation error, or readiness
+  decision existed.
+- Green: frozen, extra-forbidding contracts capture overview, grounded facts,
+  explicit contradictions, gaps, and enumerated confidence.
+- The policy marks sufficiently confident cited facts ready, reports ordered
+  reasons for no facts, low confidence, and blocking gaps, and fails closed on any
+  citation outside the supplied source identity set.
+
+Safety and scope:
+
+- Fact citations are mandatory and distinct; contradictions require at least two
+  distinct source identities. All text and collection fields are size-bounded.
+- Unknown citations raise one constant `KnowledgeGroundingError` rather than being
+  represented as an ordinary insufficient result that could pass after wording
+  changes.
+- Confidence thresholds are explicit and configurable through a closed enum; no
+  model prose, hidden reasoning, or target-specific rule influences readiness.
+- No model invocation, source content, live storage call, cloud resource,
+  deployment, credential, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/unit/test_knowledge_quality.py -q` — `3 passed`.
+- Complete explicit offline unit/integration gate — `124 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for strict Knowledge Analyst output, source-set grounding,
+deterministic readiness reasons, fail-closed invented citations, and the offline
+regression gate.
