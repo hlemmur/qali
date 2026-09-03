@@ -1229,3 +1229,50 @@ Commands and evidence:
 
 Phase result: passed for deterministic, cited, structure-safe knowledge Markdown
 with explicit readiness state, stable hashing, and the offline regression gate.
+
+## 2026-09-04 — Phase 3: compiled knowledge storage
+
+Isolated change: added optimistic, retry-safe GCS publication of the deterministic
+project knowledge document at `knowledge/index.md`.
+
+Reason: compiled knowledge is incrementally maintained operational truth. Initial
+publication and later revisions must prevent lost updates, reject stale writers,
+and distinguish an identical retry from different content.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Reused the production GCS adapter and generation-precondition conventions while
+  keeping storage behind a narrow protocol with test-only client doubles.
+
+TDD evidence:
+
+- Red: deterministic compiled documents had no durable repository, generation
+  contract, or conflict behavior.
+- Green: `GcsKnowledgeRepository.publish` verifies the caller's content hash,
+  writes `projects/{project_id}/knowledge/index.md` with an exact generation
+  precondition, and returns a frozen artifact containing generation and timestamp.
+- An identical redelivery reloads and byte-compares the existing object before
+  returning its original generation; stale different content fails without an
+  overwrite. A matching generation publishes an incremental revision.
+
+Safety and scope:
+
+- Project identifiers are validated before bucket access and cannot escape the
+  project knowledge prefix.
+- Retry acceptance requires matching metadata hash and exact bytes, rather than
+  trusting mutable metadata alone.
+- Negative or stale generations, mismatched input hashes, invalid clocks, missing
+  generation metadata, and malformed retry timestamps fail closed.
+- No live GCS call, source content, model invocation, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- Knowledge repository/compiler/quality focused gate — `9 passed`.
+- Complete explicit offline unit/integration gate — `130 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for generation-guarded compiled knowledge publication,
+byte-verified retries, incremental updates, frozen artifact metadata, and the
+offline regression gate.
