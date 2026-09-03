@@ -45,12 +45,21 @@ class RawSourceArtifact(BaseModel):
     screening_scanners: tuple[str, ...]
 
 
+class RawSourceSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    artifact: RawSourceArtifact
+    content: bytes
+
+
 class StorageBlob(Protocol):
     metadata: dict[str, str] | None
 
     def upload_from_string(self, data: bytes, **kwargs: Any) -> None: ...
 
     def reload(self, **kwargs: Any) -> None: ...
+
+    def download_as_bytes(self, **kwargs: Any) -> bytes: ...
 
 
 class StorageBucket(Protocol):
@@ -64,6 +73,11 @@ class StorageClient(Protocol):
 class RawSourceConflict(RuntimeError):
     def __init__(self) -> None:
         super().__init__("raw source identifier already exists")
+
+
+class RawSourceIntegrityError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("raw source integrity verification failed")
 
 
 class GcsRawSourceRepository:
@@ -164,6 +178,50 @@ class GcsRawSourceRepository:
             artifact = artifact.model_copy(update={"captured_at": original_captured_at})
         return artifact
 
+    async def read(self, artifact: RawSourceArtifact) -> RawSourceSnapshot:
+        try:
+            project_id = _validate_resource_id("project_id", artifact.project_id)
+            source_id = _validate_resource_id("source_id", artifact.source_id)
+        except ValueError:
+            raise RawSourceIntegrityError from None
+        expected_object_name = f"projects/{project_id}/raw/{source_id}/source"
+        if artifact.object_name != expected_object_name:
+            raise RawSourceIntegrityError
+        captured_at = artifact.captured_at
+        if captured_at.tzinfo is None or captured_at.utcoffset() is None:
+            raise RawSourceIntegrityError
+        expected_metadata = {
+            "author_ref": artifact.provenance.author_ref,
+            "captured_at": captured_at.astimezone(UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "sha256": artifact.sha256,
+            "source_uri": artifact.source_uri,
+            "source_uri_sha256": artifact.source_uri_sha256,
+            "screening_scanners": json.dumps(
+                artifact.screening_scanners,
+                separators=(",", ":"),
+            ),
+        }
+        blob = self._client.bucket(self._settings.bucket_name).blob(
+            expected_object_name
+        )
+        await asyncio.to_thread(
+            blob.reload,
+            timeout=self._settings.upload_timeout_seconds,
+        )
+        metadata = blob.metadata or {}
+        if any(metadata.get(key) != value for key, value in expected_metadata.items()):
+            raise RawSourceIntegrityError
+        content = await asyncio.to_thread(
+            blob.download_as_bytes,
+            checksum="auto",
+            timeout=self._settings.upload_timeout_seconds,
+        )
+        if hashlib.sha256(content).hexdigest() != artifact.sha256:
+            raise RawSourceIntegrityError
+        return RawSourceSnapshot(artifact=artifact, content=content)
+
 
 def create_gcs_raw_source_repository(
     settings: GcsRawSourceSettings,
@@ -193,6 +251,8 @@ __all__ = [
     "GcsRawSourceSettings",
     "RawSourceArtifact",
     "RawSourceConflict",
+    "RawSourceIntegrityError",
     "RawSourceProvenance",
+    "RawSourceSnapshot",
     "create_gcs_raw_source_repository",
 ]
