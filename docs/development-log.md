@@ -840,3 +840,56 @@ Commands and evidence:
 Phase result: passed for create-only, idempotent Firestore source metadata indexing
 with schema-validated collision detection, redacted artifact pointers, test-only
 doubles, and the offline regression gate.
+
+## 2026-09-03 — Phase 3: onboarding source-ingestion composition
+
+Isolated change: added the deterministic application service that composes one
+approved onboarding URL through bounded fetch, ordered screening, immutable raw
+GCS persistence, and durable Firestore metadata indexing.
+
+Reason: the individually verified source boundaries did not yet provide one
+workflow contract that guarantees unsafe content stops before persistence and a
+successful result is returned only after both durable stores accept the artifact.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Kept workflow sequencing in deterministic application code per the approved
+  coordinator/custom-logic decision. No LLM or ADK agent decides whether a source
+  is safe, where it is stored, or whether indexing completed.
+- External network, scanner, GCS, and Firestore operations remain behind their
+  existing narrow protocols. Integration tests compose test-only boundary doubles.
+
+TDD evidence:
+
+- Red: no public service connected fetch, screen, raw persistence, and metadata
+  indexing.
+- Green: `OnboardingSourceIngestionService.ingest` accepts a typed project/source
+  request, passes each typed result to the next boundary, indexes the exact
+  immutable artifact returned by GCS persistence, and returns only after indexing.
+- The first implementation generalized safely to the next behavior: a screening
+  rejection propagates and neither GCS persistence nor Firestore indexing receives
+  the rejected source.
+
+Safety and scope:
+
+- The request contains only project/source identifiers, an approved URL, and an
+  author reference. Credentials and raw secret values are not part of the schema.
+- Screening precedes every durable write. Firestore receives only the redacted
+  artifact metadata returned by the raw repository, never the fetched bytes.
+- Existing create-only and duplicate-verification behavior in both repositories
+  preserves retry safety; changed source content or metadata still fails closed.
+- No live fetch, scanner, bucket, Firestore call, cloud resource, deployment,
+  credential, model, or browser operation was used. Job-level source extraction,
+  multi-source handling, and Knowledge Analyst compilation remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_source_ingestion.py -q` — `2 passed`.
+- `uv run pytest tests/integration/test_source_ingestion.py tests/integration/test_firestore_source_repository.py tests/integration/test_raw_source_repository.py tests/integration/test_source_screening.py tests/integration/test_source_fetcher.py tests/unit/test_source_url_policy.py -q` — `33 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_firestore_source_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/integration/test_source_network.py tests/integration/test_source_screening.py tests/integration/test_raw_source_repository.py tests/integration/test_source_ingestion.py tests/unit -q` — `108 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic fetch-screen-persist-index composition with
+typed handoffs, zero-write rejection behavior, mock-safe integration evidence, and
+the offline regression gate.
