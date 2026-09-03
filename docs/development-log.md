@@ -1183,3 +1183,49 @@ Commands and evidence:
 Phase result: passed for strict Knowledge Analyst output, source-set grounding,
 deterministic readiness reasons, fail-closed invented citations, and the offline
 regression gate.
+
+## 2026-09-04 — Phase 3: deterministic knowledge Markdown
+
+Isolated change: added a deterministic compiler from the gated knowledge schema to
+the Markdown document that will become Qali's operational project knowledge index.
+
+Reason: model-authored Markdown could alter headings, hide citations, or smuggle
+untrusted source syntax into the knowledge structure. Rendering must be owned by
+application code after schema and grounding validation.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Preserved the approved compiled-wiki pattern: the model supplies typed content,
+  while deterministic code owns document structure, citation formatting,
+  readiness metadata, and the content hash.
+
+TDD evidence:
+
+- Red: no public compiler or compiled-document contract existed.
+- Green: `compile_knowledge_markdown` emits stable sections for overview, facts,
+  contradictions, gaps, and readiness reasons, then returns frozen UTF-8 content
+  with a reproducible SHA-256.
+- Newlines and Markdown metacharacters in analyst text are neutralized, HTML is
+  escaped, and unsafe citation identifiers fail before document generation.
+
+Safety and scope:
+
+- The compiler accepts only the strict `KnowledgeCompilation` and deterministic
+  `KnowledgeQualityDecision` contracts; free-form model output cannot choose the
+  document layout or omit readiness metadata.
+- Citation IDs must satisfy the same bounded resource-ID shape used by durable raw
+  source paths, preventing code-span or heading injection.
+- Empty sections remain explicit rather than disappearing from the knowledge
+  record, preserving visible gaps and contradictions.
+- No model invocation, source retrieval, storage write, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- Knowledge compiler and quality tests — `5 passed`.
+- Complete explicit offline unit/integration gate — `126 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic, cited, structure-safe knowledge Markdown
+with explicit readiness state, stable hashing, and the offline regression gate.
