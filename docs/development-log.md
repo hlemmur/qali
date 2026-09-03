@@ -991,3 +991,50 @@ Commands and evidence:
 Phase result: passed for durable, create-only Slack channel mapping with stable
 target-project identity, idempotent reuse, conflict detection, test doubles, and
 the offline regression gate.
+
+## 2026-09-04 — Phase 3: screened Slack text ingestion
+
+Isolated change: extended the source-ingestion application service to accept
+bounded Slack text as an inline source and route it through the existing
+screen-persist-index pipeline without a network fetch.
+
+Reason: onboarding text is an immutable project source just like approved web
+content. It must receive the same injection/malware decisions, GCS persistence,
+and Firestore metadata indexing without pretending Slack content is an HTTPS URL.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Reused the deterministic source screening and storage contracts. Inline source
+  adaptation is custom application logic; scanners and durable stores remain
+  injected boundaries with test-only doubles.
+
+TDD evidence:
+
+- Red: the ingestion service exposed only URL requests and had no typed inline
+  request or `ingest_inline` operation.
+- Green: bounded Slack text becomes UTF-8 `text/plain`, bypasses the network
+  fetcher, and then follows the same ordered screening and durable-write path as
+  fetched content.
+
+Safety and scope:
+
+- Inline requests cap text at 20,000 characters and Slack scope fields at 256
+  characters before any scanner or storage operation.
+- The stored source URI contains only a SHA-256 digest of workspace, channel, and
+  event scope. Raw Slack identifiers are not exposed in artifact URIs.
+- Screening still completes before GCS or Firestore receives the source, and the
+  existing shared rejection behavior remains fail closed.
+- No live Slack call, scanner, network request, GCS/Firestore call, cloud resource,
+  deployment, credential, model, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_source_ingestion.py -q` — `4 passed`.
+- Focused source screening/persistence/extraction regression gate — `19 passed`.
+- Complete explicit offline unit/integration gate — `116 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, no-fetch Slack text ingestion through the same
+screening and durable persistence pipeline, with redacted provenance, test-only
+doubles, and the offline regression gate.
