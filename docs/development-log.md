@@ -942,3 +942,52 @@ Commands and evidence:
 Phase result: passed for deterministic Slack text/HTTPS extraction, provenance,
 deduplication, retry-stable IDs, mock-safe evidence, and the offline regression
 gate.
+
+## 2026-09-04 — Phase 3: durable project/channel mapping
+
+Isolated change: added a Firestore repository that resolves one Slack
+workspace/channel pair to one deterministic Qali project identity.
+
+Reason: source extraction is intentionally project-agnostic, while durable raw
+and knowledge paths require a stable project scope. The mapping separates the
+GCP infrastructure project from each target application onboarded through Slack.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Reused the existing Firestore repositories' injected-client, hashed document
+  identity, create-only write, server timestamp, and schema-validation patterns.
+
+TDD evidence:
+
+- Red: no project/channel repository or public binding schema existed.
+- Green: `resolve_or_create` derives stable project and document IDs from the
+  Slack workspace/channel scope and creates a typed binding with creator
+  provenance.
+- Red: a repeated channel mapping raised Firestore `AlreadyExists` without
+  distinguishing a valid lookup from corrupt or conflicting stored metadata.
+- Green: a later requester receives the original typed binding, while missing,
+  malformed, or scope-conflicting metadata fails closed without replacement.
+
+Safety and scope:
+
+- Raw Slack identifiers never become Firestore document paths or storage project
+  paths; SHA-256-derived identifiers provide a fixed, safe namespace.
+- `gcp_project_id` names only the Firestore client host project. The returned
+  `project_id` identifies the onboarded target and contains no website, feature,
+  or qualification-fixture assumption.
+- Create-only writes preserve the original creator and prevent a later caller
+  from remapping an established Slack channel.
+- No live Firestore call, cloud resource, deployment, credential, model, source
+  ingestion, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_project_repository.py -q` — `3 passed`.
+- Focused Firestore and extraction regression gate — `20 passed`.
+- Complete explicit offline unit/integration gate — `114 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for durable, create-only Slack channel mapping with stable
+target-project identity, idempotent reuse, conflict detection, test doubles, and
+the offline regression gate.
