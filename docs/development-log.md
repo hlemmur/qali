@@ -785,3 +785,58 @@ Commands and evidence:
 Phase result: passed for immutable, project-scoped raw-source persistence with
 complete screening enforcement, create-only GCS writes, idempotent retries,
 redacted provenance, explicit collision failure, and the offline regression gate.
+
+## 2026-09-03 — Phase 3: durable source metadata index
+
+Isolated change: added the Firestore repository that indexes immutable raw-source
+artifact pointers and their redacted provenance without copying source bytes into
+the operational database.
+
+Reason: later onboarding phases need a durable project/source lookup boundary
+that survives worker restarts and can correlate compiled knowledge citations to
+the authoritative GCS object. The index must remain create-only and safe under
+Cloud Tasks redelivery.
+
+Skill and SDK guidance:
+
+- `tdd`
+- Reused the existing Firestore job repository's injected-client, create-only
+  document, server-timestamp, and deterministic hashed-ID conventions.
+- Used the installed `google-cloud-firestore` async document/client interfaces;
+  the dependency and production project/database configuration already exist.
+
+TDD evidence:
+
+- Red: no Firestore source metadata repository existed.
+- Green: `FirestoreSourceRepository.create` writes the typed
+  `RawSourceArtifact` metadata plus a server-side index timestamp under a stable,
+  hashed project/source document ID. Raw source bytes are absent by construction.
+- Red: an existing document was treated as a harmless duplicate without proving
+  that it described the same immutable artifact.
+- Green: duplicate creation reloads and schema-validates the stored artifact;
+  identical metadata is an idempotent retry and any drift produces a constant,
+  redacted `FirestoreSourceConflict` without mutating the document.
+
+Safety and scope:
+
+- The repository stores only the GCS pointer, redacted source URI and hash,
+  content hash/type, immutable capture time, author reference, and screening
+  identities. It cannot receive or serialize raw source bytes.
+- Document IDs hash both the Qali project and source IDs, avoiding unsafe path
+  interpolation and keeping retries deterministic across worker restarts.
+- Firestore access remains behind narrow protocols with test-only in-process
+  doubles. The production factory uses the configured GCP project and database.
+- No live Firestore call, cloud resource, deployment, credential, model, or
+  external integration was used. Workflow composition and knowledge compilation
+  remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_source_repository.py -q` — `3 passed`.
+- `uv run pytest tests/integration/test_firestore_source_repository.py tests/integration/test_raw_source_repository.py tests/integration/test_source_screening.py tests/integration/test_firestore_job_repository.py -q` — `26 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_firestore_source_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/integration/test_source_network.py tests/integration/test_source_screening.py tests/integration/test_raw_source_repository.py tests/unit -q` — `106 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for create-only, idempotent Firestore source metadata indexing
+with schema-validated collision detection, redacted artifact pointers, test-only
+doubles, and the offline regression gate.
