@@ -893,3 +893,52 @@ Commands and evidence:
 Phase result: passed for deterministic fetch-screen-persist-index composition with
 typed handoffs, zero-write rejection behavior, mock-safe integration evidence, and
 the offline regression gate.
+
+## 2026-09-04 — Phase 3: Slack onboarding source extraction
+
+Isolated change: added deterministic extraction of project-agnostic source text
+and HTTPS links from the existing typed Slack onboarding job.
+
+Reason: the ingestion service needs stable, provenance-bearing source descriptors
+before a later workflow slice can supply project mapping and ingest each approved
+URL. Source discovery must not guess the target application's features or policy.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Kept parsing and identity generation in deterministic application code. No LLM,
+  live Slack request, network fetch, or storage integration is needed to turn the
+  accepted job into typed source descriptors.
+
+TDD evidence:
+
+- Red: the public `app.onboarding_source_extraction` module did not exist.
+- Green: Slack command syntax and formatted HTTPS links are removed from the
+  residual text, while source text, author provenance, URLs, and stable IDs are
+  returned through frozen, extra-forbidding schemas.
+- Red: punctuation left after a URL-only request was incorrectly emitted as a
+  text source.
+- Green: URL-only requests omit punctuation-only text; duplicate URLs preserve
+  first-seen order and retries produce identical typed output.
+
+Safety and scope:
+
+- Only explicit HTTPS links become fetchable URL descriptors. Plain HTTP remains
+  inert text, and downstream URL policy still owns origin and SSRF validation.
+- IDs include the immutable Slack event ID, making Cloud Tasks retries stable
+  without conflating a later onboarding event with an earlier snapshot.
+- The extractor does not assign a project, infer features, approve origins, fetch
+  content, persist data, or expose credentials.
+- No live Slack call, network request, cloud resource, deployment, credential,
+  model, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/unit/test_onboarding_source_extraction.py -q` — `3 passed`.
+- `uv run pytest tests/unit/test_onboarding_source_extraction.py tests/integration/test_source_ingestion.py tests/integration/test_slack_onboarding_ingress.py tests/unit/test_source_url_policy.py -q` — `28 passed`.
+- Complete explicit offline unit/integration gate — `111 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic Slack text/HTTPS extraction, provenance,
+deduplication, retry-stable IDs, mock-safe evidence, and the offline regression
+gate.
