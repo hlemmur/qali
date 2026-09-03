@@ -645,3 +645,65 @@ Commands and evidence:
 - `uv run pytest tests/unit tests/integration -q -x` — the new and existing offline tests passed until the unchanged generated `tests/integration/test_agent.py` attempted a live Gemini call and failed because no API key was supplied. No live key was introduced for this slice.
 
 Phase result: passed for production DNS resolution and address-pinned HTTPS transport with local TLS integration evidence and the offline regression gate.
+
+## 2026-09-03 — Phase 3: fail-closed source screening boundary
+
+Isolated change: added the typed screening boundary that every fetched onboarding
+source must pass before it can become eligible for immutable raw-source
+persistence.
+
+Reason: URL and transport safety do not establish that downloaded content is
+safe to ingest. Malware and instruction/prompt-injection screening must be
+independent, ordered, auditable, and fail closed without leaking source content
+or scanner failure details.
+
+Skill and recipe guidance:
+
+- `tdd`
+- `google-agents-cli-workflow` 1.4.2 and `google-agents-cli-adk-code` 1.4.2.
+- Reused the previously recorded `safety-plugins` runner-wide rejection and
+  session-poisoning principles, and the `long-horizon-harness` ordered guard-chain
+  principle. The implementation remains deterministic application code rather
+  than an agent callback or model verdict.
+- `uv run agents-cli info` confirmed the generated Qali project, Python agent
+  directory, A2A support, `europe-west1`, no deployment target, and CLI 1.4.2.
+
+TDD evidence:
+
+- Red: no public source-screening module or typed verdict existed.
+- Green: a source becomes `ScreenedSource` only after clean malware and
+  instruction-scanner decisions are both recorded.
+- Red: a malware verdict had no way to stop ingestion before later processing.
+- Green: the ordered chain rejects immediately and exposes only typed decisions
+  plus a constant, content-free error message.
+- The generalized ordered implementation also rejects a prompt-injection verdict
+  while preserving both completed decisions for audit.
+- Red: scanner outages propagated arbitrary vendor exceptions that could contain
+  source data or sensitive diagnostics.
+- Green: scanner failures become a redacted `SourceScreeningUnavailable` result
+  identifying only the failed stage; later stages do not receive the source.
+
+Safety and scope:
+
+- Scanner integrations sit behind a narrow async protocol and are injected at
+  the system boundary. Service doubles exist only in integration tests.
+- Empty threat tuples are the only approval signal. Any recorded malware or
+  prompt-injection threat rejects the source before persistence.
+- Rejection and unavailability messages contain no URL, source bytes, scanner
+  exception, credential, or external response body.
+- Cancellation is not swallowed because only ordinary scanner exceptions are
+  converted to fail-closed unavailability.
+- No live scanner, model, network request, cloud call, resource, deployment, or
+  secret was used. Production scanner adapters, immutable GCS raw-source
+  persistence, and onboarding composition remain separate slices.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_source_screening.py -q` — `4 passed`.
+- `uv run pytest tests/integration/test_source_screening.py tests/integration/test_source_network.py tests/integration/test_source_fetcher.py tests/unit/test_source_url_policy.py -q` — `26 passed`.
+- `uv run pytest tests/integration/test_cloud_tasks_worker.py tests/integration/test_cloud_tasks_dispatcher.py tests/integration/test_slack_ingress_app.py tests/integration/test_slack_onboarding_ingress.py tests/integration/test_firestore_job_repository.py tests/integration/test_slack_progress.py tests/integration/test_onboarding_processor.py tests/integration/test_source_fetcher.py tests/integration/test_source_network.py tests/integration/test_source_screening.py tests/unit -q` — `95 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for the fail-closed screening orchestration contract with
+ordered malware/instruction verdicts, redacted failures, test-only scanner
+doubles, and the offline regression gate.
