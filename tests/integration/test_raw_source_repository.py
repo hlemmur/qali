@@ -11,6 +11,7 @@ from app.raw_source_repository import (
     GcsRawSourceRepository,
     GcsRawSourceSettings,
     RawSourceConflict,
+    RawSourceIntegrityError,
     RawSourceProvenance,
 )
 from app.source_fetcher import FetchedSource
@@ -72,6 +73,11 @@ class _CreateOnlyBlob(_RecordingBlob):
         self.metadata = (
             None if self.stored_metadata is None else self.stored_metadata.copy()
         )
+
+    def download_as_bytes(self, **kwargs: Any) -> bytes:
+        del kwargs
+        assert self.stored_data is not None
+        return self.stored_data
 
 
 class _CreateOnlyBucket(_RecordingBucket):
@@ -416,3 +422,92 @@ async def test_source_query_secrets_are_not_persisted_in_provenance() -> None:
     assert artifact.source_uri == "https://docs.example.test/download"
     assert secret not in artifact.model_dump_json()
     assert secret not in str(client.bucket_reference.blobs[0].metadata)
+
+
+@pytest.mark.asyncio
+async def test_raw_source_is_read_only_after_identity_and_hash_verification() -> None:
+    source = ScreenedSource(
+        source=FetchedSource(
+            url="https://docs.example.test/read.txt",
+            content_type="text/plain",
+            content=b"verified source content",
+        ),
+        decisions=(
+            SourceScreeningDecision(
+                stage=SourceScreeningStage.MALWARE,
+                scanner="malware-v1",
+                threats=(),
+            ),
+            SourceScreeningDecision(
+                stage=SourceScreeningStage.INSTRUCTION,
+                scanner="instruction-v1",
+                threats=(),
+            ),
+        ),
+    )
+    client = _CreateOnlyStorageClient()
+    repository = GcsRawSourceRepository(
+        settings=GcsRawSourceSettings(bucket_name="qali-private-artifacts"),
+        client=client,
+        clock=lambda: datetime(2026, 9, 4, 1, 0, tzinfo=UTC),
+    )
+    artifact = await repository.persist(
+        project_id="project-alpha",
+        source_id="source-read",
+        source=source,
+        provenance=RawSourceProvenance(author_ref="slack:U-OWNER"),
+    )
+
+    snapshot = await repository.read(artifact)
+
+    assert snapshot.artifact == artifact
+    assert snapshot.content == b"verified source content"
+
+
+@pytest.mark.asyncio
+async def test_tampered_raw_source_content_or_metadata_fails_closed() -> None:
+    source = ScreenedSource(
+        source=FetchedSource(
+            url="https://docs.example.test/tamper.txt",
+            content_type="text/plain",
+            content=b"original content",
+        ),
+        decisions=(
+            SourceScreeningDecision(
+                stage=SourceScreeningStage.MALWARE,
+                scanner="malware-v1",
+                threats=(),
+            ),
+            SourceScreeningDecision(
+                stage=SourceScreeningStage.INSTRUCTION,
+                scanner="instruction-v1",
+                threats=(),
+            ),
+        ),
+    )
+    client = _CreateOnlyStorageClient()
+    repository = GcsRawSourceRepository(
+        settings=GcsRawSourceSettings(bucket_name="qali-private-artifacts"),
+        client=client,
+        clock=lambda: datetime(2026, 9, 4, 1, 5, tzinfo=UTC),
+    )
+    artifact = await repository.persist(
+        project_id="project-alpha",
+        source_id="source-tamper",
+        source=source,
+        provenance=RawSourceProvenance(author_ref="slack:U-OWNER"),
+    )
+    client.bucket_reference.blob_reference.stored_data = b"tampered content"
+
+    with pytest.raises(RawSourceIntegrityError) as caught:
+        await repository.read(artifact)
+
+    assert str(caught.value) == "raw source integrity verification failed"
+
+    blob = client.bucket_reference.blob_reference
+    blob.stored_data = b"original content"
+    assert blob.stored_metadata is not None
+    blob.stored_metadata["author_ref"] = "slack:U-ATTACKER"
+
+    with pytest.raises(RawSourceIntegrityError):
+        await repository.read(artifact)

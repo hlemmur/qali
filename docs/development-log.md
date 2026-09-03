@@ -1086,3 +1086,51 @@ Commands and evidence:
 Phase result: passed for bounded, deterministic Slack-job source composition with
 preflight rejection, stable ingestion order, retry-safe boundaries, test-only
 doubles, and the offline regression gate.
+
+## 2026-09-04 — Phase 3: verified raw source retrieval
+
+Isolated change: added integrity-checked reads of immutable raw source objects for
+the future Knowledge Analyst input boundary.
+
+Reason: compiled knowledge may cite only authoritative source bytes. A stored
+Firestore pointer alone cannot prove that the referenced GCS object, metadata, or
+content has remained consistent with the accepted artifact record.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Extended the existing generated-client adapter rather than exposing GCS to an
+  agent. The repository returns one frozen snapshot only after deterministic
+  identity, metadata, and content verification.
+
+TDD evidence:
+
+- Red: the raw repository supported immutable creation but no read operation or
+  integrity-failure contract.
+- Green: `read` derives the only allowed object path from validated project/source
+  IDs, checks the supplied artifact pointer, reloads object metadata, downloads
+  bytes with checksum handling, and verifies the artifact SHA-256 before returning.
+- Changed content or provenance metadata produces the same constant, redacted
+  `RawSourceIntegrityError` and returns no snapshot.
+
+Safety and scope:
+
+- Callers cannot redirect a read outside `projects/{project_id}/raw/{source_id}`;
+  unsafe resource IDs or mismatched object names fail before GCS access.
+- Author, capture time, content hash, redacted source URI and hash, and screening
+  scanner identities must all match the immutable artifact record.
+- The snapshot preserves the typed artifact beside its exact verified bytes so
+  later knowledge citations can retain source identity and provenance.
+- No live GCS call, source content, cloud resource, deployment, credential, model,
+  agent invocation, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_raw_source_repository.py -q` — `10 passed`.
+- Focused raw/index/ingestion regression gate — `17 passed`.
+- Complete explicit offline unit/integration gate — `121 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for path-bound, metadata-verified, hash-verified raw source
+retrieval with redacted failures, frozen snapshots, test-only GCS doubles, and the
+offline regression gate.
