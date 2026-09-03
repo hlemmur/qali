@@ -1038,3 +1038,51 @@ Commands and evidence:
 Phase result: passed for bounded, no-fetch Slack text ingestion through the same
 screening and durable persistence pipeline, with redacted provenance, test-only
 doubles, and the offline regression gate.
+
+## 2026-09-04 — Phase 3: bounded onboarding source flow
+
+Isolated change: composed Slack source extraction, durable channel mapping, and
+the verified text/URL ingestion operations behind one onboarding processor.
+
+Reason: the worker's progress wrapper requires one project-agnostic delegate that
+turns an accepted Slack job into durable source artifacts while enforcing source
+presence and count before creating project state or performing external work.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Kept extraction, bounds, project resolution, and ingestion ordering in
+  deterministic custom logic. Firestore, HTTP, scanners, and GCS remain behind
+  their existing injected protocols and test-only doubles.
+
+TDD evidence:
+
+- Red: no public processor composed the independently verified project and source
+  boundaries.
+- Green: `OnboardingSourceFlow.process` extracts once, validates the batch, creates
+  or resolves the target-project binding, ingests Slack text first, and then
+  ingests deduplicated HTTPS sources in stable order.
+- Empty requests and batches above the configured limit fail before project
+  creation, source fetching, scanning, or durable source writes.
+
+Safety and scope:
+
+- The default batch limit is 10 sources and configuration is hard-bounded from 1
+  through 20, limiting fan-out even when upstream Slack input is adversarial.
+- Partial retries remain safe because project, raw artifact, and source metadata
+  repositories are create-only and validate identical retries.
+- The flow derives no website, feature, expected behavior, credential, or allowed
+  origin. Downstream URL policy remains the only HTTPS approval boundary.
+- No live Slack, Firestore, HTTP, scanner, GCS, cloud resource, deployment,
+  credential, model, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_onboarding_source_flow.py -q` — `3 passed`.
+- Focused project/extraction/ingestion composition gate — `13 passed`.
+- Complete explicit offline unit/integration gate — `119 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, deterministic Slack-job source composition with
+preflight rejection, stable ingestion order, retry-safe boundaries, test-only
+doubles, and the offline regression gate.
