@@ -4,6 +4,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from app.knowledge_quality import KnowledgeReadiness
 from app.knowledge_workflow import (
     KnowledgeAnalysisTask,
     KnowledgeWorkflowResult,
@@ -54,6 +55,10 @@ class OnboardingKnowledgeFlow:
         self._source_loader = source_loader
         self._knowledge_workflow = knowledge_workflow
 
+    async def process(self, job: OnboardProjectJob) -> KnowledgeReadiness:
+        result = await self.run(job, expected_generation=0)
+        return result.knowledge.decision.readiness
+
     async def run(
         self,
         job: OnboardProjectJob,
@@ -75,6 +80,9 @@ class OnboardingKnowledgeFlow:
         ):
             raise OnboardingKnowledgeIntegrityError
         knowledge = await self._knowledge_workflow.run(analysis_task)
+        should_publish = knowledge.decision.readiness is KnowledgeReadiness.READY
+        if (knowledge.artifact is not None) is not should_publish:
+            raise OnboardingKnowledgeIntegrityError
         return OnboardingKnowledgeResult(
             source_result=source_result,
             analysis_task=analysis_task,

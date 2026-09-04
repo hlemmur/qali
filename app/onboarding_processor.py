@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.knowledge_quality import KnowledgeReadiness
 from app.slack_ingress import OnboardProjectJob
 from app.slack_progress import (
     OnboardingProgressStage,
@@ -30,7 +31,10 @@ class ProgressReporter(Protocol):
 
 
 class OnboardingProcessor(Protocol):
-    async def process(self, job: OnboardProjectJob) -> None: ...
+    async def process(
+        self,
+        job: OnboardProjectJob,
+    ) -> KnowledgeReadiness | None: ...
 
 
 class OnboardingProgressProcessor:
@@ -56,11 +60,16 @@ class OnboardingProgressProcessor:
             OnboardingProgressStage.REVIEWING_SOURCES,
         )
         try:
-            await self._delegate.process(job)
+            readiness = await self._delegate.process(job)
         except Exception:
             await self._progress.update(message, OnboardingProgressStage.FAILED)
             raise
-        await self._progress.update(message, OnboardingProgressStage.READY)
+        final_stage = (
+            OnboardingProgressStage.INSUFFICIENT_KNOWLEDGE
+            if readiness is KnowledgeReadiness.INSUFFICIENT
+            else OnboardingProgressStage.READY
+        )
+        await self._progress.update(message, final_stage)
 
 
 __all__ = ["OnboardingProgressProcessor"]
