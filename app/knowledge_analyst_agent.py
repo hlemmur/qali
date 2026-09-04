@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from typing import Literal
-from uuid import uuid4
 
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.adk_structured_runtime import run_isolated_structured_agent
 from app.knowledge_quality import KnowledgeCompilation
 from app.knowledge_workflow import KnowledgeAnalysisTask
 
@@ -95,34 +93,14 @@ class AdkKnowledgeAnalyst:
         self,
         request: KnowledgeAnalystRequest,
     ) -> KnowledgeCompilation:
-        session_service = InMemorySessionService()
-        session = await session_service.create_session(
-            app_name=_APP_NAME,
-            user_id=request.task.project_id,
-            session_id=str(uuid4()),
-        )
-        runner = Runner(
-            agent=self._agent,
-            app_name=_APP_NAME,
-            session_service=session_service,
-        )
-        output_text: str | None = None
-        async for event in runner.run_async(
-            user_id=request.task.project_id,
-            session_id=session.id,
-            new_message=types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=request.model_dump_json())],
-            ),
-        ):
-            if event.is_final_response() and event.content is not None:
-                output_text = "".join(
-                    part.text or "" for part in event.content.parts or []
-                )
         try:
-            if output_text is None:
-                raise ValueError
-            return KnowledgeCompilation.model_validate_json(output_text)
+            return await run_isolated_structured_agent(
+                agent=self._agent,
+                app_name=_APP_NAME,
+                user_id=request.task.project_id,
+                request=request,
+                result_type=KnowledgeCompilation,
+            )
         except ValueError:
             raise KnowledgeAnalystOutputError from None
 
