@@ -1321,3 +1321,53 @@ Commands and evidence:
 
 Phase result: passed for bounded, hash-verified TXT/Markdown/HTML/PDF extraction,
 active-content exclusion, typed agent input, and the offline regression gate.
+
+## 2026-09-04 — Phase 3: bounded knowledge workflow
+
+Isolated change: composed the typed Knowledge Analyst, deterministic quality
+policy, independent reviewer, safe Markdown compiler, and generation-guarded
+repository behind one bounded application workflow.
+
+Reason: onboarding knowledge may become operational only after grounded source
+validation and independent review. Reviewer feedback may trigger one correction,
+but repeated model/reviewer loops must be impossible.
+
+Skill and architecture guidance:
+
+- `tdd`
+- Followed the approved Google ADK/custom-logic boundary: analyst and reviewer are
+  narrow asynchronous specialist protocols, while revision count, grounding,
+  readiness, compilation, and publication remain deterministic orchestration.
+
+TDD evidence:
+
+- Red: the independently verified analyst-output, quality, compiler, and repository
+  boundaries had no workflow contract.
+- Green: `KnowledgeWorkflow.run` accepts a bounded, distinct source set, invokes
+  the analyst, validates project identity and citations, obtains an independent
+  review, and publishes approved ready knowledge with the caller's generation.
+- One reviewer rejection triggers exactly one typed analyst revision and a fresh
+  policy/review pass. A second rejection stops without publication.
+- Reviewer-approved insufficient knowledge remains an explicit result and is not
+  published as operational project knowledge.
+
+Safety and scope:
+
+- Analysis tasks accept 1–20 distinct typed sources; expected storage generation
+  is non-negative and project identity cannot change across the handoff.
+- Rejections require bounded feedback, and result metadata proves whether the one
+  permitted revision was used.
+- Model-facing specialist implementations are not yet wired; tests use doubles
+  confined to test code, and production composition remains a later slice.
+- No live model, storage call, source, cloud resource, deployment, credential, or
+  external integration was used.
+
+Commands and evidence:
+
+- Knowledge workflow/repository/quality/compiler focused gate — `13 passed`.
+- Complete explicit offline unit/integration gate — `137 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for one-revision knowledge analysis and independent review,
+deterministic grounding/readiness, publish-only-ready behavior, test-only doubles,
+and the offline regression gate.
