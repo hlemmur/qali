@@ -2027,3 +2027,46 @@ Commands and evidence:
 
 Phase result: passed for bounded, URL-free Slack upload references at the signed
 ingress boundary.
+
+## 2026-09-04 — Phase 3: bounded Slack file retrieval boundary
+
+Isolated change: added a bounded file fetcher between signed Slack attachment
+references and the existing source-screening input type.
+
+Reason: workers need file bytes for onboarding, but durable jobs intentionally
+contain no private Slack download URL. The new boundary resolves only the file
+ID through an authenticated client and reconciles the returned metadata and
+content before creating a source.
+
+Skill guidance:
+
+- `tdd` with vertical behavior tests at the public fetcher boundary and a
+  service double only for the external authenticated Slack client.
+
+TDD evidence:
+
+- Red/green: no file-fetcher module existed; a matching file now becomes a
+  typed source whose URI contains only a SHA-256 reference to the Slack file ID.
+- Red/green: changed Slack-side metadata now raises one redacted integrity error
+  before content can enter source screening.
+- Guard: the signed event size becomes the download byte ceiling, and file ID,
+  name, media type, declared size, and actual byte length must all agree.
+
+Safety and scope:
+
+- The adapter contract is explicitly authenticated; its production Slack SDK
+  and HTTP implementation remains a separate reviewed slice.
+- The synthetic source URI contains neither the original file ID nor a private
+  Slack download URL.
+- No live Slack API, network request, storage, scanner, model, secret, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- Slack file retrieval tracer suite — `2 passed`.
+- Slack-file/ingress/fetch/screen/ingestion blast radius — `30 passed`.
+- Complete explicit offline unit/integration gate — `174 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fail-closed, bounded reconciliation of authenticated
+Slack file bytes before source screening.
