@@ -1884,3 +1884,50 @@ Commands and evidence:
 
 Phase result: passed for an explicitly wired, bounded, fail-closed onboarding
 source path with mandatory malware and instruction screening stages.
+
+## 2026-09-04 — Phase 3: local ClamAV malware adapter
+
+Isolated change: added a production-shaped ClamAV malware scanner adapter for
+the required malware boundary in onboarding source screening.
+
+Reason: the source runtime correctly requires a malware scanner but only test
+doubles existed. A local ClamAV process provides a free, private scanning option
+without sending project content to another API or adding a paid service.
+
+Skill guidance:
+
+- `tdd` with vertical behavior tests at the scanner's public typed-verdict
+  boundary and a process-runner double only at the external executable seam.
+- This deterministic adapter adds no ADK agent or model behavior, so no
+  additional ADK recipe was required.
+
+TDD evidence:
+
+- Red/green: ClamAV exit code `0` returns a clean malware-stage verdict with the
+  explicitly configured scanner/signature identity.
+- Red/green: exit code `1` returns the typed `malware` threat.
+- Guard: every other exit code and arbitrary runner failure becomes the same
+  redacted unavailable error without source URL, bytes, or process output.
+
+Safety and scope:
+
+- The subprocess uses an argument vector without a shell, streams bytes over
+  stdin, discards stdout/stderr, applies a bounded timeout, and kills/reaps the
+  child on timeout or cancellation.
+- Scanner identity is required configuration so deployment must pin the ClamAV
+  engine/signature set rather than silently recording an unversioned default.
+- This slice does not install ClamAV or update virus definitions. Container
+  packaging, signature-refresh policy, and deployment remain separate reviewed
+  work and require the normal infrastructure/deployment approval gate.
+- No live scanner, network request, Gemini request, Slack API, storage, cloud
+  resource, deployment, credential, or other external integration was used.
+
+Commands and evidence:
+
+- ClamAV adapter tracer suite — `4 passed`.
+- Malware/screening/source-runtime blast radius — `10 passed`.
+- Complete explicit offline unit/integration gate — `170 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a no-shell, bounded, redacted local malware-scanning
+adapter ready for later pinned worker-image integration.
