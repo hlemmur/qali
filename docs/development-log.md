@@ -2070,3 +2070,53 @@ Commands and evidence:
 
 Phase result: passed for fail-closed, bounded reconciliation of authenticated
 Slack file bytes before source screening.
+
+## 2026-09-04 — Phase 3: authenticated Slack file client
+
+Isolated change: added the production Slack metadata/download client behind the
+bounded file-fetcher contract.
+
+Reason: durable jobs intentionally retain only a Slack file ID. The worker now
+has a production-shaped adapter that resolves current metadata with
+`files_info`, validates the returned private URL, and downloads bytes with the
+bot token without exposing that token to downstream source processing.
+
+Skill and API guidance:
+
+- `tdd` with the metadata API and HTTPS transport treated as external
+  boundaries.
+- Inspected the installed Slack SDK signature for
+  `AsyncWebClient.files_info(*, file=...)` before implementing the adapter.
+
+TDD evidence:
+
+- Red/green: no client module existed; valid metadata now produces the bounded
+  payload expected by the file fetcher and sends bearer authorization only to
+  the download transport.
+- Red/green: raw Slack SDK errors previously escaped; API and transport
+  failures now become one redacted `SlackFileUnavailable` error while task
+  cancellation remains intact.
+- Review red/green: malformed response metadata previously escaped as a
+  field-level validation error; payload validation now uses the same redacted
+  unavailable error.
+- Guard: the production transport rejects non-Slack origins before any request.
+
+Safety and scope:
+
+- Tokens use Pydantic `SecretStr`; the transport accepts only HTTPS on
+  `files.slack.com` port 443 under `/files-pri/`, refuses redirects, cookies,
+  environment proxies, and compressed transfer encoding, and streams no more
+  than the caller's byte ceiling.
+- The Slack event's file ID, not an event-supplied URL, selects the resource.
+- No live Slack API, real token, external network request, storage, scanner,
+  model, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Slack file client tracer/guard suite — `4 passed`.
+- Slack client/fetcher/ingress/screen/ingestion blast radius — `28 passed`.
+- Complete explicit offline unit/integration gate — `178 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a bounded, redacted, origin-restricted production
+Slack file client ready for source-flow composition.
