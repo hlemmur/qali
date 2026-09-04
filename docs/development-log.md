@@ -1454,3 +1454,47 @@ Commands and evidence:
 
 Phase result: passed for restart-safe, bounded, typed source preparation with
 fail-closed empty, oversized, and substituted-snapshot behavior.
+
+## 2026-09-04 — Phase 3: typed onboarding source handoff
+
+Isolated change: extended the onboarding source flow with a typed result carrying
+the resolved project binding and the exact persisted raw-source artifacts.
+
+Reason: the worker-compatible `process()` boundary intentionally returns no data,
+but the onboarding knowledge graph needs the durable `project_id` without a
+second project-resolution call. The public `ingest()` boundary now supplies that
+handoff while `process()` remains compatible with the existing worker protocol.
+
+Skill guidance:
+
+- `tdd`
+- Used vertical red-green cycles through the public onboarding flow and kept
+  source-ingestion doubles at external source/storage boundaries.
+
+TDD evidence:
+
+- Red/green 1: mixed Slack text and URL onboarding returns the project binding and
+  persisted artifacts in ingestion order.
+- Red/green 2: an ingestion adapter that substitutes either project or source
+  identity fails closed instead of producing a trusted graph handoff.
+- Refactor: retained `process(job) -> None` for worker compatibility and exposed
+  the typed result through `ingest(job)` for graph composition.
+
+Safety and scope:
+
+- Artifact identity is checked against both the resolved project and requested
+  source before it enters the handoff.
+- Existing empty-source and source-count guards still run before project creation.
+- No live source, storage, Slack call, model, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_onboarding_source_flow.py -q` —
+  `4 passed`.
+- Onboarding/source-ingestion/processor/worker blast radius — `24 passed`.
+- Complete explicit offline unit/integration gate — `147 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a worker-compatible, typed, project-scoped onboarding
+source handoff ready for knowledge graph composition.
