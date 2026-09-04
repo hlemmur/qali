@@ -1692,3 +1692,48 @@ Commands and evidence:
 
 Phase result: passed for an independent, typed, tool-free ADK knowledge review
 boundary with shared fresh-context execution mechanics.
+
+## 2026-09-04 — Phase 3: production-shaped ADK knowledge runtime
+
+Isolated change: added one composition factory that installs the real isolated
+ADK Knowledge Analyst and independent Knowledge Reviewer into the deterministic
+knowledge workflow and its publication boundary.
+
+Reason: both specialist adapters were individually verified but application
+composition could still accidentally substitute a test double, share a model
+context, or bypass the deterministic quality and publication gate. The factory
+now makes the intended runtime graph explicit.
+
+Skill and reference guidance:
+
+- `tdd`, `google-agents-cli-workflow` 1.4.2, and
+  `google-agents-cli-adk-code` 1.4.2.
+- Rechecked the ADK recipe index, structured-output guidance, and installed
+  runtime contracts. No additional core recipe applies to this narrow factory.
+
+TDD evidence:
+
+- Red: no public production composition existed for the ADK analyst, ADK
+  reviewer, deterministic quality policy, and knowledge repository.
+- Green: separate deterministic ADK model doubles compile and independently
+  approve grounded knowledge, after which the real workflow publishes exactly
+  one artifact with its expected generation precondition.
+
+Safety and scope:
+
+- Analyst and reviewer agents remain distinct, tool-free, and fresh-session;
+  deterministic grounding/readiness and publication stay outside both models.
+- The existing `gemini-3.7-flash` model selection is preserved with no paid
+  fallback.
+- No live Gemini request, eval, Slack API, storage, cloud resource, deployment,
+  credential, or other external integration was used.
+
+Commands and evidence:
+
+- ADK runtime tracer test — `1 passed`.
+- Knowledge runtime/agent/workflow/onboarding blast radius — `12 passed`.
+- Complete explicit offline unit/integration gate — `156 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for explicit production-shaped composition from isolated
+ADK knowledge specialists through deterministic review and artifact publication.
