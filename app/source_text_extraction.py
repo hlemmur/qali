@@ -48,20 +48,32 @@ class SourceTextExtractor:
     def extract(self, snapshot: RawSourceSnapshot) -> KnowledgeSourceText:
         content = snapshot.content
         artifact = snapshot.artifact
-        if (
-            len(content) > self._max_input_bytes
-            or hashlib.sha256(content).hexdigest() != artifact.sha256
-        ):
+        if hashlib.sha256(content).hexdigest() != artifact.sha256:
+            raise SourceTextExtractionError
+        return self.extract_content(
+            source_id=artifact.source_id,
+            content_type=artifact.content_type,
+            content=content,
+        )
+
+    def extract_content(
+        self,
+        *,
+        source_id: str,
+        content_type: str,
+        content: bytes,
+    ) -> KnowledgeSourceText:
+        if len(content) > self._max_input_bytes:
             raise SourceTextExtractionError
         try:
-            if artifact.content_type in {"text/plain", "text/markdown"}:
+            if content_type in {"text/plain", "text/markdown"}:
                 extracted = content.decode("utf-8", errors="strict")
-            elif artifact.content_type == "text/html":
+            elif content_type == "text/html":
                 parser = _VisibleTextParser()
                 parser.feed(content.decode("utf-8", errors="strict"))
                 parser.close()
                 extracted = " ".join(parser.fragments)
-            elif artifact.content_type == "application/pdf":
+            elif content_type == "application/pdf":
                 extracted = self._extract_pdf(content)
             else:
                 raise SourceTextExtractionError
@@ -73,8 +85,8 @@ class SourceTextExtractor:
         if not normalized or len(normalized) > self._max_output_characters:
             raise SourceTextExtractionError
         return KnowledgeSourceText(
-            source_id=artifact.source_id,
-            content_type=artifact.content_type,
+            source_id=source_id,
+            content_type=content_type,
             text=normalized,
         )
 

@@ -1786,3 +1786,52 @@ Commands and evidence:
 
 Phase result: passed for a single production-shaped worker application boundary
 covering queued onboarding through reviewed durable knowledge and final progress.
+
+## 2026-09-04 — Phase 3: deterministic instruction-threat screening
+
+Isolated change: added a project-agnostic deterministic scanner for instruction
+and prompt-injection threats in onboarding sources, using the same bounded text
+extraction rules for text, Markdown, HTML, and PDF inputs.
+
+Reason: source screening already enforced a typed fail-closed two-stage gate but
+the instruction stage had no production implementation. Untrusted project
+sources must be classified before persistence and must never become agent
+instructions.
+
+Skill guidance:
+
+- `tdd` with vertical red-green tracer cases through the scanner and complete
+  screening service public interfaces.
+- This slice contains no new ADK agent or external service integration, so no
+  additional ADK recipe was required.
+
+TDD evidence:
+
+- Red/green: a source that overrides prior instructions and requests credentials
+  is classified as `prompt_injection` with a stable scanner identity.
+- Red/green: bounded PDF text extraction is reused so binary PDF sources are
+  screened semantically instead of failing UTF-8 decoding.
+- Red/green: generic policy bypass, system-prompt extraction, credential
+  exfiltration, and instruction-substitution attempts are rejected.
+- Guard: ordinary product documentation remains clean, while malformed
+  documents surface only a redacted fail-closed instruction-stage result.
+
+Safety and scope:
+
+- Detection is deterministic and contains no model, network, credential,
+  project, feature, or target-specific behavior.
+- Text parsing retains existing byte, output, PDF page, and PDF stream bounds.
+- Malware scanning remains an explicit separate boundary; no vendor or cloud
+  service was selected, provisioned, or called in this slice.
+- No live Gemini request, Slack API, storage, cloud resource, deployment,
+  credential, or other external integration was used.
+
+Commands and evidence:
+
+- Instruction scanner tracer suite — `7 passed`.
+- Scanner/screening/extraction blast radius — `13 passed`.
+- Complete explicit offline unit/integration gate — `164 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, deterministic, fail-closed instruction-threat
+screening across every source content type accepted by onboarding.
