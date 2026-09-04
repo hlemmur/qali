@@ -1982,3 +1982,48 @@ Commands and evidence:
 
 Phase result: passed for one explicit, mock-safe onboarding composition root
 from authenticated task delivery through ready-state publication.
+
+## 2026-09-04 — Phase 3: typed Slack file references
+
+Isolated change: signed onboarding events now carry bounded MD, TXT, and PDF
+file references into the durable onboarding job without retaining Slack download
+URLs.
+
+Reason: file uploads are an approved onboarding source, but the ingress model
+previously discarded all file metadata. This first tracer preserves only the
+minimum trusted reference needed for a later authenticated Slack download
+adapter.
+
+Skill guidance:
+
+- `tdd` with a signed Slack HTTP event as the public boundary and in-memory job
+  and task adapters as test-only service doubles.
+
+TDD evidence:
+
+- Red: the signed-file test failed because `SlackFileReference` did not exist.
+- Green: a valid Markdown attachment is represented in the dispatched durable
+  job by file ID, name, media type, and size.
+- Guard: accepted media types are restricted to MD/TXT/PDF, files are limited
+  to 5 MB each and 10 per event, and an event-supplied download URL is absent
+  from serialized job data.
+
+Safety and scope:
+
+- This slice does not download file content or use a Slack token. A later
+  adapter must resolve the stored file ID through authenticated Slack APIs and
+  pass bytes through the existing malware and instruction screening boundary.
+- Existing text-only jobs remain backward-compatible through an empty default
+  file tuple.
+- No live Slack API, network request, storage, model, secret, cloud resource,
+  or deployment was used.
+
+Commands and evidence:
+
+- Signed file-reference tracer — `1 passed`.
+- Slack ingress/task/job/source-flow blast radius — `35 passed`.
+- Complete explicit offline unit/integration gate — `172 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, URL-free Slack upload references at the signed
+ingress boundary.

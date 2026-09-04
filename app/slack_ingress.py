@@ -8,7 +8,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from slack_sdk.signature import Clock, SignatureVerifier
 
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
@@ -26,6 +26,23 @@ class SlackIngressSettings(BaseModel):
     owner_user_id: str
 
 
+class SlackFileReference(BaseModel):
+    model_config = ConfigDict(
+        frozen=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    file_id: str = Field(alias="id", min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=255)
+    media_type: Literal[
+        "text/markdown",
+        "text/plain",
+        "application/pdf",
+    ] = Field(alias="mimetype")
+    size_bytes: int = Field(alias="size", gt=0, le=5_000_000)
+
+
 class OnboardProjectJob(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -37,6 +54,7 @@ class OnboardProjectJob(BaseModel):
     requester_user_id: str
     thread_ts: str
     request_text: str
+    files: tuple[SlackFileReference, ...] = Field(default=(), max_length=10)
 
 
 class _SlackEvent(BaseModel):
@@ -45,6 +63,7 @@ class _SlackEvent(BaseModel):
     channel: str
     ts: str
     text: str
+    files: tuple[SlackFileReference, ...] = Field(default=(), max_length=10)
 
 
 class _SlackEnvelope(BaseModel):
@@ -277,6 +296,7 @@ def create_slack_router(
             requester_user_id=event.user,
             thread_ts=event.ts,
             request_text=event.text,
+            files=event.files,
         )
         await jobs.create(job)
         await tasks.dispatch(job)
@@ -290,6 +310,7 @@ __all__ = [
     "InMemoryTaskDispatcher",
     "JobRepository",
     "OnboardProjectJob",
+    "SlackFileReference",
     "SlackIngressSettings",
     "TaskDispatcher",
     "create_slack_router",
