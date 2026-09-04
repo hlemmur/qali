@@ -9,6 +9,7 @@ from google.cloud import firestore_v1
 
 from app.firestore_source_repository import (
     FirestoreSourceConflict,
+    FirestoreSourceIntegrityError,
     FirestoreSourceRepository,
     FirestoreSourceSettings,
 )
@@ -102,6 +103,30 @@ def _artifact() -> RawSourceArtifact:
     )
 
 
+class _SourceQuery:
+    def __init__(self, documents: list[dict[str, Any]]) -> None:
+        self.documents = documents
+        self.filters: list[Any] = []
+
+    def where(self, *, filter: Any) -> _SourceQuery:
+        self.filters.append(filter)
+        return self
+
+    async def stream(self):
+        for document in self.documents:
+            yield _Snapshot(document)
+
+
+class _QueryingFirestoreClient:
+    def __init__(self, documents: list[dict[str, Any]]) -> None:
+        self.collection_names: list[str] = []
+        self.query = _SourceQuery(documents)
+
+    def collection(self, collection_name: str) -> _SourceQuery:
+        self.collection_names.append(collection_name)
+        return self.query
+
+
 @pytest.mark.asyncio
 async def test_raw_artifact_metadata_is_indexed_once_without_source_bytes() -> None:
     client = _RecordingFirestoreClient()
@@ -172,3 +197,68 @@ async def test_identical_source_metadata_retry_is_idempotent() -> None:
         **artifact.model_dump(mode="python"),
         "indexed_at": firestore_v1.SERVER_TIMESTAMP,
     }
+
+
+@pytest.mark.asyncio
+async def test_project_sources_are_recovered_in_deterministic_order() -> None:
+    later = _artifact().model_copy(
+        update={
+            "source_id": "source-002",
+            "object_name": "projects/project-alpha/raw/source-002/source",
+            "captured_at": datetime(2026, 9, 3, 19, 0, tzinfo=UTC),
+        }
+    )
+    earlier = _artifact()
+    client = _QueryingFirestoreClient(
+        [
+            {**later.model_dump(mode="python"), "indexed_at": "ignored"},
+            {**earlier.model_dump(mode="python"), "indexed_at": "ignored"},
+        ]
+    )
+    repository = FirestoreSourceRepository(
+        settings=FirestoreSourceSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+        ),
+        client=client,
+    )
+
+    recovered = await repository.list_for_project("project-alpha")
+
+    assert recovered == (earlier, later)
+    assert client.collection_names == ["sources"]
+    assert len(client.query.filters) == 1
+    query_filter = client.query.filters[0]
+    assert query_filter.field_path == "project_id"
+    assert query_filter.op_string == "=="
+    assert query_filter.value == "project-alpha"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "documents",
+    [
+        [{**_artifact().model_dump(mode="python"), "project_id": "other-project"}],
+        [{"project_id": "project-alpha", "source_id": "broken"}],
+        [
+            _artifact().model_dump(mode="python"),
+            _artifact().model_dump(mode="python"),
+        ],
+    ],
+    ids=("cross-project", "malformed", "duplicate-source-id"),
+)
+async def test_source_recovery_fails_closed_for_corrupt_index(
+    documents: list[dict[str, Any]],
+) -> None:
+    repository = FirestoreSourceRepository(
+        settings=FirestoreSourceSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+        ),
+        client=_QueryingFirestoreClient(documents),
+    )
+
+    with pytest.raises(FirestoreSourceIntegrityError) as caught:
+        await repository.list_for_project("project-alpha")
+
+    assert str(caught.value) == "source metadata integrity verification failed"

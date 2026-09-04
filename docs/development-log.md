@@ -1371,3 +1371,38 @@ Commands and evidence:
 Phase result: passed for one-revision knowledge analysis and independent review,
 deterministic grounding/readiness, publish-only-ready behavior, test-only doubles,
 and the offline regression gate.
+
+## 2026-09-04 — Phase 3: durable project source recovery
+
+Isolated change: added project-scoped source metadata enumeration to the Firestore
+repository so a restarted worker can reconstruct the ordered raw-source index.
+
+Reason: immutable sources were durably stored and indexed, but the application
+could not recover the project corpus after process state was lost. The knowledge
+workflow therefore lacked a restart-safe bridge to its source artifacts.
+
+TDD evidence:
+
+- Red: repository tests failed because `list_for_project` and its integrity error
+  did not exist.
+- Green: one Firestore field query recovers typed artifacts, removes server-only
+  index metadata, and returns them in stable capture-time/source-ID order.
+- Malformed documents, cross-project results, duplicate source IDs, and naive
+  timestamps fail closed instead of entering knowledge compilation.
+
+Safety and scope:
+
+- Firestore is accessed behind the existing injected client protocol; automated
+  tests use only an async in-memory query double.
+- No source bytes, live Firestore data, cloud resource, deployment, credential,
+  model, network source, or other external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_firestore_source_repository.py -q` —
+  `7 passed`.
+- Complete explicit offline unit/integration gate — `141 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic, project-scoped source-index recovery and
+fail-closed metadata integrity checks.
