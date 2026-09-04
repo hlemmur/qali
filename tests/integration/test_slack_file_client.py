@@ -69,6 +69,23 @@ class _FailingMetadataClient:
         raise RuntimeError("xoxb-sensitive profile.md")
 
 
+class _InvalidMetadataClient:
+    async def files_info(self, *, file: str, **kwargs: Any) -> dict[str, object]:
+        del file, kwargs
+        return {
+            "ok": True,
+            "file": {
+                "id": "",
+                "name": "",
+                "mimetype": "",
+                "size": 0,
+                "url_private_download": (
+                    "https://files.slack.com/files-pri/T/F/profile.md"
+                ),
+            },
+        }
+
+
 @pytest.mark.asyncio
 async def test_client_redacts_slack_api_failures() -> None:
     client = SlackApiFileClient(
@@ -83,6 +100,20 @@ async def test_client_redacts_slack_api_failures() -> None:
     assert str(caught.value) == "Slack file is unavailable"
     assert "xoxb" not in str(caught.value)
     assert "profile.md" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_client_redacts_invalid_slack_metadata() -> None:
+    client = SlackApiFileClient(
+        settings=SlackFileClientSettings(token="xoxb-test-token"),
+        metadata_client=_InvalidMetadataClient(),
+        transport=_SlackDownloadTransport(),
+    )
+
+    with pytest.raises(SlackFileUnavailable) as caught:
+        await client.download("F-PROFILE", max_bytes=48)
+
+    assert str(caught.value) == "Slack file is unavailable"
 
 
 @pytest.mark.asyncio

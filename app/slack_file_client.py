@@ -6,7 +6,7 @@ from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from aiohttp import ClientSession, ClientTimeout, DummyCookieJar
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.slack_file_fetcher import SlackFilePayload
@@ -132,13 +132,16 @@ class SlackApiFileClient:
             raise SlackFileUnavailable from None
         if len(content) > max_bytes:
             raise SlackFileUnavailable
-        return SlackFilePayload(
-            file_id=resolved_id,
-            name=name,
-            media_type=media_type,
-            size_bytes=size_bytes,
-            content=content,
-        )
+        try:
+            return SlackFilePayload(
+                file_id=resolved_id,
+                name=name,
+                media_type=media_type,
+                size_bytes=size_bytes,
+                content=content,
+            )
+        except ValidationError:
+            raise SlackFileUnavailable from None
 
 
 def create_slack_api_file_client(

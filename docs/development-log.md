@@ -2096,6 +2096,9 @@ TDD evidence:
 - Red/green: raw Slack SDK errors previously escaped; API and transport
   failures now become one redacted `SlackFileUnavailable` error while task
   cancellation remains intact.
+- Review red/green: malformed response metadata previously escaped as a
+  field-level validation error; payload validation now uses the same redacted
+  unavailable error.
 - Guard: the production transport rejects non-Slack origins before any request.
 
 Safety and scope:
@@ -2110,9 +2113,9 @@ Safety and scope:
 
 Commands and evidence:
 
-- Slack file client tracer/guard suite — `3 passed`.
-- Slack client/fetcher/ingress/screen/ingestion blast radius — `27 passed`.
-- Complete explicit offline unit/integration gate — `177 passed`.
+- Slack file client tracer/guard suite — `4 passed`.
+- Slack client/fetcher/ingress/screen/ingestion blast radius — `28 passed`.
+- Complete explicit offline unit/integration gate — `178 passed`.
 - `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
 
 Phase result: passed for a bounded, redacted, origin-restricted production
