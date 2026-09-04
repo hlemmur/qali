@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 from google.api_core.exceptions import AlreadyExists
@@ -33,6 +34,12 @@ class FirestoreSourceSnapshot(Protocol):
 class FirestoreSourceCollection(Protocol):
     def document(self, document_id: str) -> FirestoreSourceDocument: ...
 
+    def where(self, *, filter: Any) -> FirestoreSourceQuery: ...
+
+
+class FirestoreSourceQuery(Protocol):
+    def stream(self) -> AsyncIterator[FirestoreSourceSnapshot]: ...
+
 
 class FirestoreSourceClient(Protocol):
     def collection(self, collection_name: str) -> FirestoreSourceCollection: ...
@@ -41,6 +48,11 @@ class FirestoreSourceClient(Protocol):
 class FirestoreSourceConflict(RuntimeError):
     def __init__(self) -> None:
         super().__init__("source metadata already exists")
+
+
+class FirestoreSourceIntegrityError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("source metadata integrity verification failed")
 
 
 class FirestoreSourceRepository:
@@ -79,6 +91,37 @@ class FirestoreSourceRepository:
             return False
         return True
 
+    async def list_for_project(
+        self,
+        project_id: str,
+    ) -> tuple[RawSourceArtifact, ...]:
+        query = self._client.collection(self._settings.collection).where(
+            filter=firestore_v1.FieldFilter("project_id", "==", project_id)
+        )
+        artifacts: list[RawSourceArtifact] = []
+        source_ids: set[str] = set()
+        async for snapshot in query.stream():
+            data = snapshot.to_dict()
+            if not snapshot.exists or data is None:
+                raise FirestoreSourceIntegrityError
+            data.pop("indexed_at", None)
+            try:
+                artifact = RawSourceArtifact.model_validate(data)
+            except ValueError:
+                raise FirestoreSourceIntegrityError from None
+            if (
+                artifact.project_id != project_id
+                or artifact.source_id in source_ids
+                or artifact.captured_at.tzinfo is None
+                or artifact.captured_at.utcoffset() is None
+            ):
+                raise FirestoreSourceIntegrityError
+            source_ids.add(artifact.source_id)
+            artifacts.append(artifact)
+        return tuple(
+            sorted(artifacts, key=lambda item: (item.captured_at, item.source_id))
+        )
+
 
 def create_firestore_source_repository(
     settings: FirestoreSourceSettings,
@@ -97,6 +140,7 @@ def _document_id(project_id: str, source_id: str) -> str:
 
 __all__ = [
     "FirestoreSourceConflict",
+    "FirestoreSourceIntegrityError",
     "FirestoreSourceRepository",
     "FirestoreSourceSettings",
     "create_firestore_source_repository",
