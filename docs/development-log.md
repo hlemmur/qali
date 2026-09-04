@@ -1498,3 +1498,48 @@ Commands and evidence:
 
 Phase result: passed for a worker-compatible, typed, project-scoped onboarding
 source handoff ready for knowledge graph composition.
+
+## 2026-09-04 — Phase 3: deterministic onboarding knowledge graph
+
+Isolated change: composed the real onboarding source flow, durable source loader,
+and reviewed knowledge workflow behind one typed application graph.
+
+Reason: the individually verified source and knowledge stages did not yet prove
+that an onboarding request could persist source material, reload verified text,
+compile/review grounded knowledge, and publish a ready artifact as one workflow.
+
+Skill guidance:
+
+- `tdd`
+- Used the real Qali ingestion, screening orchestration, source flow, loader,
+  extractor, quality policy, Markdown compiler, and knowledge workflow. Test
+  doubles were confined to network, scanner, storage, and specialist-model
+  boundaries.
+
+TDD evidence:
+
+- Red/green 1: a Slack text onboarding request traverses persistence, indexing,
+  durable reload, extraction, analysis, deterministic quality evaluation,
+  independent review, and publication to produce ready project knowledge.
+- Red/green 2: if the newly persisted source is not visible in the durable index,
+  the graph fails closed before invoking the knowledge workflow.
+
+Safety and scope:
+
+- The graph verifies that every newly ingested source ID is present in the
+  bounded analysis task and that the task remains project-scoped.
+- The result retains typed source, analysis, decision, review/publication, and
+  artifact evidence without exposing hidden model reasoning.
+- No live source, Slack API, storage, scanner, model, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_onboarding_knowledge_flow.py -q` —
+  `2 passed`.
+- Onboarding/knowledge/source pipeline blast radius — `22 passed`.
+- Complete explicit offline unit/integration gate — `149 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic onboarding-to-ready-knowledge composition
+and fail-closed read-after-write source visibility.
