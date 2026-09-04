@@ -1406,3 +1406,51 @@ Commands and evidence:
 
 Phase result: passed for deterministic, project-scoped source-index recovery and
 fail-closed metadata integrity checks.
+
+## 2026-09-04 — Phase 3: restart-safe knowledge source preparation
+
+Isolated change: added the application bridge that reconstructs a bounded
+`KnowledgeAnalysisTask` from Firestore-indexed source metadata and hash-verified
+raw source snapshots.
+
+Reason: durable source enumeration alone did not provide the Knowledge Analyst
+with safe text after a worker restart. The new loader joins the existing source
+index, immutable raw repository, text extractor, and typed workflow input without
+granting any model direct storage access.
+
+Skill guidance:
+
+- `tdd`
+- Used vertical red-green cycles and test doubles only at the Firestore/GCS
+  repository boundaries; the production text extractor ran in every success case.
+
+TDD evidence:
+
+- Red/green 1: introduced the public loader and proved one indexed Markdown
+  snapshot becomes a typed, normalized knowledge-analysis source.
+- Red/green 2: an empty project corpus fails before any raw storage read.
+- Red/green 3: more than 20 indexed artifacts fails before raw reads, matching
+  the Knowledge Analyst task bound.
+- Red/green 4: a raw repository response whose artifact differs from the indexed
+  artifact fails closed before text enters analysis.
+- Red/green 5: a cross-project index result fails before raw storage access,
+  preserving project isolation even behind an alternate source-index adapter.
+
+Safety and scope:
+
+- Specialist agents receive only bounded `KnowledgeSourceText`; they cannot query
+  Firestore, GCS, or unverified source bytes directly.
+- No live storage, network source, model, cloud resource, deployment, credential,
+  or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/integration/test_knowledge_source_loader.py -q` —
+  `5 passed`.
+- Source recovery/raw storage/extraction/knowledge-workflow blast radius —
+  `28 passed`.
+- Complete explicit offline unit/integration gate — `146 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for restart-safe, bounded, typed source preparation with
+fail-closed empty, oversized, and substituted-snapshot behavior.
