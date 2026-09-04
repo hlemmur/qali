@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.firestore_project_repository import ProjectChannelBinding
 from app.onboarding_source_extraction import extract_onboarding_sources
 from app.raw_source_repository import RawSourceArtifact
@@ -44,6 +46,18 @@ class OnboardingSourceLimitExceeded(ValueError):
         super().__init__("onboarding source count exceeds limit")
 
 
+class OnboardingSourceIntegrityError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("onboarding source result failed integrity check")
+
+
+class OnboardingSourceResult(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project: ProjectChannelBinding
+    artifacts: tuple[RawSourceArtifact, ...] = Field(min_length=1, max_length=20)
+
+
 class OnboardingSourceFlow:
     def __init__(
         self,
@@ -59,6 +73,9 @@ class OnboardingSourceFlow:
         self._max_sources = max_sources
 
     async def process(self, job: OnboardProjectJob) -> None:
+        await self.ingest(job)
+
+    async def ingest(self, job: OnboardProjectJob) -> OnboardingSourceResult:
         sources = extract_onboarding_sources(job)
         source_count = len(sources.urls) + (sources.text is not None)
         if source_count == 0:
@@ -71,8 +88,9 @@ class OnboardingSourceFlow:
             channel_id=job.channel_id,
             created_by=sources.author_ref,
         )
+        artifacts: list[RawSourceArtifact] = []
         if sources.text is not None:
-            await self._ingestion.ingest_inline(
+            artifact = await self._ingestion.ingest_inline(
                 OnboardingInlineSourceRequest(
                     project_id=project.project_id,
                     source_id=sources.text.source_id,
@@ -83,8 +101,11 @@ class OnboardingSourceFlow:
                     author_ref=sources.author_ref,
                 )
             )
+            artifacts.append(
+                _require_artifact(artifact, project.project_id, sources.text.source_id)
+            )
         for source in sources.urls:
-            await self._ingestion.ingest(
+            artifact = await self._ingestion.ingest(
                 OnboardingSourceRequest(
                     project_id=project.project_id,
                     source_id=source.source_id,
@@ -92,10 +113,26 @@ class OnboardingSourceFlow:
                     author_ref=sources.author_ref,
                 )
             )
+            artifacts.append(
+                _require_artifact(artifact, project.project_id, source.source_id)
+            )
+        return OnboardingSourceResult(project=project, artifacts=tuple(artifacts))
+
+
+def _require_artifact(
+    artifact: RawSourceArtifact,
+    project_id: str,
+    source_id: str,
+) -> RawSourceArtifact:
+    if artifact.project_id != project_id or artifact.source_id != source_id:
+        raise OnboardingSourceIntegrityError
+    return artifact
 
 
 __all__ = [
     "OnboardingSourceFlow",
+    "OnboardingSourceIntegrityError",
     "OnboardingSourceLimitExceeded",
+    "OnboardingSourceResult",
     "OnboardingSourcesRequired",
 ]

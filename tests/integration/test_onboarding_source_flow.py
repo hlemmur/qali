@@ -7,7 +7,9 @@ import pytest
 from app.firestore_project_repository import ProjectChannelBinding
 from app.onboarding_source_flow import (
     OnboardingSourceFlow,
+    OnboardingSourceIntegrityError,
     OnboardingSourceLimitExceeded,
+    OnboardingSourceResult,
     OnboardingSourcesRequired,
 )
 from app.raw_source_repository import RawSourceArtifact, RawSourceProvenance
@@ -52,6 +54,13 @@ class _SourceIngestionDouble:
         return _artifact(request.project_id, request.source_id)
 
 
+class _SubstitutingSourceIngestionDouble(_SourceIngestionDouble):
+    async def ingest(self, request: OnboardingSourceRequest) -> RawSourceArtifact:
+        self.events.append("url")
+        self.url_requests.append(request)
+        return _artifact("project-beta", "substituted-source")
+
+
 def _artifact(project_id: str, source_id: str) -> RawSourceArtifact:
     return RawSourceArtifact(
         project_id=project_id,
@@ -85,7 +94,7 @@ async def test_source_flow_maps_project_then_ingests_text_and_urls() -> None:
     ingestion = _SourceIngestionDouble()
     flow = OnboardingSourceFlow(projects=projects, ingestion=ingestion)
 
-    await flow.process(
+    result = await flow.ingest(
         _job(
             "<@U-QALI> onboard project Customers can edit profiles. "
             "https://docs.example.test/profile"
@@ -110,6 +119,12 @@ async def test_source_flow_maps_project_then_ingests_text_and_urls() -> None:
     assert url.project_id == "slack-project-alpha"
     assert url.url == "https://docs.example.test/profile"
     assert inline.author_ref == url.author_ref == "slack:U-OWNER"
+    assert isinstance(result, OnboardingSourceResult)
+    assert result.project.project_id == "slack-project-alpha"
+    assert tuple(artifact.source_id for artifact in result.artifacts) == (
+        inline.source_id,
+        url.source_id,
+    )
 
 
 @pytest.mark.asyncio
@@ -136,7 +151,7 @@ async def test_source_count_limit_fails_before_project_creation() -> None:
     )
 
     with pytest.raises(OnboardingSourceLimitExceeded):
-        await flow.process(
+        await flow.ingest(
             _job(
                 "<@U-QALI> onboard project Product notes "
                 "https://one.example.test https://two.example.test"
@@ -144,3 +159,18 @@ async def test_source_count_limit_fails_before_project_creation() -> None:
         )
 
     assert projects.calls == []
+
+
+@pytest.mark.asyncio
+async def test_ingestion_result_must_match_requested_project_and_source() -> None:
+    flow = OnboardingSourceFlow(
+        projects=_ProjectRepositoryDouble(),
+        ingestion=_SubstitutingSourceIngestionDouble(),
+    )
+
+    with pytest.raises(OnboardingSourceIntegrityError) as caught:
+        await flow.process(
+            _job("<@U-QALI> onboard project https://docs.example.test/profile")
+        )
+
+    assert str(caught.value) == "onboarding source result failed integrity check"
