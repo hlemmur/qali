@@ -11,6 +11,7 @@ from app.slack_ingress import (
     InMemoryJobRepository,
     InMemoryTaskDispatcher,
     OnboardProjectJob,
+    SlackFileReference,
     SlackIngressSettings,
     create_slack_router,
 )
@@ -278,9 +279,75 @@ async def test_valid_onboarding_mention_creates_and_dispatches_job() -> None:
             "requester_user_id": "U-OWNER",
             "thread_ts": "1788220800.001000",
             "request_text": "<@U-QALI> onboard project Example",
+            "files": (),
         }
     ]
     assert tasks.dispatched_job_ids() == ["slack:Ev-001"]
+
+
+@pytest.mark.asyncio
+async def test_signed_onboarding_mention_carries_safe_file_references() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=InMemoryTaskDispatcher(),
+            clock=lambda: now,
+        )
+    )
+    payload = {
+        "type": "event_callback",
+        "team_id": "T-QALI",
+        "event_id": "Ev-file",
+        "event": {
+            "type": "app_mention",
+            "user": "U-OWNER",
+            "channel": "C-QALI",
+            "ts": "1788220800.001500",
+            "text": "<@U-QALI> onboard project",
+            "files": [
+                {
+                    "id": "F-PROFILE",
+                    "name": "profile.md",
+                    "mimetype": "text/markdown",
+                    "size": 2048,
+                    "url_private_download": "https://files.slack.com/unsafe-to-carry",
+                }
+            ],
+        },
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        response = await client.post(
+            "/slack/events",
+            content=body,
+            headers=_signed_headers(body, now, secret),
+        )
+
+    assert response.status_code == 200
+    [job] = jobs.list_jobs()
+    assert job.files == (
+        SlackFileReference(
+            file_id="F-PROFILE",
+            name="profile.md",
+            media_type="text/markdown",
+            size_bytes=2048,
+        ),
+    )
+    assert "files.slack.com" not in job.model_dump_json()
 
 
 @pytest.mark.asyncio
