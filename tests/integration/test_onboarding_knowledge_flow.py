@@ -24,13 +24,18 @@ from app.onboarding_knowledge_flow import (
     OnboardingKnowledgeFlow,
     OnboardingKnowledgeIntegrityError,
 )
+from app.onboarding_processor import OnboardingProgressProcessor
 from app.onboarding_source_flow import OnboardingSourceFlow
 from app.raw_source_repository import (
     RawSourceArtifact,
     RawSourceProvenance,
     RawSourceSnapshot,
 )
-from app.slack_ingress import OnboardProjectJob
+from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
+from app.slack_progress import (
+    InMemorySlackProgressReporter,
+    OnboardingProgressStage,
+)
 from app.source_fetcher import FetchedSource
 from app.source_ingestion import OnboardingSourceIngestionService
 from app.source_screening import (
@@ -181,6 +186,12 @@ class _KnowledgeRepository:
         )
 
 
+class _MissingKnowledgeRepository:
+    async def publish(self, document, *, expected_generation: int):
+        del document, expected_generation
+        return None
+
+
 def _job() -> OnboardProjectJob:
     return OnboardProjectJob(
         job_id="slack:Ev-knowledge-graph",
@@ -193,7 +204,11 @@ def _job() -> OnboardProjectJob:
     )
 
 
-def _flow(source_store: _InMemorySourceStore) -> OnboardingKnowledgeFlow:
+def _flow(
+    source_store: _InMemorySourceStore,
+    *,
+    knowledge_repository=None,
+) -> OnboardingKnowledgeFlow:
     source_ingestion = OnboardingSourceIngestionService(
         fetcher=_NeverNetworkFetcher(),
         screener=SourceScreeningService(
@@ -216,7 +231,7 @@ def _flow(source_store: _InMemorySourceStore) -> OnboardingKnowledgeFlow:
         knowledge_workflow=KnowledgeWorkflow(
             analyst=_KnowledgeAnalyst(),
             reviewer=_KnowledgeReviewer(),
-            repository=_KnowledgeRepository(),
+            repository=knowledge_repository or _KnowledgeRepository(),
         ),
     )
 
@@ -246,3 +261,34 @@ async def test_newly_ingested_source_must_be_visible_to_knowledge_analysis() -> 
         await _flow(source_store).run(_job(), expected_generation=0)
 
     assert str(caught.value) == "onboarding knowledge graph integrity failed"
+
+
+@pytest.mark.asyncio
+async def test_worker_progress_reports_ready_for_published_knowledge() -> None:
+    source_store = _InMemorySourceStore()
+    jobs = InMemoryJobRepository()
+    progress = InMemorySlackProgressReporter()
+    processor = OnboardingProgressProcessor(
+        jobs=jobs,
+        progress=progress,
+        delegate=_flow(source_store),
+    )
+    job = _job()
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    await processor.process(job)
+
+    [record] = progress.list_messages()
+    assert record.stage is OnboardingProgressStage.READY
+
+
+@pytest.mark.asyncio
+async def test_worker_never_reports_ready_without_a_published_artifact() -> None:
+    flow = _flow(
+        _InMemorySourceStore(),
+        knowledge_repository=_MissingKnowledgeRepository(),
+    )
+
+    with pytest.raises(OnboardingKnowledgeIntegrityError):
+        await flow.process(_job())

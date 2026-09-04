@@ -1543,3 +1543,52 @@ Commands and evidence:
 
 Phase result: passed for deterministic onboarding-to-ready-knowledge composition
 and fail-closed read-after-write source visibility.
+
+## 2026-09-04 — Phase 3: readiness-aware onboarding progress
+
+Isolated change: connected the typed onboarding knowledge graph to the
+worker-compatible progress processor and made the final Slack stage reflect the
+reviewed knowledge-readiness decision.
+
+Reason: the progress wrapper previously reported every successful delegate call
+as project-ready. Reviewed but insufficient knowledge must pause onboarding for
+more information without being treated as a retryable processor failure, and a
+ready message must never be emitted unless compiled knowledge was published.
+
+Skill guidance:
+
+- `tdd`
+- Used vertical red-green cycles through the public progress processor and the
+  real onboarding graph. Test doubles remained at storage, network, scanner, and
+  specialist-model boundaries.
+
+TDD evidence:
+
+- Red/green 1: an insufficient readiness outcome now ends at
+  `insufficient_knowledge` rather than the misleading `ready` Slack stage.
+- Red/green 2: the actual onboarding graph now implements the worker processor
+  boundary and returns its deterministic readiness decision after an initial,
+  create-only knowledge publication attempt.
+- Red/green 3: a ready decision without a published knowledge artifact fails
+  closed before the progress wrapper can report project readiness.
+
+Safety and scope:
+
+- Exceptions still update Slack to `failed` and propagate to the lifecycle
+  handler for bounded retry; insufficient knowledge returns normally and is not
+  retried as an infrastructure failure.
+- The graph's worker boundary uses GCS generation `0` for the initial onboarding
+  create contract; identical task retries remain governed by the repository's
+  idempotent content/hash check.
+- No live Slack API, storage, source, scanner, model, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- Onboarding knowledge/progress tests — `8 passed`.
+- Onboarding, knowledge, Slack progress, and worker blast radius — `40 passed`.
+- Complete explicit offline unit/integration gate — `152 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for readiness-aware same-thread onboarding completion and
+fail-closed proof that project-ready knowledge has a published artifact.

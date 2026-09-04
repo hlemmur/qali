@@ -1,6 +1,7 @@
 import pytest
 
 from app.job_lifecycle import JobRetryReason
+from app.knowledge_quality import KnowledgeReadiness
 from app.onboarding_processor import OnboardingProgressProcessor
 from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
 from app.slack_progress import (
@@ -32,6 +33,12 @@ class _FailOnceOnboardingProcessor:
         self.attempts += 1
         if self.attempts == 1:
             raise RuntimeError("synthetic onboarding failure")
+
+
+class _InsufficientOnboardingProcessor:
+    async def process(self, job: OnboardProjectJob) -> KnowledgeReadiness:
+        del job
+        return KnowledgeReadiness.INSUFFICIENT
 
 
 @pytest.mark.asyncio
@@ -92,6 +99,34 @@ async def test_onboarding_processor_reports_failure_before_retry_release() -> No
 
     [record] = progress.list_messages()
     assert record.stage is OnboardingProgressStage.FAILED
+    assert await jobs.get_progress(job.job_id) == record.message
+
+
+@pytest.mark.asyncio
+async def test_onboarding_processor_pauses_when_knowledge_is_insufficient() -> None:
+    jobs = InMemoryJobRepository()
+    progress = InMemorySlackProgressReporter()
+    processor = OnboardingProgressProcessor(
+        jobs=jobs,
+        progress=progress,
+        delegate=_InsufficientOnboardingProcessor(),
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-onboarding-progress-insufficient",
+        source_event_id="Ev-onboarding-progress-insufficient",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.036500",
+        request_text="<@U-QALI> onboard project Example",
+    )
+    await jobs.create(job)
+    await jobs.claim(job.job_id)
+
+    await processor.process(job)
+
+    [record] = progress.list_messages()
+    assert record.stage is OnboardingProgressStage.INSUFFICIENT_KNOWLEDGE
     assert await jobs.get_progress(job.job_id) == record.message
 
 
