@@ -1592,3 +1592,54 @@ Commands and evidence:
 
 Phase result: passed for readiness-aware same-thread onboarding completion and
 fail-closed proof that project-ready knowledge has a published artifact.
+
+## 2026-09-04 — Phase 3: isolated ADK Knowledge Analyst adapter
+
+Isolated change: added the production-shaped ADK adapter that implements the
+existing `KnowledgeAnalyst` compile/revise contract with structured input and
+output schemas in a fresh specialist session per invocation.
+
+Reason: the deterministic knowledge workflow previously used only a specialist
+protocol and test doubles. The adapter now supplies the real ADK execution
+boundary without giving the model storage/network tools or shared conversation
+history.
+
+Skill and reference guidance:
+
+- `google-agents-cli-workflow` 1.4.2 and `google-agents-cli-adk-code` 1.4.2.
+- Re-read `references/samples.md`, `references/adk-python.md`, and
+  `references/adk-workflows.md`; no core recipe is specific to a single bounded
+  structured specialist, so the adapter uses the documented `Agent`, `Runner`,
+  typed-schema, and fresh-session primitives directly.
+- Ran `agents-cli info` and verified the repository remains an enhanced Python
+  ADK project with `app` as its agent directory, A2A enabled, and no deployment
+  target. Inspected installed ADK 2.6 signatures for `Agent`, `Runner`,
+  `Runner.run_async`, and `Gemini` before implementation.
+
+TDD evidence:
+
+- Red/green 1: a compile request reaches a deterministic ADK model double as one
+  typed current-turn payload and returns a validated `KnowledgeCompilation`.
+- Red/green 2: compile and revision invocations on the same adapter each use a
+  new session; revision context is explicit in the typed request rather than
+  inherited from hidden conversation history.
+
+Safety and scope:
+
+- The specialist has no tools or delegation, accepts only bounded
+  `KnowledgeAnalysisTask` data, and must cite supplied source IDs while treating
+  embedded source instructions as untrusted.
+- The configured model remains `gemini-3.7-flash`; no model configuration was
+  changed and no paid fallback was added.
+- No live Gemini request, eval, Slack API, storage, cloud resource, deployment,
+  credential, or other external integration was used.
+
+Commands and evidence:
+
+- Deterministic ADK adapter tests — `2 passed`.
+- ADK adapter/knowledge workflow/onboarding graph blast radius — `10 passed`.
+- Complete explicit offline unit/integration gate — `154 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a typed, tool-free, fresh-context ADK Knowledge Analyst
+execution boundary under deterministic model-double testing.
