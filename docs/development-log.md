@@ -1276,3 +1276,48 @@ Commands and evidence:
 Phase result: passed for generation-guarded compiled knowledge publication,
 byte-verified retries, incremental updates, frozen artifact metadata, and the
 offline regression gate.
+
+## 2026-09-04 — Phase 3: bounded source text extraction
+
+Isolated change: added one integrity-checking text adapter for verified TXT,
+Markdown, HTML, and PDF onboarding snapshots.
+
+Reason: the Knowledge Analyst requires bounded plain text rather than raw bytes or
+active HTML. PDF parsing also needs explicit input, page, decompressed page-stream,
+and output limits before it is safe to place behind an agent handoff.
+
+Skill and reference guidance:
+
+- `tdd`
+- Consulted the current official pypdf 6.16.2 `PdfReader` and text-extraction
+  documentation, including its recommendation to inspect page content-stream size
+  before extraction. Added and locked `pypdf==6.16.2` through `uv`.
+
+TDD evidence:
+
+- Red: verified raw snapshots had no supported-content text adapter.
+- Green: `SourceTextExtractor` rechecks the immutable content hash, strictly
+  decodes TXT/Markdown, collects visible HTML text while excluding active/hidden
+  containers, and extracts bounded PDF page text from an in-memory stream.
+- Hash drift fails before parsing through one constant, redacted
+  `SourceTextExtractionError`.
+
+Safety and scope:
+
+- Default limits are 5 MB input, 100,000 output characters, 50 PDF pages, and 2 MB
+  decompressed content per PDF page; constructor limits prevent unsafe expansion.
+- Encrypted PDFs, unsupported content types, invalid UTF-8, empty output, parser
+  errors, and any exceeded bound fail closed.
+- Returned text retains source identity and content type in a frozen,
+  extra-forbidding contract. It is data only and grants no instruction authority.
+- No live source, network fetch, model invocation, cloud resource, deployment,
+  credential, or external integration was used.
+
+Commands and evidence:
+
+- `uv run pytest tests/unit/test_source_text_extraction.py -q` — `3 passed`.
+- Complete explicit offline unit/integration gate — `133 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for bounded, hash-verified TXT/Markdown/HTML/PDF extraction,
+active-content exclusion, typed agent input, and the offline regression gate.
