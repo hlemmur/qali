@@ -1931,3 +1931,54 @@ Commands and evidence:
 
 Phase result: passed for a no-shell, bounded, redacted local malware-scanning
 adapter ready for later pinned worker-image integration.
+
+## 2026-09-04 — Phase 3: complete onboarding runtime composition
+
+Isolated change: added the production-shaped onboarding runtime factory that
+connects the authenticated worker boundary to bounded source acquisition,
+mandatory ClamAV and deterministic instruction screening, durable source
+storage and indexing, source loading, the independent ADK knowledge workflow,
+Slack progress, and job lifecycle handling.
+
+Reason: every component had been independently verified, but callers still had
+to assemble the graph themselves. A single composition root makes the guarded
+path the default and prevents production entry points from accidentally
+omitting source screening or knowledge review.
+
+Skill guidance:
+
+- `tdd` with one vertical ASGI test through the public worker HTTP endpoint;
+  doubles are limited to DNS, HTTP, ClamAV, persistence, Slack, and model
+  boundaries.
+- The existing ADK analyst and reviewer adapters are reused unchanged, with
+  deterministic structured model doubles for the offline test.
+
+TDD evidence:
+
+- Red: importing the public runtime factory failed with
+  `ModuleNotFoundError: No module named 'app.onboarding_runtime'`.
+- Green: one authenticated task request traverses the complete source and
+  knowledge graph, publishes a grounded artifact, reports `ready`, and
+  completes the job.
+- Guard: the persisted artifact records both the explicitly pinned ClamAV
+  engine/signature identity and the deterministic instruction scanner identity.
+
+Safety and scope:
+
+- Runtime settings keep worker ingress, source bounds, ClamAV identity, and job
+  execution limits explicit and immutable.
+- The real system resolver, address-bound HTTPS transport, local ClamAV
+  subprocess, and configured ADK models remain production defaults; dependency
+  injection is exposed only for their external boundaries and repositories.
+- No live scanner, network request, Gemini request, Slack API, storage, cloud
+  resource, deployment, credential, or other external integration was used.
+
+Commands and evidence:
+
+- Complete runtime tracer suite — `1 passed`.
+- Runtime/source/knowledge blast radius — `18 passed`.
+- Complete explicit offline unit/integration gate — `171 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for one explicit, mock-safe onboarding composition root
+from authenticated task delivery through ready-state publication.
