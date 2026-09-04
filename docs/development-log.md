@@ -1835,3 +1835,52 @@ Commands and evidence:
 
 Phase result: passed for bounded, deterministic, fail-closed instruction-threat
 screening across every source content type accepted by onboarding.
+
+## 2026-09-04 — Phase 3: bounded onboarding source runtime
+
+Isolated change: added a production-shaped source runtime factory that composes
+approved-origin URL policy, DNS/IP revalidation, address-bound HTTPS transport,
+malware screening, deterministic instruction screening, raw persistence,
+metadata indexing, and the bounded onboarding source flow.
+
+Reason: the individual source safeguards were verified but not yet installed as
+one mandatory runtime path. Explicit composition prevents a worker entry point
+from accidentally omitting redirect revalidation or instruction screening.
+
+Skill guidance:
+
+- `tdd` with vertical integration tests through the public onboarding source
+  flow and only resolver, HTTP transport, malware, and storage boundary doubles.
+- This deterministic composition slice adds no ADK agent or external service,
+  so no additional ADK recipe was required.
+
+TDD evidence:
+
+- Red: no public factory assembled the approved-origin fetcher, both screening
+  stages, durable source service, and onboarding flow.
+- Green: an approved public HTTPS source is fetched with its pinned resolved
+  address and byte budget, receives both scanner verdicts, and is persisted and
+  indexed with their stable scanner identities.
+- Guard: prompt-injection content is rejected after malware screening and before
+  either raw object persistence or metadata indexing.
+
+Safety and scope:
+
+- Runtime settings bound approved origins, bytes, redirects, transport timeout,
+  and source count; production defaults use the system resolver and the
+  address-bound `aiohttp` transport.
+- Malware scanning is a required injected boundary, so production composition
+  cannot silently replace it with an allow-all implementation. Test doubles
+  remain confined to integration tests.
+- No live network request, scanner vendor, Gemini request, Slack API, storage,
+  cloud resource, deployment, credential, or other integration was used.
+
+Commands and evidence:
+
+- Source runtime tracer suite — `2 passed`.
+- Source runtime/fetch/screen/ingestion blast radius — `23 passed`.
+- Complete explicit offline unit/integration gate — `166 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for an explicitly wired, bounded, fail-closed onboarding
+source path with mandatory malware and instruction screening stages.
