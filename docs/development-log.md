@@ -1737,3 +1737,52 @@ Commands and evidence:
 
 Phase result: passed for explicit production-shaped composition from isolated
 ADK knowledge specialists through deterministic review and artifact publication.
+
+## 2026-09-04 — Phase 3: onboarding worker composition root
+
+Isolated change: added one worker application factory that composes the durable
+job lifecycle, same-thread Slack progress, source-to-knowledge onboarding graph,
+isolated ADK Knowledge Analyst and Reviewer, deterministic quality gate, and
+authenticated Cloud Tasks HTTP boundary.
+
+Reason: the verified services still had to be assembled manually, so a deployed
+worker could omit lifecycle, progress, review, or publication safeguards. The
+composition root now exposes one production-shaped application boundary while
+keeping external integrations injectable and testable.
+
+Skill and reference guidance:
+
+- `tdd`, `google-agents-cli-workflow` 1.4.2, and
+  `google-agents-cli-adk-code` 1.4.2.
+- Studied the `ambient-expense-agent` event-driven recipe. Reused its in-process
+  ASGI integration-test pattern and kept durable lifecycle state outside ADK's
+  in-memory sessions; Qali retains its existing authenticated Cloud Tasks seam.
+
+TDD evidence:
+
+- Red: no public worker factory could compose the already verified onboarding
+  and knowledge components behind `/internal/jobs`.
+- Green: an HTTP Cloud Tasks request now claims the durable job, creates and
+  updates one originating-thread progress message, compiles and independently
+  reviews grounded knowledge with separate deterministic ADK model doubles,
+  publishes the artifact, and completes the job.
+
+Safety and scope:
+
+- The worker keeps queue-name/task-name validation, bounded execution, retry
+  lifecycle, project serialization, deterministic readiness, and publication
+  preconditions in the existing non-model services.
+- Runtime composition contains no embedded mock implementation; test doubles
+  remain in the integration test and are injected only at external boundaries.
+- No live Gemini request, Slack API, storage, cloud resource, deployment,
+  credential, or other external integration was used.
+
+Commands and evidence:
+
+- Worker runtime HTTP tracer test — `1 passed`.
+- Worker/onboarding/knowledge blast radius — `23 passed`.
+- Complete explicit offline unit/integration gate — `157 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a single production-shaped worker application boundary
+covering queued onboarding through reviewed durable knowledge and final progress.
