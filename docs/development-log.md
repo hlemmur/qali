@@ -1643,3 +1643,52 @@ Commands and evidence:
 
 Phase result: passed for a typed, tool-free, fresh-context ADK Knowledge Analyst
 execution boundary under deterministic model-double testing.
+
+## 2026-09-04 — Phase 3: independent ADK knowledge review
+
+Isolated change: added the production-shaped ADK Knowledge Reviewer and factored
+the common fresh-session structured-agent invocation into one reusable runtime
+boundary shared with the Knowledge Analyst.
+
+Reason: the bounded knowledge quality gate still depended on a reviewer test
+double. The real reviewer must receive only the compiled knowledge, deterministic
+quality decision, and cited source evidence in an independent context, with no
+tools or hidden analyst conversation.
+
+Skill and reference guidance:
+
+- `tdd`, `google-agents-cli-workflow` 1.4.2, and
+  `google-agents-cli-adk-code` 1.4.2.
+- Rechecked the recipe index and ADK structured-output/session guidance. No core
+  recipe targets a single read-only structured reviewer, so the implementation
+  reuses the installed `Agent`, `Runner`, typed schema, and fresh-session pattern.
+- Preserved the existing `gemini-3.7-flash` configuration and exact installed
+  ADK interfaces already verified for the preceding analyst slice.
+
+TDD evidence:
+
+- Red: the public reviewer adapter and factory did not exist.
+- Green: a deterministic ADK model double independently receives one typed
+  `KnowledgeReviewTask` and returns a validated `KnowledgeReview`.
+- Refactor: extracted `run_isolated_structured_agent` and reran the existing
+  compile/revise tests to prove both specialists retain fresh-session behavior.
+
+Safety and scope:
+
+- The reviewer has no tools, delegation, credentials, or shared session; source
+  text is explicitly treated as untrusted evidence rather than instructions.
+- Deterministic grounding/readiness policy remains outside the model, and a
+  rejected review must still contain bounded actionable feedback through the
+  existing schema.
+- No live Gemini request, eval, Slack API, storage, cloud resource, deployment,
+  credential, or other external integration was used.
+
+Commands and evidence:
+
+- Reviewer tracer test — `1 passed`.
+- Analyst/reviewer/workflow blast radius — `7 passed`.
+- Complete explicit offline unit/integration gate — `155 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for an independent, typed, tool-free ADK knowledge review
+boundary with shared fresh-context execution mechanics.
