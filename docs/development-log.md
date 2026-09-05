@@ -2210,3 +2210,46 @@ Commands and evidence:
 
 Phase result: passed for production-composable Slack uploads across the complete
 onboarding worker path.
+
+## 2026-09-05 — Phase 3: unsafe Slack file acceptance gate
+
+Isolated change: added a full-worker acceptance tracer proving that instruction-
+carrying Slack file content is rejected before any durable artifact is written.
+
+Reason: component screening tests existed, but the PR 1 acceptance gate also
+requires evidence that the complete composed onboarding path fails closed for an
+unsafe uploaded file.
+
+Skill guidance:
+
+- `tdd` with the authenticated Slack client, ClamAV process, persistence, Slack
+  progress, and model treated as external boundaries.
+
+TDD evidence:
+
+- Red: the first tracer used a content-specific ClamAV double and reached the
+  unavailable-scanner path instead of the intended instruction-policy decision.
+- Green: after allowing the external scanner boundary to report the unsafe sample
+  malware-clean, the deterministic instruction scanner rejects it as prompt
+  injection through the public worker HTTP route.
+- Guard: the tracer verifies zero raw-source records, no knowledge publication,
+  and a failed same-thread progress state after rejection.
+
+Safety and scope:
+
+- This slice adds acceptance evidence only; it does not weaken screening or alter
+  production behavior.
+- The unsafe sample is synthetic and contains no secret, private URL, or live
+  integration data.
+- No live Slack API, token, network request, storage, scanner, model, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- Unsafe-file full-worker tracer — `1 passed`.
+- Complete onboarding runtime tracer suite — `2 passed`.
+- Complete explicit offline unit/integration gate — `180 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fail-closed prompt-injection rejection of Slack file
+content before durable onboarding writes.
