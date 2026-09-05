@@ -27,7 +27,13 @@ from app.raw_source_repository import (
     RawSourceProvenance,
     RawSourceSnapshot,
 )
-from app.slack_ingress import InMemoryJobRepository, OnboardProjectJob
+from app.slack_file_client import SlackFileClientSettings
+from app.slack_file_fetcher import SlackFilePayload
+from app.slack_ingress import (
+    InMemoryJobRepository,
+    OnboardProjectJob,
+    SlackFileReference,
+)
 from app.slack_progress import InMemorySlackProgressReporter, OnboardingProgressStage
 from app.source_fetcher import SourceHttpResponse
 from app.source_malware_scanner import ClamAvSettings
@@ -93,8 +99,24 @@ class _SourceTransport:
 
 class _CleanClamAvRunner:
     async def scan(self, content: bytes) -> int:
-        assert content == b"# Profile\nCustomers can edit their display name."
+        assert content in {
+            b"# Profile\nCustomers can edit their display name.",
+            b"Users can export reports.",
+        }
         return 0
+
+
+class _SlackFileClient:
+    async def download(self, file_id: str, *, max_bytes: int) -> SlackFilePayload:
+        assert file_id == "F-REPORT"
+        assert max_bytes == 25
+        return SlackFilePayload(
+            file_id=file_id,
+            name="reports.txt",
+            media_type="text/plain",
+            size_bytes=25,
+            content=b"Users can export reports.",
+        )
 
 
 class _SourceStore:
@@ -164,11 +186,15 @@ class _KnowledgeRepository:
 @pytest.mark.asyncio
 async def test_runtime_completes_bounded_screened_onboarding_through_http() -> None:
     source_event_id = "Ev-full-runtime"
-    source_id = (
+    url_source_id = (
         "slack-url-"
         + hashlib.sha256(
             f"{source_event_id}\0https://docs.example.test/profile.md".encode()
         ).hexdigest()[:32]
+    )
+    file_source_id = (
+        "slack-file-"
+        + hashlib.sha256(f"{source_event_id}\0F-REPORT".encode()).hexdigest()[:32]
     )
     jobs = InMemoryJobRepository()
     progress = InMemorySlackProgressReporter()
@@ -182,6 +208,14 @@ async def test_runtime_completes_bounded_screened_onboarding_through_http() -> N
         requester_user_id="U-OWNER",
         thread_ts="1788550200.001000",
         request_text=("<@U-QALI> onboard project https://docs.example.test/profile.md"),
+        files=(
+            SlackFileReference(
+                file_id="F-REPORT",
+                name="reports.txt",
+                media_type="text/plain",
+                size_bytes=25,
+            ),
+        ),
     )
     await jobs.create(job)
     app = create_onboarding_runtime(
@@ -192,6 +226,7 @@ async def test_runtime_completes_bounded_screened_onboarding_through_http() -> N
                 max_bytes=4096,
             ),
             clamav=ClamAvSettings(scanner_id="clamav-engine-1-signatures-20260904"),
+            slack_files=SlackFileClientSettings(token="xoxb-test-token"),
         ),
         jobs=jobs,
         progress=progress,
@@ -206,7 +241,11 @@ async def test_runtime_completes_bounded_screened_onboarding_through_http() -> N
                 facts=(
                     KnowledgeFact(
                         statement="Customers can edit their display name.",
-                        source_ids=(source_id,),
+                        source_ids=(url_source_id,),
+                    ),
+                    KnowledgeFact(
+                        statement="Users can export reports.",
+                        source_ids=(file_source_id,),
                     ),
                 ),
                 contradictions=(),
@@ -218,6 +257,7 @@ async def test_runtime_completes_bounded_screened_onboarding_through_http() -> N
         resolver=_PublicResolver(),
         transport=_SourceTransport(),
         clamav_runner=_CleanClamAvRunner(),
+        slack_file_client=_SlackFileClient(),
     )
 
     async with httpx.AsyncClient(
@@ -237,10 +277,18 @@ async def test_runtime_completes_bounded_screened_onboarding_through_http() -> N
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
-    [artifact] = await sources.list_for_project("project-alpha")
-    assert artifact.screening_scanners == (
-        "clamav-engine-1-signatures-20260904",
-        "qali-deterministic-instruction-v1",
+    artifacts = await sources.list_for_project("project-alpha")
+    assert {artifact.source_id for artifact in artifacts} == {
+        url_source_id,
+        file_source_id,
+    }
+    assert all(
+        artifact.screening_scanners
+        == (
+            "clamav-engine-1-signatures-20260904",
+            "qali-deterministic-instruction-v1",
+        )
+        for artifact in artifacts
     )
     assert knowledge.artifact is not None
     assert knowledge.artifact.project_id == "project-alpha"

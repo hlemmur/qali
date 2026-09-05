@@ -21,6 +21,14 @@ from app.onboarding_worker_runtime import (
     OnboardingJobRepository,
     create_onboarding_worker_app,
 )
+from app.slack_file_client import (
+    SlackFileClientSettings,
+    create_slack_api_file_client,
+)
+from app.slack_file_fetcher import (
+    AuthenticatedSlackFileClient,
+    BoundedSlackFileFetcher,
+)
 from app.source_fetcher import BoundSourceTransport, SourceResolver
 from app.source_ingestion import (
     RawSourceRepository as IngestionRawSourceRepository,
@@ -57,6 +65,7 @@ class OnboardingRuntimeSettings(BaseModel):
     worker: WorkerIngressSettings
     source: SourceRuntimeSettings
     clamav: ClamAvSettings
+    slack_files: SlackFileClientSettings
     execution: JobExecutionSettings = Field(default_factory=JobExecutionSettings)
 
 
@@ -75,9 +84,13 @@ def create_onboarding_runtime(
     resolver: SourceResolver | None = None,
     transport: BoundSourceTransport | None = None,
     clamav_runner: ClamAvRunner | None = None,
+    slack_file_client: AuthenticatedSlackFileClient | None = None,
 ) -> FastAPI:
     """Compose the complete onboarding path behind its authenticated HTTP edge."""
 
+    file_client = slack_file_client
+    if file_client is None:
+        file_client = create_slack_api_file_client(settings.slack_files)
     source_flow = create_onboarding_source_flow(
         settings=settings.source,
         projects=projects,
@@ -89,6 +102,10 @@ def create_onboarding_runtime(
         source_index=source_index,
         resolver=resolver,
         transport=transport,
+        file_fetcher=BoundedSlackFileFetcher(
+            client=file_client,
+            max_bytes=settings.source.max_bytes,
+        ),
     )
     source_loader = KnowledgeSourceLoader(
         source_index=source_index,
