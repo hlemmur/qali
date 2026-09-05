@@ -2165,3 +2165,48 @@ Commands and evidence:
 
 Phase result: passed for mandatory screening and durable ingestion of Slack file
 sources inside the onboarding graph.
+
+## 2026-09-05 — Phase 3: Slack file runtime composition
+
+Isolated change: installed the authenticated Slack file client and bounded file
+fetcher into the complete onboarding worker composition root.
+
+Reason: file references and source ingestion were implemented, but the
+production worker graph still omitted the file-fetch boundary. Runtime callers
+could therefore construct a worker that accepted files at ingress but failed
+when processing them.
+
+Skill guidance:
+
+- `tdd` by expanding the public ASGI onboarding tracer to carry both an
+  approved URL and a Slack file through the complete worker graph.
+- Test doubles remain limited to external DNS, HTTP, Slack, ClamAV, storage,
+  Slack progress, and model boundaries.
+
+TDD evidence:
+
+- Red: immutable onboarding runtime settings rejected Slack file configuration.
+- Green: the runtime now creates the production Slack API client by default,
+  wraps it in the bounded fetcher, and passes it into source ingestion.
+- Guard: the full tracer proves both URL and file artifacts record ClamAV and
+  deterministic instruction scanner identities before grounded knowledge is
+  published and the job becomes ready.
+
+Safety and scope:
+
+- Slack file settings, including the redacted token type and timeout, are
+  required production configuration rather than an implicit environment read.
+- Tests inject an authenticated-client double; production composition contains
+  no in-memory or allow-all fallback.
+- No live Slack API, token, network request, storage, scanner, model, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- Full onboarding URL-plus-file ASGI tracer — `1 passed`.
+- Runtime/source/file/knowledge composition blast radius — `15 passed`.
+- Complete explicit offline unit/integration gate — `179 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for production-composable Slack uploads across the complete
+onboarding worker path.
