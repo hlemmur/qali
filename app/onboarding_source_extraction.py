@@ -5,7 +5,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.slack_ingress import OnboardProjectJob
+from app.slack_ingress import OnboardProjectJob, SlackFileReference
 
 _COMMAND_PREFIX = re.compile(
     r"^\s*<@[^>]+>\s+onboard\s+project\b\s*",
@@ -33,12 +33,20 @@ class SlackUrlSource(BaseModel):
     url: str = Field(min_length=1)
 
 
+class SlackFileSource(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source_id: str = Field(min_length=1)
+    reference: SlackFileReference
+
+
 class ExtractedOnboardingSources(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     author_ref: str = Field(min_length=1)
     text: SlackTextSource | None
     urls: tuple[SlackUrlSource, ...]
+    files: tuple[SlackFileSource, ...]
 
 
 def extract_onboarding_sources(job: OnboardProjectJob) -> ExtractedOnboardingSources:
@@ -74,10 +82,22 @@ def extract_onboarding_sources(job: OnboardProjectJob) -> ExtractedOnboardingSou
         )
         for url in extracted_urls
     )
+    files = tuple(
+        SlackFileSource(
+            source_id=_source_id(
+                job.source_event_id,
+                reference.file_id,
+                prefix="slack-file",
+            ),
+            reference=reference,
+        )
+        for reference in job.files
+    )
     return ExtractedOnboardingSources(
         author_ref=f"slack:{job.requester_user_id}",
         text=text_source,
         urls=urls,
+        files=files,
     )
 
 
@@ -88,6 +108,7 @@ def _source_id(event_id: str, value: str, *, prefix: str) -> str:
 
 __all__ = [
     "ExtractedOnboardingSources",
+    "SlackFileSource",
     "SlackTextSource",
     "SlackUrlSource",
     "extract_onboarding_sources",

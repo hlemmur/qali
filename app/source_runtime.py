@@ -11,6 +11,7 @@ from app.source_fetcher import (
 from app.source_ingestion import (
     OnboardingSourceIngestionService,
     RawSourceRepository,
+    SlackFileFetcher,
     SourceMetadataIndex,
 )
 from app.source_instruction_scanner import DeterministicInstructionScanner
@@ -38,6 +39,7 @@ def create_onboarding_source_flow(
     source_index: SourceMetadataIndex,
     resolver: SourceResolver | None = None,
     transport: BoundSourceTransport | None = None,
+    file_fetcher: SlackFileFetcher | None = None,
 ) -> OnboardingSourceFlow:
     """Compose bounded fetch, mandatory screening, and durable source ingestion."""
 
@@ -58,6 +60,7 @@ def create_onboarding_source_flow(
         screener=screening,
         raw_repository=raw_repository,
         source_index=source_index,
+        file_fetcher=file_fetcher,
     )
     return OnboardingSourceFlow(
         projects=projects,

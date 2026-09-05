@@ -10,7 +10,8 @@ from app.raw_source_repository import (
     RawSourceArtifact,
     RawSourceProvenance,
 )
-from app.slack_ingress import OnboardProjectJob
+from app.slack_file_fetcher import BoundedSlackFileFetcher, SlackFilePayload
+from app.slack_ingress import OnboardProjectJob, SlackFileReference
 from app.source_fetcher import FetchedSource, SourceHttpResponse
 from app.source_runtime import SourceRuntimeSettings, create_onboarding_source_flow
 from app.source_screening import (
@@ -69,6 +70,19 @@ class _CleanMalwareScanner:
             stage=SourceScreeningStage.MALWARE,
             scanner="test-malware-v1",
             threats=(),
+        )
+
+
+class _SlackFileClient:
+    async def download(self, file_id: str, *, max_bytes: int) -> SlackFilePayload:
+        assert file_id == "F-PROFILE"
+        assert max_bytes == 48
+        return SlackFilePayload(
+            file_id=file_id,
+            name="profile.md",
+            media_type="text/markdown",
+            size_bytes=48,
+            content=b"# Profile\nCustomers can edit their display name.",
         )
 
 
@@ -181,3 +195,58 @@ async def test_source_runtime_rejects_instructions_before_durable_writes() -> No
     assert caught.value.decisions[-1].threats == (SourceThreat.PROMPT_INJECTION,)
     assert raw_sources.artifacts == []
     assert source_index.artifacts == []
+
+
+@pytest.mark.asyncio
+async def test_source_runtime_screens_and_persists_slack_file() -> None:
+    raw_sources = _RawSourceStore()
+    source_index = _SourceIndex()
+    flow = create_onboarding_source_flow(
+        settings=SourceRuntimeSettings(
+            allowed_origins=("https://docs.example.test",),
+            max_bytes=4096,
+        ),
+        projects=_ProjectRepository(),
+        malware_scanner=_CleanMalwareScanner(),
+        raw_repository=raw_sources,
+        source_index=source_index,
+        resolver=_PublicResolver(),
+        transport=_SourceTransport(),
+        file_fetcher=BoundedSlackFileFetcher(
+            client=_SlackFileClient(),
+            max_bytes=4096,
+        ),
+    )
+    job = OnboardProjectJob(
+        job_id="slack:Ev-file-runtime",
+        source_event_id="Ev-file-runtime",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788547500.003000",
+        request_text="<@U-QALI> onboard project",
+        files=(
+            SlackFileReference(
+                file_id="F-PROFILE",
+                name="profile.md",
+                media_type="text/markdown",
+                size_bytes=48,
+            ),
+        ),
+    )
+
+    result = await flow.ingest(job)
+
+    [artifact] = result.artifacts
+    expected_id = (
+        "slack-file-" + hashlib.sha256(b"Ev-file-runtime\0F-PROFILE").hexdigest()[:32]
+    )
+    assert artifact.source_id == expected_id
+    assert artifact.source_uri.startswith("slack-file://")
+    assert "F-PROFILE" not in artifact.source_uri
+    assert artifact.screening_scanners == (
+        "test-malware-v1",
+        "qali-deterministic-instruction-v1",
+    )
+    assert raw_sources.artifacts == [artifact]
+    assert source_index.artifacts == [artifact]

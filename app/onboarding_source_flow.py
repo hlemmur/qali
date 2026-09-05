@@ -9,6 +9,7 @@ from app.onboarding_source_extraction import extract_onboarding_sources
 from app.raw_source_repository import RawSourceArtifact
 from app.slack_ingress import OnboardProjectJob
 from app.source_ingestion import (
+    OnboardingFileSourceRequest,
     OnboardingInlineSourceRequest,
     OnboardingSourceRequest,
 )
@@ -33,6 +34,11 @@ class SourceIngestion(Protocol):
     async def ingest_inline(
         self,
         request: OnboardingInlineSourceRequest,
+    ) -> RawSourceArtifact: ...
+
+    async def ingest_file(
+        self,
+        request: OnboardingFileSourceRequest,
     ) -> RawSourceArtifact: ...
 
 
@@ -77,7 +83,9 @@ class OnboardingSourceFlow:
 
     async def ingest(self, job: OnboardProjectJob) -> OnboardingSourceResult:
         sources = extract_onboarding_sources(job)
-        source_count = len(sources.urls) + (sources.text is not None)
+        source_count = (
+            len(sources.urls) + len(sources.files) + (sources.text is not None)
+        )
         if source_count == 0:
             raise OnboardingSourcesRequired
         if source_count > self._max_sources:
@@ -110,6 +118,18 @@ class OnboardingSourceFlow:
                     project_id=project.project_id,
                     source_id=source.source_id,
                     url=source.url,
+                    author_ref=sources.author_ref,
+                )
+            )
+            artifacts.append(
+                _require_artifact(artifact, project.project_id, source.source_id)
+            )
+        for source in sources.files:
+            artifact = await self._ingestion.ingest_file(
+                OnboardingFileSourceRequest(
+                    project_id=project.project_id,
+                    source_id=source.source_id,
+                    reference=source.reference,
                     author_ref=sources.author_ref,
                 )
             )

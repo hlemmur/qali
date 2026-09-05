@@ -9,6 +9,7 @@ from app.raw_source_repository import (
     RawSourceArtifact,
     RawSourceProvenance,
 )
+from app.slack_ingress import SlackFileReference
 from app.source_fetcher import FetchedSource
 from app.source_screening import ScreenedSource
 
@@ -34,8 +35,21 @@ class OnboardingInlineSourceRequest(BaseModel):
     author_ref: str = Field(min_length=1, max_length=256)
 
 
+class OnboardingFileSourceRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    reference: SlackFileReference
+    author_ref: str = Field(min_length=1, max_length=256)
+
+
 class SourceFetcher(Protocol):
     async def fetch(self, url: str) -> FetchedSource: ...
+
+
+class SlackFileFetcher(Protocol):
+    async def fetch(self, reference: SlackFileReference) -> FetchedSource: ...
 
 
 class SourceScreener(Protocol):
@@ -65,11 +79,13 @@ class OnboardingSourceIngestionService:
         screener: SourceScreener,
         raw_repository: RawSourceRepository,
         source_index: SourceMetadataIndex,
+        file_fetcher: SlackFileFetcher | None = None,
     ) -> None:
         self._fetcher = fetcher
         self._screener = screener
         self._raw_repository = raw_repository
         self._source_index = source_index
+        self._file_fetcher = file_fetcher
 
     async def ingest(self, request: OnboardingSourceRequest) -> RawSourceArtifact:
         fetched = await self._fetcher.fetch(request.url)
@@ -100,6 +116,20 @@ class OnboardingSourceIngestionService:
             source=source,
         )
 
+    async def ingest_file(
+        self,
+        request: OnboardingFileSourceRequest,
+    ) -> RawSourceArtifact:
+        if self._file_fetcher is None:
+            raise RuntimeError("Slack file fetcher is not configured")
+        source = await self._file_fetcher.fetch(request.reference)
+        return await self._screen_persist_index(
+            project_id=request.project_id,
+            source_id=request.source_id,
+            author_ref=request.author_ref,
+            source=source,
+        )
+
     async def _screen_persist_index(
         self,
         *,
@@ -120,6 +150,7 @@ class OnboardingSourceIngestionService:
 
 
 __all__ = [
+    "OnboardingFileSourceRequest",
     "OnboardingInlineSourceRequest",
     "OnboardingSourceIngestionService",
     "OnboardingSourceRequest",

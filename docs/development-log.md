@@ -2120,3 +2120,48 @@ Commands and evidence:
 
 Phase result: passed for a bounded, redacted, origin-restricted production
 Slack file client ready for source-flow composition.
+
+## 2026-09-05 — Phase 3: screened Slack file source flow
+
+Isolated change: wired approved Slack file references and fetched bytes through
+the existing onboarding source runtime, mandatory screening service, raw
+repository, and source index.
+
+Reason: the signed ingress, authenticated client, and bounded fetcher were
+verified independently, but uploaded files did not yet participate in the
+onboarding source graph.
+
+Skill guidance:
+
+- `tdd` with one file-only onboarding job through the public source runtime;
+  only the authenticated Slack client and persistence boundaries use test
+  doubles.
+
+TDD evidence:
+
+- Red: the source-runtime factory rejected the `file_fetcher` boundary because
+  no file handoff existed.
+- Green: a Markdown Slack file receives a deterministic event-scoped source ID,
+  both scanner verdicts, raw persistence, and source indexing.
+- Guard: the stored source URI is the fetcher's hashed synthetic URI and does
+  not contain the Slack file ID.
+
+Safety and scope:
+
+- File count participates in the existing global onboarding source limit.
+- File bytes use the same ClamAV and deterministic instruction screening path
+  as Slack text and approved HTTPS sources before any durable write.
+- Text- and URL-only callers remain backward-compatible through an optional
+  file-fetcher boundary; production composition is a separate reviewed slice.
+- No live Slack API, token, network request, storage, scanner, model, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- File-only source-runtime tracer — `1 passed`.
+- Source runtime/flow/ingestion/extraction blast radius — `16 passed`.
+- Complete explicit offline unit/integration gate — `179 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for mandatory screening and durable ingestion of Slack file
+sources inside the onboarding graph.
