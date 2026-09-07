@@ -2533,3 +2533,68 @@ Commands and evidence:
 Phase result: passed for the restricted Browser Executor contract and deterministic
 verdict boundary. A production Playwright MCP process adapter and real-browser
 qualification remain later approved integration work.
+
+## 2026-09-08 — Phase 3: reviewed failure investigation
+
+Isolated bundle: added stable failure fingerprints, a one-reproduction Failure
+Investigator workflow, an independent failure Quality Reviewer, and typed finding
+records for reproducible failures.
+
+Reason: deterministic browser failures must be reproduced once in a fresh context,
+classified without changing their approved expected behavior, and independently
+reviewed before Qali presents them as findings.
+
+Skill and reference guidance:
+
+- `tdd` — advanced fingerprint stability, non-reproduction, reproducible finding,
+  bounded revision, fresh-context, and fail-closed output behavior through explicit
+  red-green cycles and boundary-only test doubles.
+- `bug-reproduction` — required reproduction before classification, distinguished a
+  passing rerun from a confirmed defect, and captured a complete evidence contract.
+- `ai-bug-triage` — kept normalization and fingerprinting deterministic while using
+  the LLM only for typed explanation and classification.
+- `google-agents-cli-workflow` and `google-agents-cli-adk-code` version `1.4.2` —
+  reused isolated structured ADK invocations and the existing pinned model without
+  introducing another orchestration framework.
+
+TDD evidence:
+
+- Red/green: fingerprints changed with timestamps, process IDs, ports, request IDs,
+  and source line numbers; normalization now removes runtime noise before hashing
+  sorted project, feature, scenario, oracle, expected, and actual anchors.
+- Guard: different exception types and different failed properties retain distinct
+  fingerprints, while evidence storage locations never affect finding identity.
+- Red/green: a failed observation had no bounded reproduction path; the workflow now
+  requests exactly one rerun and rejects reuse of the initial context ID.
+- Red/green: a passing rerun could be overclaimed as a defect; it now returns a
+  deterministic `flaky_inconclusive` result without invoking either model or creating
+  a finding.
+- Red/green: reproduced failures now enter a typed classification and independent
+  review gate. One revision is permitted; a second rejection returns `escalated` and
+  no finding.
+- Red/green: a product-defect claim with different initial and reproduction
+  fingerprints fails closed, as do inconsistent oracle verdicts, missing failure
+  evidence, forged fingerprints, or unsupported failed-oracle IDs.
+
+Safety and scope:
+
+- Failure evidence requires trace, accessibility snapshot, console, network, and
+  screenshot references for every failed attempt. Finding IDs are stable hashes and
+  findings retain only typed failed checks, approved trace references, and evidence
+  references.
+- The investigator and reviewer are tool-free, isolated ADK agents. Their payloads
+  omit browser target policy and Secret Manager references, and supplied observations
+  remain untrusted data rather than instructions.
+- Tests use synthetic profile-editing observations and deterministic model/protocol
+  doubles. No browser process, live model, credential, external integration, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- Failure fingerprint/contract/workflow/agent suite — `14 passed`.
+- Complete explicit offline unit/integration gate — `274 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for the reproducible-failure classification boundary. Artifact
+persistence, Slack summaries/follow-ups, production browser evidence capture, and
+real-browser qualification remain later isolated slices.
