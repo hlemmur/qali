@@ -36,7 +36,6 @@ class CredentialReference(BaseModel):
         min_length=3,
         max_length=500,
         pattern=r"^projects/[a-z0-9-]+/secrets/[a-zA-Z0-9_-]+$",
-        exclude=True,
     )
 
 

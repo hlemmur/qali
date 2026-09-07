@@ -99,13 +99,17 @@ def test_consequential_clicks_are_deny_by_default() -> None:
 
 
 def test_credential_fill_accepts_only_an_approved_reference_name() -> None:
+    policy = _policy()
     action = authorize_browser_action(
         FillCredentialAction(ref="input-password", credential_name="primary-login"),
-        policy=_policy(),
+        policy=policy,
         current_url="https://app.example.test/profile",
     )
     assert action.credential_name == "primary-login"
     assert "secret" not in action.model_dump()
+    assert policy.model_dump()["credential_references"][0]["secret_ref"] == (
+        "projects/project-alpha/secrets/primary-login"
+    )
 
     with pytest.raises(BrowserPolicyError, match="credential"):
         authorize_browser_action(
