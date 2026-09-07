@@ -2598,3 +2598,62 @@ Commands and evidence:
 Phase result: passed for the reproducible-failure classification boundary. Artifact
 persistence, Slack summaries/follow-ups, production browser evidence capture, and
 real-browser qualification remain later isolated slices.
+
+## 2026-09-08 — Phase 3: immutable run and finding artifacts
+
+Isolated bundle: compiled complete typed feature-run state into the planned request,
+plan, result, report, and issue documents, then added create-only GCS persistence and
+an equivalent in-memory mock repository.
+
+Reason: every feature run needs durable operational JSON and human-readable evidence,
+and confirmed findings need an accurate follow-up artifact without rerunning the
+browser or allowing retries to overwrite prior evidence.
+
+Skill and method:
+
+- `tdd` — advanced one failed-run compiler, one successful-run compiler, path safety,
+  immutable mock persistence, and create-only GCS retry behavior through red-green
+  slices. Only the storage client and clock boundaries are doubled.
+- The committed Qali plan supplied the canonical object layout and the requirements
+  for honest scenario/check counts, concise happy results, stable finding IDs, and
+  grounded steps/expected/actual/evidence follow-up.
+
+TDD evidence:
+
+- Red/green: no feature-run artifact contract existed; a complete run now emits exactly
+  `request.md`, `plan.json`, `result.json`, and `report.md` below its immutable run
+  prefix, plus one issue Markdown document per confirmed finding.
+- Red/green: successful output could become verbose; the happy report is one concise
+  sentence with honest scenario and check counts and emits no issue document.
+- Red/green: failure details were not available without replay; issue documents now
+  derive approved scenario intent, deterministic expected/actual checks, traceability,
+  and all captured evidence references from the persisted typed result.
+- Red/green: callers could construct incomplete or mismatched run records; the boundary
+  requires one result per planned scenario and one investigation per failed scenario,
+  tied to the exact initial failure.
+- Red/green: forged investigation status/finding identity and artifact paths outside
+  the planned project layout fail schema validation.
+- Red/green: storage retries could overwrite run history; both repositories are
+  create-only and idempotently reuse byte-identical content while rejecting collisions.
+
+Safety and scope:
+
+- Resource identifiers and object paths are constrained to the configured project/run
+  layout. Content hashes are verified before persistence, and GCS writes use generation
+  precondition zero with checksum verification.
+- The in-memory repository mirrors immutable production semantics for the complete
+  local mock experience; it does not silently relax collision handling.
+- Tests use synthetic profile-editing records and in-memory storage doubles. No live
+  bucket, browser, model, credential, integration, cloud resource, or deployment was
+  used.
+
+Commands and evidence:
+
+- Run/finding artifact and failure-contract blast radius — `21 passed`.
+- Complete explicit offline unit/integration gate — `281 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic immutable run/finding artifacts and offline/
+production repository parity. Slack rendering, issue index/testing-log projections,
+production browser evidence capture, and full feature-workflow composition remain
+later isolated slices.
