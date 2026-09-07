@@ -2474,3 +2474,62 @@ Commands and evidence:
 
 Phase result: passed for the reviewed-plan boundary required before the restricted
 Browser Executor slice.
+
+## 2026-09-07 — Phase 3: restricted Browser Executor boundary
+
+Isolated bundle: added harness-owned oracle evaluation, a deny-by-default browser
+policy, a restricted browser facade, and the accessibility-first ADK Browser
+Executor for one approved scenario.
+
+Reason: a reviewed plan must cross a narrow, auditable boundary before any browser
+work occurs. The model may explore with approved actions, while deterministic code
+retains control of origins, credentials, budgets, observations, and verdicts.
+
+Skill and reference guidance:
+
+- `tdd` — advanced oracle comparison, policy denial, redirect handling, credential
+  isolation, lifecycle, step budget, tool execution, and false-pass prevention in
+  red-green slices using only test doubles at external boundaries.
+- `agentic-browser-testing` — kept interaction accessibility-tree-first, required
+  positive and forbidden-state observations, bounded steps, and externalized the
+  pass/fail oracle from the model.
+- `google-agents-cli-workflow` and `google-agents-cli-adk-code` version `1.4.2` —
+  preserved the scaffold, pinned model ID, fresh invocation context, typed tools,
+  and temperature-zero execution convention.
+
+TDD evidence:
+
+- Red/green: deterministic oracle actuals must match every approved oracle exactly
+  once; missing, duplicate, mismatched, or type-incompatible values fail closed.
+- Red/green: navigation and redirects are restricted to canonical configured HTTPS
+  origins, non-navigation requires an approved current page, and consequential
+  clicks require an explicit project allowlist entry.
+- Red/green: password-like text entry is rejected. The model receives approved
+  credential names only; the facade resolves stored Secret Manager references and
+  passes values solely to the private backend without returning them.
+- Red/green: the facade owns isolated start/close lifecycle, records typed oracle
+  actuals, and enforces the project/scenario step budget and timeout.
+- Red/green: the Browser Executor receives only the scenario and redacted policy,
+  exposes only policy-approved tools, cannot claim unrecorded observations, and has
+  no pass/fail field. A deliberately wrong actual produces a deterministic failed
+  check even when the agent reports execution complete.
+
+Safety and scope:
+
+- No raw MCP tool, shell, filesystem, unrestricted network, pixel action, or vision
+  capability is exposed. Page and accessibility text are treated as untrusted data.
+- The backend remains a protocol in this slice and tests use an in-memory MCP-boundary
+  double; no browser process, live credential, target integration, cloud resource,
+  or deployment was used.
+- Safe credential references remain persistable in policy state, while the explicit
+  model-facing policy view omits Secret Manager resource paths and all secret values.
+
+Commands and evidence:
+
+- Browser policy/facade/executor/oracle suite — `15 passed`.
+- Complete explicit offline unit/integration gate — `260 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for the restricted Browser Executor contract and deterministic
+verdict boundary. A production Playwright MCP process adapter and real-browser
+qualification remain later approved integration work.
