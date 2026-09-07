@@ -20,6 +20,7 @@ from app.failure_investigation import (
 from app.failure_investigator_agents import (
     AdkFailureInvestigator,
     AdkFailureReviewer,
+    FailureInvestigatorOutputError,
     create_failure_investigator_agent,
     create_failure_reviewer_agent,
 )
@@ -99,3 +100,24 @@ async def test_failure_reviewer_is_an_independent_tool_free_gate() -> None:
     [request] = model.requests
     payload = json.loads(request.contents[0].parts[0].text)
     assert payload == task.model_dump(mode="json")
+
+
+@pytest.mark.asyncio
+async def test_failure_investigator_fails_closed_on_unreproduced_product_claim() -> (
+    None
+):
+    model = _StructuredModel(_analysis())
+    investigator = AdkFailureInvestigator(
+        agent=create_failure_investigator_agent(model=model)
+    )
+    task = build_failure_analysis_task(
+        _task(),
+        _attempt(
+            passed=False,
+            run="reproduction",
+            actual="A different observed failure",
+        ),
+    )
+
+    with pytest.raises(FailureInvestigatorOutputError):
+        await investigator.classify(task)

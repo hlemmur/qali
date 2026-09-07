@@ -12,6 +12,7 @@ from app.adk_structured_runtime import run_isolated_structured_agent
 from app.failure_investigation import (
     FailureAnalysis,
     FailureAnalysisTask,
+    FailureInvestigationError,
     FailureReview,
     FailureReviewTask,
     validate_failure_analysis,
@@ -136,7 +137,7 @@ class AdkFailureInvestigator:
                 result_type=FailureAnalysis,
             )
             return validate_failure_analysis(request.task, analysis)
-        except ValueError:
+        except (ValueError, FailureInvestigationError):
             raise FailureInvestigatorOutputError from None
 
 
@@ -154,7 +155,7 @@ class AdkFailureReviewer:
                 request=task,
                 result_type=FailureReview,
             )
-        except ValueError:
+        except (ValueError, FailureInvestigationError):
             raise FailureReviewerOutputError from None
 
 
