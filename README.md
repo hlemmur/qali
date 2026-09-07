@@ -61,6 +61,20 @@ required Slack, GCP, queue, worker, OIDC, and service-account setting is present
 uses Application Default Credentials and fails during startup when configuration is
 missing or invalid. Local mock settings must never be used for a deployment.
 
+The separate onboarding worker has a fail-closed live composition entry point:
+
+```bash
+uv run uvicorn 'app.onboarding_runtime:create_onboarding_runtime_from_env' \
+  --factory --host 127.0.0.1 --port 8082
+```
+
+It starts only with `QALI_MODE=live`, `GOOGLE_GENAI_USE_VERTEXAI=false`, a
+Gemini Developer API key, and every Firestore, GCS, Slack, source-policy,
+ClamAV, queue, and job-budget value documented in `.env.example`. Startup
+validates the complete configuration before creating any production adapter.
+The command itself does not provision cloud resources; live requests require
+the separately approved GCP and Slack integrations.
+
 ## Commands
 
 | Command              | Description                                                                                 |
