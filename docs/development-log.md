@@ -2253,3 +2253,54 @@ Commands and evidence:
 
 Phase result: passed for fail-closed prompt-injection rejection of Slack file
 content before durable onboarding writes.
+
+## 2026-09-05 — Phase 3: live onboarding worker environment composition
+
+Isolated change: added one fail-closed environment entry point that composes the
+complete onboarding worker with its Firestore, GCS, Slack, source-policy, ClamAV,
+model-mode, queue, and execution-budget configuration.
+
+Reason: all production adapters and the complete worker graph existed, but a
+deployment entry point still required manual Python wiring and could omit a
+durability, screening, or budget boundary.
+
+Skill guidance:
+
+- `tdd` with production client constructors replaced only at the Firestore, GCS,
+  and Slack system boundaries.
+
+TDD evidence:
+
+- Red: no public environment factory existed for the onboarding worker.
+- Green: explicit live configuration now produces one FastAPI worker with the
+  durable adapter settings and redacted Slack file secret attached to its runtime
+  settings.
+- Red: a missing late Firestore setting allowed the job adapter constructor to run
+  before startup validation completed.
+- Green: all 25 required values are parsed and model-validated before any external
+  adapter is created.
+- Red: an unsafe HTTP allowed origin reached external adapter construction before
+  the source network policy rejected it.
+- Green: every configured allowed origin is now validated by the source URL policy
+  before any external adapter is created.
+- Guard: the worker rejects non-live mode, paid Vertex AI mode, absent free-tier
+  model credentials, and every missing storage, Slack, screening, or budget value.
+
+Safety and scope:
+
+- The factory requires `GOOGLE_GENAI_USE_VERTEXAI=false`; there is no automatic
+  paid-model fallback.
+- The Slack token is held by `SecretStr` in runtime settings and is injected only
+  into the Slack progress and authenticated file clients.
+- `.env.example` contains placeholders only. No live credential, API request,
+  cloud resource, scanner process, model call, or deployment was used.
+
+Commands and evidence:
+
+- Environment composition and fail-closed suite — `28 passed`.
+- Worker/storage/Slack composition blast radius — `71 passed`.
+- Complete explicit offline unit/integration gate — `208 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for explicit, free-tier-only production worker composition
+that validates all deployment configuration before client construction.
