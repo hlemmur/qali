@@ -102,11 +102,24 @@ class FailureEvidenceBundle(BaseModel):
 class FailureAttempt(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    context_id: str = Field(
+        min_length=3,
+        max_length=128,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
     result: BrowserScenarioResult
     evidence: FailureEvidenceBundle | None = None
 
     @model_validator(mode="after")
     def require_evidence_for_failure(self) -> FailureAttempt:
+        failed_count = sum(
+            check.status is OracleCheckStatus.FAILED
+            for check in self.result.evaluation.checks
+        )
+        if self.result.evaluation.check_count != len(
+            self.result.evaluation.checks
+        ) or self.result.evaluation.passed != (failed_count == 0):
+            raise ValueError("oracle evaluation verdict must match its checks")
         if not self.result.evaluation.passed and self.evidence is None:
             raise ValueError("failed browser attempt requires complete evidence")
         return self
@@ -139,15 +152,60 @@ class FailureInvestigationTask(BaseModel):
 class FailureAnalysisTask(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    project_id: str
-    feature_slug: str
-    scenario_id: str
-    scenario_title: str
-    trace_refs: tuple[str, ...]
+    project_id: str = Field(min_length=1, max_length=128)
+    feature_slug: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    scenario_id: str = Field(
+        min_length=3,
+        max_length=128,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    scenario_title: str = Field(min_length=1, max_length=300)
+    trace_refs: tuple[str, ...] = Field(min_length=1, max_length=50)
     initial_attempt: FailureAttempt
     reproduction_attempt: FailureAttempt
-    initial_fingerprint: str = Field(min_length=16, max_length=16)
-    reproduction_fingerprint: str = Field(min_length=16, max_length=16)
+    initial_fingerprint: str = Field(pattern=r"^[0-9a-f]{16}$")
+    reproduction_fingerprint: str = Field(pattern=r"^[0-9a-f]{16}$")
+
+    @model_validator(mode="after")
+    def require_matching_attempts_and_fingerprints(self) -> FailureAnalysisTask:
+        if (
+            self.initial_attempt.result.scenario_id != self.scenario_id
+            or self.reproduction_attempt.result.scenario_id != self.scenario_id
+            or self.initial_attempt.result.evaluation.passed
+        ):
+            raise ValueError("analysis attempts do not match the failed scenario")
+        if self.initial_attempt.context_id == self.reproduction_attempt.context_id:
+            raise ValueError("reproduction requires a fresh isolated context")
+        initial = failure_fingerprint(
+            FailureFingerprintInput(
+                project_id=self.project_id,
+                feature_slug=self.feature_slug,
+                scenario_id=self.scenario_id,
+                failed_checks=_failed_checks(self.initial_attempt.result),
+            )
+        )
+        reproduction = (
+            "0" * 16
+            if self.reproduction_attempt.result.evaluation.passed
+            else failure_fingerprint(
+                FailureFingerprintInput(
+                    project_id=self.project_id,
+                    feature_slug=self.feature_slug,
+                    scenario_id=self.scenario_id,
+                    failed_checks=_failed_checks(self.reproduction_attempt.result),
+                )
+            )
+        )
+        if (
+            self.initial_fingerprint != initial
+            or self.reproduction_fingerprint != reproduction
+        ):
+            raise ValueError("analysis fingerprints do not match the attempts")
+        return self
 
 
 class FailureAnalysis(BaseModel):
@@ -263,6 +321,10 @@ class FailureInvestigationWorkflow:
         reproduction = await self._reproducer.reproduce(task.execution_task)
         if reproduction.result.scenario_id != task.execution_task.scenario.scenario_id:
             raise FailureInvestigationError("reproduction scenario does not match")
+        if reproduction.context_id == task.initial_attempt.context_id:
+            raise FailureInvestigationError(
+                "reproduction requires a fresh isolated context"
+            )
 
         analysis_task = build_failure_analysis_task(task, reproduction)
         if reproduction.result.evaluation.passed:

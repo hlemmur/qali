@@ -64,6 +64,7 @@ def _attempt(
     *, passed: bool, run: str, actual: str = "Original Name"
 ) -> FailureAttempt:
     return FailureAttempt(
+        context_id=f"context-{run}",
         result=_result(passed=passed, actual=actual),
         evidence=None if passed else _evidence(run),
     )
@@ -229,4 +230,16 @@ async def test_product_defect_requires_the_same_failure_to_reproduce() -> None:
     )
 
     with pytest.raises(FailureInvestigationError, match="matching reproduction"):
+        await workflow.run(_task())
+
+
+@pytest.mark.asyncio
+async def test_reproduction_must_use_a_fresh_isolated_context() -> None:
+    workflow = FailureInvestigationWorkflow(
+        reproducer=_ReproducerDouble(_attempt(passed=False, run="initial")),
+        investigator=_InvestigatorDouble([_analysis()]),
+        reviewer=_ReviewerDouble([FailureReview(approved=True, feedback=())]),
+    )
+
+    with pytest.raises(FailureInvestigationError, match="fresh isolated context"):
         await workflow.run(_task())
