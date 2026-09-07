@@ -87,20 +87,20 @@ class BrowserTargetPolicy(BaseModel):
 class NavigateAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.NAVIGATE] = BrowserActionKind.NAVIGATE
+    kind: Literal["navigate"] = "navigate"
     url: str = Field(min_length=1, max_length=2_048)
 
 
 class SnapshotAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.SNAPSHOT] = BrowserActionKind.SNAPSHOT
+    kind: Literal["snapshot"] = "snapshot"
 
 
 class ClickAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.CLICK_REF] = BrowserActionKind.CLICK_REF
+    kind: Literal["click_ref"] = "click_ref"
     ref: str = Field(min_length=1, max_length=200)
     consequence: str | None = Field(default=None, min_length=1, max_length=200)
 
@@ -108,7 +108,7 @@ class ClickAction(BaseModel):
 class TypeTextAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.TYPE_TEXT] = BrowserActionKind.TYPE_TEXT
+    kind: Literal["type_text"] = "type_text"
     ref: str = Field(min_length=1, max_length=200)
     text: str = Field(max_length=4_000)
     field_purpose: str = Field(min_length=1, max_length=200)
@@ -123,7 +123,7 @@ class TypeTextAction(BaseModel):
 class FillCredentialAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.FILL_CREDENTIAL] = BrowserActionKind.FILL_CREDENTIAL
+    kind: Literal["fill_credential"] = "fill_credential"
     ref: str = Field(min_length=1, max_length=200)
     credential_name: str = Field(min_length=1, max_length=128)
 
@@ -131,7 +131,7 @@ class FillCredentialAction(BaseModel):
 class WaitForAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.WAIT_FOR] = BrowserActionKind.WAIT_FOR
+    kind: Literal["wait_for"] = "wait_for"
     text: str = Field(min_length=1, max_length=500)
     state: Literal["present", "absent"]
 
@@ -139,16 +139,14 @@ class WaitForAction(BaseModel):
 class ObserveOracleAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.OBSERVE_ORACLE] = BrowserActionKind.OBSERVE_ORACLE
+    kind: Literal["observe_oracle"] = "observe_oracle"
     oracle_id: str = Field(min_length=3, max_length=128)
 
 
 class CaptureEvidenceAction(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal[BrowserActionKind.CAPTURE_EVIDENCE] = (
-        BrowserActionKind.CAPTURE_EVIDENCE
-    )
+    kind: Literal["capture_evidence"] = "capture_evidence"
     reason: str = Field(min_length=1, max_length=500)
 
 
