@@ -2304,3 +2304,58 @@ Commands and evidence:
 
 Phase result: passed for explicit, free-tier-only production worker composition
 that validates all deployment configuration before client construction.
+
+## 2026-09-07 — Phase 3: grounded Product Alignment specialist
+
+Isolated change: added the first generic feature-testing specialist contract and
+ADK runtime boundary. The Product Alignment Analyst receives one natural-language
+feature request plus compiled project knowledge and returns a typed product intent.
+
+Reason: onboarding can now produce durable knowledge, but the feature-testing
+graph still lacked a least-privilege handoff that defines user value, expected
+behavior, prerequisites, included/excluded scope, and unresolved ambiguity before
+strategy or browser work begins.
+
+Skill and reference guidance:
+
+- `tdd` — one public behavior per red-green cycle, with the model kept behind a
+  test-only `BaseLlm` system-boundary double.
+- `google-agents-cli-workflow` and `google-agents-cli-adk-code` version `1.4.2` —
+  preserved the scaffolded project and existing model ID, used a structured
+  no-history specialist, and consulted `references/samples.md`,
+  `references/adk-python.md`, and `references/adk-workflows.md`.
+- No core recipe matches this stateless structured specialist contract. The
+  existing isolated ADK runtime is reused instead of adding a new orchestration
+  or persistence mechanism.
+
+TDD evidence:
+
+- Red: no Product Alignment contract or public specialist runtime existed.
+- Green: a fresh ADK context receives only the typed project ID, feature request,
+  and compiled knowledge, then returns a typed `ProductIntent`.
+- Red/green: invented source IDs in expected behavior, user value, or included
+  scope initially crossed the model boundary; deterministic grounding validation
+  now rejects each before downstream use.
+- Red/green: a ready result could initially hide ambiguity or omit expected
+  behavior; schema validation now requires clarification reasons and at least one
+  grounded expected behavior for ready intents.
+
+Safety and scope:
+
+- The specialist has no tools, transfers, browser, storage, credential, shell, or
+  network access and receives no source bodies beyond approved compiled knowledge.
+- Request and knowledge text are explicitly treated as untrusted data. Invalid or
+  cross-project structured output fails closed as `ProductAlignmentOutputError`.
+- Tests use synthetic profile-editing data and a deterministic model double. No
+  live model, credential, integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Product Alignment unit/integration suite — `9 passed`.
+- Product/knowledge specialist blast radius — `13 passed`.
+- Complete explicit offline unit/integration gate — `217 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a project-agnostic, typed Product Alignment boundary with
+deterministic citation and ambiguity guards. Behavioral model evaluation remains
+part of the later approved free-tier evaluation gate.
