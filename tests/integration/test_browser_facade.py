@@ -151,6 +151,8 @@ async def test_facade_exposes_only_policy_checked_typed_browser_results() -> Non
     assert credentials.references == ["projects/project-alpha/secrets/primary-login"]
     assert backend.started == 1
     assert backend.closed == 1
+    assert session.step_count == 4
+    assert session.observed_actuals == (observation.oracle_actual,)
 
 
 @pytest.mark.asyncio
