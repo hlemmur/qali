@@ -2657,3 +2657,50 @@ Phase result: passed for deterministic immutable run/finding artifacts and offli
 production repository parity. Slack rendering, issue index/testing-log projections,
 production browser evidence capture, and full feature-workflow composition remain
 later isolated slices.
+
+## 2026-09-08 — Phase 3: concise Slack feature results
+
+Isolated slice: rendered persisted feature-run records into essentials-first Slack
+results and grounded finding follow-ups, then added production and in-memory
+publishers that update the existing progress message.
+
+Reason: Qali's Slack surface must give users an honest result at a glance while
+keeping detailed reproduction evidence available without exposing orchestration,
+secret locations, or internal fingerprint inputs.
+
+Skill and method:
+
+- `tdd` — advanced success, confirmed-failure, inconclusive-failure, follow-up, and
+  publisher retry behavior through focused red-green cycles.
+- `qa-report-humanizer` — kept the primary result to scenario/check counts and a
+  concise finding summary, with evidence-rich detail available only in follow-up.
+
+TDD evidence:
+
+- Red/green: no Slack result contract existed; successful runs now render one concise
+  sentence with exact scenario and check counts and a visible mock-mode badge when
+  applicable.
+- Red/green: failed runs now lead with counts, list only reviewed findings, and report
+  a non-reproduced failure as `No confirmed finding` instead of claiming a defect.
+- Red/green: finding follow-up is reconstructed from persisted approved scenario
+  intent, expected/actual checks, and evidence references without rerunning a browser.
+- Red/green: both publishers replace the existing progress message; the mock
+  publisher keys updates by message timestamp so retries cannot create duplicates.
+
+Safety and scope:
+
+- Slack text escapes user-derived markup and collapses whitespace. Primary results
+  omit internal context IDs, fingerprint internals, and Secret Manager references.
+- Tests use synthetic feature records and deterministic Slack/model protocol doubles.
+  No live Slack API, browser, model, credential, external integration, cloud resource,
+  or deployment was used.
+
+Commands and evidence:
+
+- Slack result, run-artifact, and failure-investigation blast radius — `18 passed`.
+- Complete explicit offline unit/integration gate — `286 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for concise Slack feature results and persisted-evidence
+follow-up. Issue index/testing-log projections, production browser evidence capture,
+and full feature-workflow composition remain later isolated slices.
