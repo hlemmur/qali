@@ -2359,3 +2359,63 @@ Commands and evidence:
 Phase result: passed for a project-agnostic, typed Product Alignment boundary with
 deterministic citation and ambiguity guards. Behavioral model evaluation remains
 part of the later approved free-tier evaluation gate.
+
+## 2026-09-07 — Phase 3: independent QA Strategy and Risk specialists
+
+Isolated bundle: added the two independent planning inputs that follow an approved
+`ProductIntent`: a QA Strategist and a Risk Analyst. Both use typed, tool-free ADK
+contexts; neither sees the other specialist's output.
+
+Reason: the generic feature-testing graph requires strategy/risk fan-out before a
+Test Designer can synthesize scenarios. Bundling the pair establishes their shared
+scope boundary and independence in one review cycle without yet adding synthesis
+or browser execution.
+
+Skill and reference guidance:
+
+- `tdd` — advanced one observable contract at a time through red-green cycles and
+  replaced only the external model boundary with deterministic `BaseLlm` doubles.
+- `google-agents-cli-workflow` and `google-agents-cli-adk-code` version `1.4.2` —
+  preserved the scaffold, existing model ID, structured-output pattern, and fresh
+  session isolation after consulting `references/samples.md`,
+  `references/adk-python.md`, and `references/adk-workflows.md`.
+- No core recipe matches these stateless specialist contracts. The existing
+  isolated runtime is reused; graph fan-out remains a later deterministic service
+  slice once the Test Designer contract exists.
+
+TDD evidence:
+
+- Red/green: no typed QA strategy boundary existed; the new specialist receives
+  only approved product intent and returns mission, assumptions, stopping
+  conditions, and explicit decisions for all nine required coverage concerns.
+- Red/green: incomplete or duplicated coverage could cross the model boundary;
+  `TestStrategy` now requires each concern exactly once, including explicit
+  not-applicable rationales.
+- Red/green: no independent Risk Analyst existed; it now receives the same product
+  intent without strategy context and covers product, state, data, environment,
+  concurrency, and usability risk areas.
+- Red/green: incomplete areas, empty identified areas, hidden risks under
+  not-applicable decisions, mismatched risk categories, and duplicate stable risk
+  IDs now fail schema validation.
+- Guard: both outputs must match the approved project and feature, and neither task
+  accepts a product intent that still needs clarification.
+
+Safety and scope:
+
+- Both agents have no tools, transfers, browser, storage, credential, shell, or
+  network access. Request-derived text remains untrusted data, not instructions.
+- The pair defines planning inputs only. It does not run fan-out, synthesize test
+  scenarios, assign pass/fail, call a browser, persist artifacts, or change live
+  worker behavior.
+- Tests use synthetic profile-editing inputs and deterministic model doubles. No
+  live model, credential, integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- QA Strategy/Risk unit and integration suite — `11 passed`.
+- Product/knowledge/planning specialist blast radius — `24 passed`.
+- Complete explicit offline unit/integration gate — `228 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for independent, project-agnostic strategy and risk specialist
+boundaries with deterministic completeness, scope, and consistency guards.
