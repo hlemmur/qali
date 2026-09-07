@@ -269,6 +269,27 @@ class FailureFinding(BaseModel):
     evidence_refs: tuple[str, ...] = Field(min_length=1)
     reproduction_count: int = Field(ge=1, le=1)
 
+    @model_validator(mode="after")
+    def require_stable_identity(self) -> FailureFinding:
+        fingerprint = failure_fingerprint(
+            FailureFingerprintInput(
+                project_id=self.project_id,
+                feature_slug=self.feature_slug,
+                scenario_id=self.scenario_id,
+                failed_checks=self.failed_checks,
+            )
+        )
+        if (
+            self.fingerprint != fingerprint
+            or self.finding_id != f"finding-{fingerprint}"
+        ):
+            raise ValueError("finding identity does not match failed checks")
+        if len(self.evidence_refs) != len(set(self.evidence_refs)) or len(
+            self.trace_refs
+        ) != len(set(self.trace_refs)):
+            raise ValueError("finding references must be distinct")
+        return self
+
 
 class FailureInvestigationResult(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -277,8 +298,55 @@ class FailureInvestigationResult(BaseModel):
     analysis: FailureAnalysis
     review: FailureReview | None
     finding: FailureFinding | None
+    initial_attempt: FailureAttempt
     reproduction_attempt: FailureAttempt
     revision_count: int = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def require_consistent_status(self) -> FailureInvestigationResult:
+        same_scenario = (
+            self.initial_attempt.result.scenario_id
+            == self.reproduction_attempt.result.scenario_id
+        )
+        fresh_context = (
+            self.initial_attempt.context_id != self.reproduction_attempt.context_id
+        )
+        if (
+            self.initial_attempt.result.evaluation.passed
+            or not same_scenario
+            or not fresh_context
+        ):
+            raise ValueError("investigation result attempts are inconsistent")
+
+        if self.status is FailureGateStatus.APPROVED:
+            consistent = (
+                self.review is not None
+                and self.review.approved
+                and self.finding is not None
+                and not self.reproduction_attempt.result.evaluation.passed
+                and self.finding.scenario_id
+                == self.reproduction_attempt.result.scenario_id
+            )
+        elif self.status is FailureGateStatus.INCONCLUSIVE:
+            consistent = (
+                self.review is None
+                and self.finding is None
+                and self.reproduction_attempt.result.evaluation.passed
+                and self.analysis.classification
+                is FailureClassification.FLAKY_INCONCLUSIVE
+                and self.revision_count == 0
+            )
+        else:
+            consistent = (
+                self.review is not None
+                and not self.review.approved
+                and self.finding is None
+                and not self.reproduction_attempt.result.evaluation.passed
+                and self.revision_count == 1
+            )
+        if not consistent:
+            raise ValueError("investigation result status is inconsistent")
+        return self
 
 
 class FailureReproducer(Protocol):
@@ -345,6 +413,7 @@ class FailureInvestigationWorkflow:
                 ),
                 review=None,
                 finding=None,
+                initial_attempt=task.initial_attempt,
                 reproduction_attempt=reproduction,
                 revision_count=0,
             )
@@ -377,6 +446,7 @@ class FailureInvestigationWorkflow:
                 analysis=analysis,
                 review=review,
                 finding=None,
+                initial_attempt=task.initial_attempt,
                 reproduction_attempt=reproduction,
                 revision_count=revision_count,
             )
@@ -386,6 +456,7 @@ class FailureInvestigationWorkflow:
             analysis=analysis,
             review=review,
             finding=_finding(analysis_task, analysis),
+            initial_attempt=task.initial_attempt,
             reproduction_attempt=reproduction,
             revision_count=revision_count,
         )
