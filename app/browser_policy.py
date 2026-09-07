@@ -197,6 +197,16 @@ def authorize_browser_action(
     return action
 
 
+def validate_browser_location(
+    url: str,
+    *,
+    policy: BrowserTargetPolicy,
+) -> str:
+    if _origin(url) not in policy.allowed_origins:
+        raise BrowserPolicyError("redirect left the approved origin")
+    return url
+
+
 def _origin(url: str) -> str:
     parsed = urlsplit(url)
     if (
@@ -226,4 +236,5 @@ __all__ = [
     "TypeTextAction",
     "WaitForAction",
     "authorize_browser_action",
+    "validate_browser_location",
 ]
