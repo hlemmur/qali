@@ -2419,3 +2419,58 @@ Commands and evidence:
 
 Phase result: passed for independent, project-agnostic strategy and risk specialist
 boundaries with deterministic completeness, scope, and consistency guards.
+
+## 2026-09-07 — Phase 3: grounded Test Designer and plan quality gate
+
+Isolated bundle: added the Test Designer synthesis boundary, deterministic plan
+validation, an independent Quality Reviewer, and a workflow that permits at most
+one plan revision before returning an explicit escalated result.
+
+Reason: the generic feature-testing graph needs a reviewed, executable plan before
+browser execution can begin. This slice joins the already approved product intent,
+strategy, and independent risk assessment without granting either model browser or
+mutation capabilities.
+
+Skill and reference guidance:
+
+- `tdd` — advanced oracle, traceability, coverage, identity, isolation, and bounded
+  review behavior through red-green cycles with deterministic model doubles.
+- `google-agents-cli-workflow` and `google-agents-cli-adk-code` version `1.4.2` —
+  preserved the scaffold, existing model ID, typed structured-output convention,
+  and fresh invocation contexts after consulting `references/samples.md`,
+  `references/adk-python.md`, and `references/adk-workflows.md`.
+- The established isolated ADK runtime and one-revision workflow pattern are reused;
+  no new orchestration framework or persistence mechanism was introduced.
+
+TDD evidence:
+
+- Red/green: absence oracles could carry contradictory expected values and value
+  oracles could omit them; operator/value consistency is now schema-enforced.
+- Red/green: scenarios accepted arbitrary coverage labels; coverage is now typed to
+  the nine strategy concerns.
+- Red/green: unsupported product/risk trace references, incomplete or extra strategy
+  coverage, cross-feature plans, duplicate scenario IDs, and duplicate oracle IDs
+  now fail closed before downstream use.
+- Green: design and revision calls each use a fresh isolated ADK context containing
+  only the typed design task and explicit revision material.
+- Red/green: the independent reviewer has a typed approve/reject contract, no tools,
+  and no transfer capability. The deterministic workflow allows one revision and
+  returns `escalated` after a second rejection instead of silently continuing.
+
+Safety and scope:
+
+- Neither specialist can browse, mutate product state, access credentials, storage,
+  shell, or arbitrary network tools. Supplied product text remains untrusted data.
+- The LLM proposes scenarios but cannot assign pass/fail; deterministic validation
+  remains the trusted boundary for scope, traceability, coverage, and identities.
+- Tests use synthetic profile-editing data and `BaseLlm`/protocol doubles. No live
+  model, credential, integration, cloud resource, browser, or deployment was used.
+
+Commands and evidence:
+
+- Test Designer and plan-review unit/integration suite — `17 passed`.
+- Complete explicit offline unit/integration gate — `245 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for the reviewed-plan boundary required before the restricted
+Browser Executor slice.
