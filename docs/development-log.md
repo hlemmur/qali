@@ -3033,3 +3033,47 @@ Commands and evidence:
 
 Phase result: passed for mock-safe, immutable, run-scoped browser failure evidence
 export. Live Playwright capture and end-to-end SauceDemo qualification remain pending.
+
+## 2026-09-08 — Phase 3: restricted browser context factory
+
+Isolated slice: added the production composition boundary that creates a fresh
+backend-bound `RestrictedBrowserSession` for each browser attempt.
+
+Reason: the attempt runner required a context factory, but the repository had no
+implementation that assembled the task policy, approved oracle set, credential
+resolver, and one isolated browser backend without exposing those dependencies to the
+browser specialist.
+
+Guidance and reference:
+
+- `tdd` and `playwright-automation` version `2.0` guided the red/green loop and the
+  fresh-`BrowserContext` isolation boundary.
+- Concrete Playwright MCP process startup and tool mapping remain outside this slice;
+  the backend factory is the narrow seam for that adapter.
+
+TDD evidence:
+
+- Red/green tracer: no context-factory implementation existed; each creation now
+  requests a distinct backend and returns a distinct restricted session scoped to the
+  approved task policy and positive/forbidden oracle set.
+- Guard: unsafe generated context IDs are rejected before backend creation.
+- Integration proof enters the resulting session and executes only through the
+  existing restricted facade, preserving its start/close lifecycle and URL policy.
+
+Safety and scope:
+
+- Backend creation, context-ID generation, and credential resolution are injected.
+  Tests use only deterministic service doubles and make no browser or network call.
+- Default context IDs use a fresh UUID-derived value; the attempt runner retains its
+  independent duplicate-context rejection guard.
+- No Playwright MCP process, live browser, model, Slack API, credential, external
+  integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Browser context/attempt/facade/executor blast radius — `14 passed`.
+- Complete explicit offline unit/integration gate — `327 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for mock-safe restricted browser-context composition. A pinned
+Playwright MCP backend remains the next isolated browser-adapter slice.
