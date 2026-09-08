@@ -3265,3 +3265,63 @@ Commands and evidence:
 Phase result: passed for fail-closed MCP tool discovery and response mapping. The
 concrete Playwright MCP `BrowserBackend` adapter is the next isolated browser-runtime
 slice.
+
+## 2026-09-08 — Phase 3: restricted Playwright MCP browser backend
+
+Isolated slice: added the concrete `BrowserBackend` and backend factory that bind one
+approved attempt to the pinned Playwright MCP process, initialization handshake, fixed
+tool allowlist, and deterministic response parsers.
+
+Reason: the restricted browser session and context factory still depended on a test
+double. This adapter now crosses the production MCP boundary without exposing raw tools,
+unrestricted JavaScript, filenames, arbitrary waits, or server-authored verdicts to the
+browser specialist.
+
+Guidance and reference:
+
+- `autopilot` verified the prior tool-contract PR was human-merged, green, and fully
+  triaged before this branch started.
+- `tdd` guided vertical red-green tracers through public backend behavior with only the
+  subprocess stdio boundary replaced by an in-memory child.
+- The response section, page metadata, snapshot, console, network, and screenshot-link
+  formats were checked against the official source bundled by
+  `@playwright/mcp@0.0.80` and its exact `playwright-core` dependency.
+
+TDD evidence:
+
+- Red/green: backend startup launches the supplied pinned process specification,
+  negotiates the fixed protocol, discovers the allowlist, maps navigation and an inline
+  accessibility snapshot, and always closes the managed child.
+- Red/green: click, public text, secret fill, and present/absent waits map only to the
+  minimal approved tool arguments. Secret text is passed only into the private backend
+  call and never returned from its public result.
+- Red/green: the pinned server may return an empty text result for non-submitting text
+  entry when page metadata is unchanged; the backend follows it with an approved
+  accessibility snapshot instead of inventing or reusing a URL.
+- Red/green: URL and accessibility observations come from a fresh snapshot; element
+  counts are deterministic matching-line counts; console and network observations are
+  parsed as integer error counts for harness-owned oracle evaluation.
+- Red/green: malformed network output fails closed instead of becoming a zero-error
+  false pass. Pinned initialization failures reap the child, and screenshot references
+  outside the isolated output root are rejected.
+- The backend factory derives the exact process specification from the validated task,
+  context ID, and configured output root, preserving per-attempt isolation.
+
+Safety and scope:
+
+- Tests use only in-memory MCP frames and never launch or install Playwright MCP, open a
+  browser, resolve a live credential, call a model or Slack API, use cloud resources, or
+  deploy anything.
+- Page text, snapshots, logs, and paths remain untrusted. Parsers require the pinned
+  section shapes, count only recognized network statuses, and return a namespaced
+  screenshot reference rather than arbitrary server text.
+
+Commands and evidence:
+
+- Playwright MCP/restricted-browser blast radius — `74 passed`.
+- Complete explicit offline unit/integration gate — `390 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a mock-safe concrete Playwright MCP browser backend. A concrete
+failure-evidence capture source and scripted real-browser contract qualification remain
+the next isolated browser-runtime slices.
