@@ -3126,3 +3126,48 @@ Commands and evidence:
 
 Phase result: passed for a pinned and hardened mock-safe MCP process contract. The
 stdio lifecycle adapter is the next isolated browser-runtime slice.
+
+## 2026-09-08 — Phase 3: fail-closed Playwright MCP stdio lifecycle
+
+Isolated slice: added the managed subprocess lifecycle for the pinned Playwright MCP
+process specification, with stdio-only communication and deterministic cleanup.
+
+Reason: the reviewed process command still had no execution boundary. Starting a child
+without proving stdio availability or guaranteeing reaping could leak processes,
+browser contexts, and resources across attempts or leave an unusable transport in the
+workflow.
+
+Guidance and reference:
+
+- `tdd` guided five vertical lifecycle behaviors through the public start/close API.
+- The previously reviewed `@playwright/mcp@0.0.80` process specification remains the
+  only accepted launch input. MCP initialization and tool mapping remain separate.
+
+TDD evidence:
+
+- Red/green tracer: a started stdio process is exposed through a managed handle and is
+  always terminated and reaped on close.
+- Guard: missing stdin or stdout fails closed, terminating and reaping the unusable
+  child before returning an error.
+- Guard: a graceful-shutdown timeout escalates to kill and waits for process exit.
+- Guard: cancellation also kills and reaps the child before propagating cancellation.
+- Guard: spawn failures become a stable availability error without exposing OS error
+  details to higher workflow layers.
+
+Safety and scope:
+
+- The concrete spawner uses argument-vector execution without a shell, stdin/stdout
+  pipes, discarded stderr, a fixed minimal `PATH` with no inherited ambient or secret
+  variables, and a separate process session.
+- Tests inject only process-boundary doubles. No pinned package was executed or
+  installed, and no browser, model, Slack API, credential, external integration, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- MCP lifecycle/process/context blast radius — `11 passed`.
+- Complete explicit offline unit/integration gate — `336 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fail-closed mock-safe MCP subprocess ownership. The MCP
+initialize handshake and strict tool-response contract remain the next isolated slice.

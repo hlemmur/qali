@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from app.playwright_mcp_process import (
     PLAYWRIGHT_MCP_PACKAGE,
+    PLAYWRIGHT_MCP_SAFE_PATH,
     PlaywrightMcpSettings,
     build_playwright_mcp_process,
 )
@@ -41,7 +42,7 @@ def test_process_spec_pins_an_isolated_headless_browser_context() -> None:
         "--output-dir",
         "/tmp/qali-browser/context-cart-001",
     )
-    assert spec.environment == {}
+    assert spec.environment == {"PATH": PLAYWRIGHT_MCP_SAFE_PATH}
     assert "--allow-unrestricted-file-access" not in spec.arguments
     assert "--no-sandbox" not in spec.arguments
     assert "--caps" not in spec.arguments
