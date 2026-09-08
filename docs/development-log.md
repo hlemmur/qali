@@ -3171,3 +3171,50 @@ Commands and evidence:
 
 Phase result: passed for fail-closed mock-safe MCP subprocess ownership. The MCP
 initialize handshake and strict tool-response contract remain the next isolated slice.
+
+## 2026-09-08 — Phase 3: pinned Playwright MCP initialize handshake
+
+Isolated slice: added a bounded JSON-RPC stdio client that completes the legacy MCP
+initialize lifecycle required by the SDK bundled with `@playwright/mcp@0.0.80`.
+
+Reason: owning the child process did not establish protocol compatibility or prove that
+the server exposes tools. Accepting an unvalidated initialize response could silently
+run against a drifted MCP protocol or package and make later browser calls unsafe.
+
+Guidance and reference:
+
+- `tdd` guided the handshake through the public initializer and stdio protocols.
+- The exact server dependency uses MCP TypeScript SDK `1.25.2`, whose latest supported
+  protocol is `2025-11-25` and whose stdio framing is one JSON-RPC message per newline.
+- The client sends `initialize`, validates the response, and only then sends
+  `notifications/initialized`.
+
+TDD evidence:
+
+- Red/green tracer: the valid pinned handshake returns typed server identity and emits
+  the exact two-message lifecycle.
+- Guards: reject protocol drift, package-version drift, missing tools capability,
+  malformed JSON-RPC, response errors, wrong correlation IDs, truncated frames, and
+  incomplete server identity before the ready notification.
+- Bounds: enforce a configurable 128–65,536-byte response limit and a configurable
+  0–30-second timeout.
+- Boundary failures from broken stdio are mapped to stable errors without exposing OS
+  details; cancellation remains propagating.
+
+Safety and scope:
+
+- Tests use only in-memory stdio doubles. No pinned package was executed or installed,
+  and no browser, model, Slack API, credential, external integration, cloud resource,
+  or deployment was used.
+- The lifecycle handle now exposes typed reader/writer protocols for composition while
+  retaining the existing terminate/kill/reap behavior.
+
+Commands and evidence:
+
+- MCP initialize/lifecycle/process blast radius — `23 passed`.
+- Complete explicit offline unit/integration gate — `350 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a pinned, bounded, fail-closed MCP initialize handshake. A
+strict `tools/list` allowlist and `tools/call` response mapper is the next isolated
+browser-runtime slice.
