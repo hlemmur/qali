@@ -2902,3 +2902,53 @@ Commands and evidence:
 Phase result: passed for reviewed planning through approved feature execution.
 Production browser evidence capture and live qualification remain later isolated
 slices requiring their own approval and integration evidence.
+
+## 2026-09-08 — Phase 3: isolated browser attempt runner
+
+Isolated slice: added the deterministic bridge from one approved browser execution
+task to a typed `FailureAttempt`, with fresh-context enforcement and mandatory
+failure evidence export.
+
+Reason: feature execution consumes attempts, while the browser specialist returned
+only an evaluated scenario result. The missing boundary could not prove that retries
+used a fresh context or that a failed result had complete evidence before failure
+investigation began.
+
+Guidance and reference:
+
+- `tdd` and `playwright-automation` version `2.0` were used for the red/green loop
+  and browser isolation/evidence design.
+- The current official
+  [`microsoft/playwright-mcp`](https://github.com/microsoft/playwright-mcp)
+  tool surface was reviewed. This slice deliberately defines no version-sensitive
+  MCP tool mapping; transport and concrete evidence export remain a separate slice.
+
+TDD evidence:
+
+- Red/green: no browser-attempt runner existed; a passing scenario now returns a
+  typed attempt without performing failure-only evidence work.
+- Red/green: a failed scenario now requires the exporter to return all five evidence
+  references before a valid `FailureAttempt` can exist.
+- Red/green: an exporter failure propagates and cannot produce an incomplete attempt.
+- Guard: a context ID is reserved before browser execution and cannot be reused for
+  a later attempt, including a reproduction after a contaminated or failed run.
+- Guard: an executor cannot substitute a result for another scenario, and evidence
+  export does not run for that untrusted output.
+
+Safety and scope:
+
+- Context creation, restricted browser execution, and evidence export remain narrow
+  injected protocols. Tests use only service doubles and the existing mock-safe
+  browser facade.
+- No Playwright MCP process, live browser, model, Slack API, credential, external
+  integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Browser/executor/failure/run composition blast radius — `21 passed`.
+- Complete explicit offline unit/integration gate — `318 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fresh-context browser attempts with fail-closed failure
+evidence requirements. Concrete Playwright MCP transport/evidence export and live
+qualification remain later isolated slices.
