@@ -8,6 +8,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from pydantic import ValidationError
 
 from app.browser_executor_agent import (
     AdkBrowserExecutor,
@@ -100,6 +101,7 @@ def _execution_task() -> BrowserExecutionTask:
     scenario = _review_task().plan.scenarios[0]
     return BrowserExecutionTask(
         project_id="project-alpha",
+        run_id="run-profile-001",
         scenario=scenario,
         target_policy=BrowserTargetPolicy(
             project_id="project-alpha",
@@ -121,6 +123,14 @@ def _execution_task() -> BrowserExecutionTask:
             timeout_seconds=300,
         ),
     )
+
+
+def test_browser_execution_task_rejects_an_unsafe_run_id() -> None:
+    payload = _execution_task().model_dump(mode="python")
+    payload["run_id"] = "Run/unsafe"
+
+    with pytest.raises(ValidationError, match="string_pattern_mismatch"):
+        BrowserExecutionTask.model_validate(payload)
 
 
 @pytest.mark.asyncio
@@ -172,6 +182,7 @@ async def test_browser_executor_explores_but_harness_assigns_the_verdict() -> No
     assert backend.closed == 1
     first_payload = json.loads(model.requests[0].contents[0].parts[0].text)
     assert first_payload["project_id"] == task.project_id
+    assert "run_id" not in first_payload
     assert first_payload["scenario"] == task.scenario.model_dump(mode="json")
     assert first_payload["target_policy"]["credential_names"] == ["primary-login"]
     assert "secret_ref" not in json.dumps(first_payload)

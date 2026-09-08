@@ -31,6 +31,11 @@ class BrowserExecutionTask(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     project_id: str = Field(min_length=1, max_length=128)
+    run_id: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
     scenario: TestScenario
     target_policy: BrowserTargetPolicy
 

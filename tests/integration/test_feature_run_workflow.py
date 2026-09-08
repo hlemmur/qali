@@ -90,6 +90,7 @@ async def test_approved_feature_run_persists_before_publishing_mock_result() -> 
     )
     assert slack.list_messages() == [(task.progress_message, result.slack_result)]
     assert len(runner.tasks) == 1
+    assert runner.tasks[0].run_id == task.run_id
     assert runner.tasks[0].scenario == task.approved_plan.plan.scenarios[0]
     assert investigator.tasks == []
 
