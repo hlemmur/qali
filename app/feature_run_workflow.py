@@ -53,6 +53,7 @@ class FeatureRunTask(BaseModel):
         for scenario in self.approved_plan.plan.scenarios:
             BrowserExecutionTask(
                 project_id=self.project_id,
+                run_id=self.run_id,
                 scenario=scenario,
                 target_policy=self.target_policy,
             )
@@ -117,6 +118,7 @@ class FeatureRunWorkflow:
         for scenario in task.approved_plan.plan.scenarios:
             execution_task = BrowserExecutionTask(
                 project_id=task.project_id,
+                run_id=task.run_id,
                 scenario=scenario,
                 target_policy=task.target_policy,
             )

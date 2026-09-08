@@ -2952,3 +2952,41 @@ Commands and evidence:
 Phase result: passed for fresh-context browser attempts with fail-closed failure
 evidence requirements. Concrete Playwright MCP transport/evidence export and live
 qualification remain later isolated slices.
+
+## 2026-09-08 — Phase 3: browser run-scope propagation
+
+Isolated slice: carried the owning feature-run ID into every restricted browser
+execution task without adding that internal identifier to the browser-agent prompt.
+
+Reason: the planned durable evidence layout is
+`projects/{project_id}/runs/{run_id}/evidence/...`, but browser attempts previously
+had no typed run scope. A concrete evidence exporter therefore could not derive a
+safe owning path without an out-of-band lookup or an untrusted caller-supplied value.
+
+TDD evidence:
+
+- Red/green tracer: an approved feature run previously produced a browser task with
+  no `run_id`; it now propagates the exact validated run ID into each scenario task.
+- Guard: browser execution rejects unsafe run identifiers before context creation or
+  browser use.
+- Guard: the run ID remains harness-only metadata and is deliberately excluded from
+  the minimized `BrowserExecutorRequest` sent to the model.
+- Existing failure investigation retains the same browser task, so initial and
+  reproduction evidence share the correct owning run scope while still using fresh
+  context IDs.
+
+Safety and scope:
+
+- No selector, URL, feature, project fixture, credential, or model behavior was
+  added. Existing test doubles remain confined to tests.
+- No Playwright MCP process, live browser, model, Slack API, credential, external
+  integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Browser/run/failure scope blast radius — `19 passed`.
+- Complete explicit offline unit/integration gate — `319 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for safe run-scoped browser attempts. Immutable browser evidence
+export can now target the approved run path in the next isolated slice.
