@@ -15,6 +15,9 @@ class FindingStatus(StrEnum):
     RESOLVED = "resolved"
 
 
+_FINDING_STATUSES = (FindingStatus.OPEN, FindingStatus.RESOLVED)
+
+
 class FindingProjectionState(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -146,7 +149,7 @@ def _issue_index(
     state_by_finding: dict[str, FindingStatus],
 ) -> str:
     lines = ["# Qali issue index", ""]
-    for status in FindingStatus:
+    for status in _FINDING_STATUSES:
         lines.extend((f"## {status.value.title()}", ""))
         matching = [
             (finding_id, finding, record)
