@@ -3218,3 +3218,50 @@ Commands and evidence:
 Phase result: passed for a pinned, bounded, fail-closed MCP initialize handshake. A
 strict `tools/list` allowlist and `tools/call` response mapper is the next isolated
 browser-runtime slice.
+
+## 2026-09-08 — Phase 3: deny-by-default Playwright MCP tool contract
+
+Isolated slice: added strict `tools/list` discovery and bounded `tools/call` response
+mapping behind a fixed Qali allowlist for the pinned Playwright MCP server.
+
+Reason: a successfully initialized raw MCP connection still exposes many browser tools,
+including unrestricted JavaScript evaluation and file-producing options. Passing that
+surface through would bypass the restricted browser facade and its deterministic policy
+boundary.
+
+Guidance and reference:
+
+- `tdd` guided tool discovery, call authorization, and response mapping through the
+  public tool client with only stdio boundary doubles.
+- The allowlist and required input fields follow the generated tool documentation for
+  `@playwright/mcp@0.0.80`; extra server tools are ignored and cannot be called.
+
+TDD evidence:
+
+- Red/green tracer: discovery validates the eight required tool definitions and returns
+  only Qali's fixed allowlist while ignoring `browser_evaluate`.
+- Guards: missing, duplicate, non-object, or required-field-drifted tool definitions
+  fail closed; successful discovery is idempotent.
+- Calls are denied before discovery, outside the allowlist, or when arguments include
+  unrestricted filenames, timed waits, submit behavior, verbose console history, or
+  static network resources.
+- Successful calls accept only minimal Qali argument shapes and return typed, bounded
+  text blocks. JSON-RPC errors, non-text content, wrong IDs, malformed frames, oversized
+  responses, and server tool errors are rejected without returning server details.
+
+Safety and scope:
+
+- The subprocess reader buffer is capped at 1 MiB, while tool responses default to a
+  tighter 256 KiB application limit and a five-second timeout.
+- Tests use only in-memory MCP responses. No package, browser, model, Slack API,
+  credential, external integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- MCP tool/initialize/lifecycle/process blast radius — `53 passed`.
+- Complete explicit offline unit/integration gate — `380 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for fail-closed MCP tool discovery and response mapping. The
+concrete Playwright MCP `BrowserBackend` adapter is the next isolated browser-runtime
+slice.

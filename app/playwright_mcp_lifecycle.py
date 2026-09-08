@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Protocol
 
-from app.playwright_mcp_client import McpReader, McpWriter
+from app.playwright_mcp_client import MCP_STDIO_LIMIT_BYTES, McpReader, McpWriter
 from app.playwright_mcp_process import PlaywrightMcpProcessSpec
 
 
@@ -37,6 +37,7 @@ class AsyncioMcpProcessSpawner:
             stderr=asyncio.subprocess.DEVNULL,
             env=spec.environment,
             start_new_session=True,
+            limit=MCP_STDIO_LIMIT_BYTES,
         )
 
 

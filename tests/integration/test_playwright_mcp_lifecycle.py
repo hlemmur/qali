@@ -4,7 +4,9 @@ import asyncio
 
 import pytest
 
+from app.playwright_mcp_client import MCP_STDIO_LIMIT_BYTES
 from app.playwright_mcp_lifecycle import (
+    AsyncioMcpProcessSpawner,
     PlaywrightMcpLifecycle,
     PlaywrightMcpUnavailable,
 )
@@ -173,3 +175,22 @@ async def test_cancelled_shutdown_kills_and_reaps_before_propagating() -> None:
     assert child.terminated == 1
     assert child.killed == 1
     assert child.waits == 2
+
+
+@pytest.mark.asyncio
+async def test_concrete_spawner_bounds_the_stdio_reader_buffer(monkeypatch) -> None:
+    calls = []
+
+    async def spawn(*arguments, **options):
+        calls.append((arguments, options))
+        return _ChildDouble()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    spec = PlaywrightMcpProcessSpec(
+        executable="npx",
+        arguments=("--offline", "@playwright/mcp@0.0.80"),
+    )
+
+    await AsyncioMcpProcessSpawner().spawn(spec)
+
+    assert calls[0][1]["limit"] == MCP_STDIO_LIMIT_BYTES

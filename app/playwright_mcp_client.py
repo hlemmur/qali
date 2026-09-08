@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.playwright_mcp_process import PLAYWRIGHT_MCP_VERSION
 
 MCP_PROTOCOL_VERSION = "2025-11-25"
+MCP_STDIO_LIMIT_BYTES = 1024 * 1024
 
 
 class McpWriter(Protocol):
@@ -156,6 +157,7 @@ class PlaywrightMcpInitializer:
 
 __all__ = [
     "MCP_PROTOCOL_VERSION",
+    "MCP_STDIO_LIMIT_BYTES",
     "McpReader",
     "McpStdioTransport",
     "McpWriter",
