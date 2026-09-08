@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.browser_executor_agent import BrowserExecutionTask
 
 PLAYWRIGHT_MCP_PACKAGE = "@playwright/mcp@0.0.80"
+PLAYWRIGHT_MCP_SAFE_PATH = "/usr/local/bin:/usr/bin:/bin"
 _CONTEXT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,127}$")
 
 
@@ -64,11 +65,13 @@ def build_playwright_mcp_process(
             "--output-dir",
             str(output_dir),
         ),
+        environment={"PATH": PLAYWRIGHT_MCP_SAFE_PATH},
     )
 
 
 __all__ = [
     "PLAYWRIGHT_MCP_PACKAGE",
+    "PLAYWRIGHT_MCP_SAFE_PATH",
     "PlaywrightMcpProcessSpec",
     "PlaywrightMcpSettings",
     "build_playwright_mcp_process",
