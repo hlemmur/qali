@@ -9,9 +9,12 @@ from google.api_core.exceptions import PreconditionFailed
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.run_artifacts import (
+    BrowserEvidenceArtifactBundle,
     FeatureRunArtifactBundle,
     RunArtifactDocument,
 )
+
+ArtifactBundle = FeatureRunArtifactBundle | BrowserEvidenceArtifactBundle
 
 
 class GcsRunArtifactSettings(BaseModel):
@@ -71,7 +74,7 @@ class InMemoryRunArtifactRepository:
 
     async def publish(
         self,
-        bundle: FeatureRunArtifactBundle,
+        bundle: ArtifactBundle,
     ) -> PublishedRunArtifacts:
         created_at = _aware_utc(self._clock())
         async with self._lock:
@@ -116,7 +119,7 @@ class GcsRunArtifactRepository:
 
     async def publish(
         self,
-        bundle: FeatureRunArtifactBundle,
+        bundle: ArtifactBundle,
     ) -> PublishedRunArtifacts:
         created_at = _aware_utc(self._clock())
         bucket = self._client.bucket(self._settings.bucket_name)

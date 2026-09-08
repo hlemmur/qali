@@ -82,7 +82,7 @@ class RunArtifactDocument(BaseModel):
 
     object_name: str = Field(min_length=1, max_length=1_024)
     content_type: str = Field(min_length=1, max_length=100)
-    content: bytes = Field(min_length=1, max_length=1_000_000)
+    content: bytes = Field(min_length=1, max_length=50_000_000)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
@@ -143,6 +143,38 @@ class FeatureRunArtifactBundle(BaseModel):
             if document.object_name == object_name:
                 return document
         raise KeyError(object_name)
+
+
+class BrowserEvidenceArtifactBundle(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project_id: str
+    run_id: str
+    context_id: str = Field(min_length=3, max_length=128)
+    documents: tuple[RunArtifactDocument, ...] = Field(min_length=5, max_length=5)
+
+    @field_validator("project_id", "run_id", "context_id")
+    @classmethod
+    def require_safe_resource_id(cls, value: str) -> str:
+        if _RESOURCE_ID.fullmatch(value) is None:
+            raise ValueError("artifact resource identifier is unsafe")
+        return value
+
+    @model_validator(mode="after")
+    def require_planned_evidence_layout(self) -> BrowserEvidenceArtifactBundle:
+        prefix = (
+            f"projects/{self.project_id}/runs/{self.run_id}/evidence/{self.context_id}"
+        )
+        expected = (
+            f"{prefix}/trace.zip",
+            f"{prefix}/accessibility.md",
+            f"{prefix}/console.json",
+            f"{prefix}/network.json",
+            f"{prefix}/screenshot.png",
+        )
+        if tuple(document.object_name for document in self.documents) != expected:
+            raise ValueError("browser evidence is outside the planned storage layout")
+        return self
 
 
 def compile_feature_run_artifacts(record: FeatureRunRecord) -> FeatureRunArtifactBundle:
@@ -330,6 +362,7 @@ def _document(
 
 
 __all__ = [
+    "BrowserEvidenceArtifactBundle",
     "FeatureRunArtifactBundle",
     "FeatureRunRecord",
     "RunArtifactDocument",

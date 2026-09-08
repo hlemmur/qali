@@ -2990,3 +2990,46 @@ Commands and evidence:
 
 Phase result: passed for safe run-scoped browser attempts. Immutable browser evidence
 export can now target the approved run path in the next isolated slice.
+
+## 2026-09-08 — Phase 3: immutable browser failure evidence export
+
+Isolated slice: added the deterministic exporter that turns one typed failure capture
+into five immutable run artifacts and returns the complete evidence references required
+by failure investigation.
+
+Reason: failed attempts already required trace, accessibility snapshot, console/network
+evidence, and screenshot references, but no implementation compiled and persisted those
+assets under the owning run. The exporter now targets
+`projects/{project_id}/runs/{run_id}/evidence/{context_id}/...` without relying on an
+out-of-band scope lookup.
+
+TDD evidence:
+
+- Red/green tracer: no evidence exporter existed; a failed result now captures and
+  publishes the five required assets with deterministic names and content types.
+- Guard: unsafe project/run/context scope, a passing result, or a result from another
+  scenario is rejected before capture or storage.
+- Guard: retries with identical bytes are idempotent through the immutable repository,
+  while changed content at the same evidence path raises a write conflict.
+- Guard: the exporter verifies the repository returned all five expected references in
+  canonical order before constructing a `FailureEvidenceBundle`.
+
+Safety and scope:
+
+- The capture source and artifact repository remain injected boundaries. Integration
+  tests use only typed captures and the in-memory immutable repository; the existing GCS
+  repository can accept the same validated evidence bundle without a live cloud call.
+- Evidence payloads are schema-bounded and JSON logs are serialized deterministically.
+  No credentials, signed URLs, selectors, target fixtures, or model context are added.
+- No Playwright MCP process, live browser, model, Slack API, external integration, cloud
+  resource, or deployment was used. A concrete Playwright capture adapter remains a
+  later isolated slice.
+
+Commands and evidence:
+
+- Evidence/repository/attempt-runner blast radius — `13 passed`.
+- Complete explicit offline unit/integration gate — `325 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for mock-safe, immutable, run-scoped browser failure evidence
+export. Live Playwright capture and end-to-end SauceDemo qualification remain pending.
