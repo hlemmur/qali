@@ -2743,3 +2743,40 @@ Commands and evidence:
 Phase result: passed for deterministic testing-log and issue-index materialization.
 Production projection publication, browser evidence capture, and full feature-workflow
 composition remain later isolated slices.
+
+## 2026-09-08 — Phase 3: guarded projection publication
+
+Isolated slice: added production GCS and in-memory repositories for publishing the
+materialized testing-log and issue-index documents with explicit generation guards.
+
+Reason: regenerated project views must support safe incremental replacement and
+idempotent task retries without silently accepting stale or conflicting content.
+
+TDD evidence:
+
+- Red/green: no projection publication boundary existed; the in-memory mock now
+  publishes and reads both project-scoped documents with production-shaped pointers.
+- Red/green: guarded mock updates replace both documents under one lock, reject stale
+  changed content without partial mutation, and reuse byte-identical stale retries.
+- Red/green: the GCS repository writes both planned paths with caller-supplied
+  generation preconditions, checksums, hashes, project metadata, and bounded timeouts.
+- Red/green: GCS precondition failures reuse only byte-identical existing projections;
+  different content or metadata fails closed as a generation conflict.
+
+Safety and scope:
+
+- Expected generations must cover exactly both projection paths and cannot be
+  negative. Repository clocks must return timezone-aware values.
+- Tests use deterministic clocks and versioned storage doubles. No live bucket,
+  browser, model, credential, external integration, cloud resource, or deployment was
+  used.
+
+Commands and evidence:
+
+- Projection compiler/repository and run-artifact repository blast radius — `13 passed`.
+- Complete explicit offline unit/integration gate — `297 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for mock-safe, generation-guarded project projection
+publication. Production browser evidence capture and full feature-workflow composition
+remain later isolated slices.
