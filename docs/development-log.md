@@ -2704,3 +2704,42 @@ Commands and evidence:
 Phase result: passed for concise Slack feature results and persisted-evidence
 follow-up. Issue index/testing-log projections, production browser evidence capture,
 and full feature-workflow composition remain later isolated slices.
+
+## 2026-09-08 — Phase 3: deterministic project projections
+
+Isolated slice: materialized immutable feature-run audit events into chronological
+`logs/testing-log.md` and current `issues/index.md` project projections.
+
+Reason: the project-level log and issue index are mutable views, so they must be
+regenerated deterministically from durable run truth instead of updated through
+fragile concurrent appends.
+
+TDD evidence:
+
+- Red/green: no projection compiler existed; unordered run events now produce a
+  stable chronological testing log with exact scenario/check counts and finding IDs.
+- Red/green: confirmed findings default to open and persisted issue state can mark a
+  known finding resolved without changing its immutable finding artifact.
+- Red/green: projection output is independent of caller input order.
+- Guard: cross-project events, duplicate run events, duplicate finding states, naive
+  timestamps, and status records for unknown findings fail closed.
+- Lint red/green: the type checker rejected enum-class iteration; projection section
+  order now uses an explicit typed status tuple.
+
+Safety and scope:
+
+- Projection documents use the planned project-scoped paths and carry verified
+  content hashes. User-derived text is collapsed to one line and Markdown backticks
+  are escaped.
+- Tests use synthetic persisted feature records only. No live storage, browser,
+  model, credential, external integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Projection and run-artifact blast radius — `8 passed`.
+- Complete explicit offline unit/integration gate — `291 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for deterministic testing-log and issue-index materialization.
+Production projection publication, browser evidence capture, and full feature-workflow
+composition remain later isolated slices.
