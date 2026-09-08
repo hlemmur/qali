@@ -2780,3 +2780,44 @@ Commands and evidence:
 Phase result: passed for mock-safe, generation-guarded project projection
 publication. Production browser evidence capture and full feature-workflow composition
 remain later isolated slices.
+
+## 2026-09-08 — Phase 3: approved feature-run workflow
+
+Isolated slice: composed an approved reviewed plan through bounded scenario execution,
+failure investigation, immutable run-artifact publication, and concise Slack result
+publication.
+
+Reason: the specialist boundaries were individually proven, but Qali still needed a
+deterministic application workflow that preserves their gates and publishes no success
+claim before durable evidence exists.
+
+TDD evidence:
+
+- Red/green: no approved-plan execution workflow existed; one successful scenario now
+  produces a complete typed run record, four immutable artifacts, and one concise
+  mock-badged Slack result.
+- Red/green: a failed initial attempt is passed to the failure workflow and only its
+  reviewed finding is compiled into the fifth issue artifact and Slack summary.
+- Red/green: retrying the same run reuses immutable artifacts and replaces the same
+  Slack progress message instead of duplicating evidence or user-facing output.
+- Guard: a scenario runner cannot substitute a result for another scenario, and an
+  artifact publication failure prevents a success message from being emitted.
+- Guard: task construction requires an approved plan, matching project policy, and a
+  browser policy that remains within every scenario's approved step budget.
+
+Safety and scope:
+
+- External browser/session creation, artifact storage, and Slack remain narrow injected
+  boundaries. Tests use deterministic attempts and in-memory repositories/publishers.
+- No live browser, model, Slack API, credential, external integration, cloud resource,
+  or deployment was used.
+
+Commands and evidence:
+
+- Feature-run, failure, artifact, and Slack composition blast radius — `20 passed`.
+- Complete explicit offline unit/integration gate — `302 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for approved-plan execution through durable evidence and Slack.
+Upstream product/strategy/plan composition, production browser evidence capture, and
+live qualification remain later isolated slices.
