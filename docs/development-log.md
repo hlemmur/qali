@@ -3077,3 +3077,52 @@ Commands and evidence:
 
 Phase result: passed for mock-safe restricted browser-context composition. A pinned
 Playwright MCP backend remains the next isolated browser-adapter slice.
+
+## 2026-09-08 — Phase 3: pinned Playwright MCP process specification
+
+Isolated slice: added a deterministic, fail-closed process specification for the
+reviewed Playwright MCP release without launching or installing the server.
+
+Reason: the next browser adapter needs an exact executable contract before subprocess
+lifecycle or tool mapping can be trusted. Runtime use of `@playwright/mcp@latest` or an
+install-on-demand command would permit silent drift and runtime code download.
+
+Guidance and reference:
+
+- `tdd` and `playwright-automation` version `2.0` guided the red/green loop, fresh
+  context isolation, headless Chromium choice, and evidence-output handling.
+- The official
+  [`microsoft/playwright-mcp`](https://github.com/microsoft/playwright-mcp) README and
+  latest release were refreshed before implementation. The reviewed package is pinned
+  to `@playwright/mcp@0.0.80` (`v0.0.80`, published 2026-09-01).
+- Upstream documents `--allowed-origins` as not being a security boundary. Qali's
+  restricted browser facade and post-navigation URL validation remain authoritative;
+  the MCP flag is defense in depth only.
+
+TDD evidence:
+
+- Red/green tracer: no MCP process specification existed; it now produces the exact
+  pinned, headless, isolated Chromium command with code generation disabled, image
+  responses omitted, service workers blocked, and a per-context output directory.
+- Guard: `npx --offline --yes` fails closed if the pinned package is absent from the
+  prebuilt image/cache instead of downloading code at runtime.
+- Guard: relative/root output locations and unsafe context IDs are rejected before a
+  process command can be produced.
+- Guard: unrestricted file access, `--no-sandbox`, optional capabilities, shared
+  contexts, and persistent browser profiles are not enabled.
+
+Safety and scope:
+
+- This slice is a pure builder with no subprocess, browser, filesystem write, model,
+  Slack API, credential, external integration, cloud resource, or deployment action.
+- The process launcher, stdio MCP lifecycle, and restricted tool/result mapping remain
+  separate isolated slices.
+
+Commands and evidence:
+
+- MCP process/context-factory scope — `6 passed`.
+- Complete explicit offline unit/integration gate — `331 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for a pinned and hardened mock-safe MCP process contract. The
+stdio lifecycle adapter is the next isolated browser-runtime slice.
