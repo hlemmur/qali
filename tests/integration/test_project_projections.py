@@ -137,3 +137,33 @@ async def test_projection_rejects_unknown_status_and_cross_project_events() -> N
     )
     with pytest.raises(ValueError, match="one project"):
         compile_project_projections((event, other_project))
+
+
+@pytest.mark.asyncio
+async def test_projection_rejects_ambiguous_or_unordered_source_state() -> None:
+    failed = await _failed_run()
+    finding = failed.investigations[0].finding
+    assert finding is not None
+    event = ProjectRunAuditEvent(
+        record=failed,
+        completed_at=datetime(2026, 9, 8, 10, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(ValueError, match="one event per run"):
+        compile_project_projections((event, event))
+
+    state = FindingProjectionState(
+        finding_id=finding.finding_id,
+        status=FindingStatus.OPEN,
+    )
+    with pytest.raises(ValueError, match="states must be distinct"):
+        compile_project_projections(
+            (event,),
+            finding_states=(state, state),
+        )
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        ProjectRunAuditEvent(
+            record=failed,
+            completed_at=datetime(2026, 9, 8, 10, 0),
+        )
