@@ -2821,3 +2821,43 @@ Commands and evidence:
 Phase result: passed for approved-plan execution through durable evidence and Slack.
 Upstream product/strategy/plan composition, production browser evidence capture, and
 live qualification remain later isolated slices.
+
+## 2026-09-08 — Phase 3: reviewed feature-planning workflow
+
+Isolated slice: composed Product Alignment into independent QA Strategy and Risk
+analysis, then joined both typed outputs at the bounded Test Design and plan-review
+gate.
+
+Reason: the planning specialists were individually proven, but Qali needed one
+deterministic graph that stops on ambiguity and cannot execute an unapproved or
+internally inconsistent plan.
+
+TDD evidence:
+
+- Red/green: no upstream feature-planning graph existed; a grounded ready intent now
+  fans out to strategy and risk tasks containing only that approved intent, then
+  supplies both results to Test Design.
+- Red/green: an ambiguous intent returns `needs_clarification` before strategy, risk,
+  or test-design work begins.
+- Red/green: a second plan-review rejection remains explicitly `escalated` with its
+  typed reviewer feedback instead of being treated as executable.
+- Guard: product citations, strategy scope, risk scope, plan traceability/coverage,
+  and final plan-review status are revalidated at composition boundaries; an
+  inconsistent plan verdict fails closed.
+
+Safety and scope:
+
+- Strategy and Risk receive isolated typed intent tasks and neither receives the
+  other's output. Test Design starts only after both validated results are available.
+- Tests use deterministic specialist/workflow doubles. No live model, browser, Slack
+  API, credential, external integration, cloud resource, or deployment was used.
+
+Commands and evidence:
+
+- Planning workflow and specialist blast radius — `16 passed`.
+- Complete explicit offline unit/integration gate — `306 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for reviewed upstream feature planning. End-to-end composition
+with approved feature execution, production browser evidence capture, and live
+qualification remain later isolated slices.
