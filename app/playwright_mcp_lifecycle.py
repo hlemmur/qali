@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 from typing import Protocol
 
+from app.playwright_mcp_client import McpReader, McpWriter
 from app.playwright_mcp_process import PlaywrightMcpProcessSpec
 
 
 class McpChildProcess(Protocol):
-    stdin: object | None
-    stdout: object | None
+    stdin: McpWriter | None
+    stdout: McpReader | None
     returncode: int | None
 
     def terminate(self) -> None: ...
@@ -50,12 +51,12 @@ class ManagedMcpProcess:
         self._shutdown_timeout_seconds = shutdown_timeout_seconds
 
     @property
-    def stdin(self) -> object:
+    def stdin(self) -> McpWriter:
         assert self._child.stdin is not None
         return self._child.stdin
 
     @property
-    def stdout(self) -> object:
+    def stdout(self) -> McpReader:
         assert self._child.stdout is not None
         return self._child.stdout
 
