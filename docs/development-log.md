@@ -2861,3 +2861,44 @@ Commands and evidence:
 Phase result: passed for reviewed upstream feature planning. End-to-end composition
 with approved feature execution, production browser evidence capture, and live
 qualification remain later isolated slices.
+
+## 2026-09-08 — Phase 3: end-to-end feature request workflow
+
+Isolated slice: composed reviewed feature planning with approved feature execution
+behind one typed application workflow.
+
+Reason: planning and execution were separately proven, but no deterministic boundary
+carried an approved plan into its exact run request or prevented clarification and
+escalation outcomes from reaching the browser workflow.
+
+TDD evidence:
+
+- Red/green: no feature-request composition module existed; approved planning now
+  creates one scoped `FeatureRunTask` and returns the completed durable run result.
+- Red/green: `needs_clarification` and `escalated` planning outcomes return their
+  explicit status without invoking feature execution.
+- Red/green: unsafe run identifiers and project/policy scope mismatches are rejected
+  before either injected workflow can run.
+- Guard: the workflow rejects an execution result whose project, run, feature slug,
+  request, or test plan differs from the approved request.
+- Architectural check: the same application workflow passes for unrelated
+  `profile-editing` and `catalog-filtering` feature slugs without feature-specific
+  production branches.
+
+Safety and scope:
+
+- Planning and execution remain narrow injected protocols; existing deterministic
+  doubles and in-memory artifact/Slack publishers exercise the complete handoff.
+- Mock mode is propagated into the feature run and remains visible in its Slack
+  result. No live model, browser, Slack API, credential, external integration, cloud
+  resource, or deployment was used.
+
+Commands and evidence:
+
+- Feature-request/planning/run composition blast radius — `16 passed`.
+- Complete explicit offline unit/integration gate — `313 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+
+Phase result: passed for reviewed planning through approved feature execution.
+Production browser evidence capture and live qualification remain later isolated
+slices requiring their own approval and integration evidence.
