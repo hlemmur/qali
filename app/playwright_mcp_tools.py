@@ -49,7 +49,7 @@ class _ListToolsResponse(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     jsonrpc: Literal["2.0"]
-    id: Literal[2]
+    id: int
     result: _ListToolsResult
 
 
@@ -112,9 +112,10 @@ class PlaywrightMcpToolClient:
     async def discover(self) -> tuple[str, ...]:
         if self._discovered:
             return PLAYWRIGHT_MCP_ALLOWED_TOOLS
+        request_id = self._next_request_id
         message = {
             "jsonrpc": "2.0",
-            "id": self._next_request_id,
+            "id": request_id,
             "method": "tools/list",
         }
         self._next_request_id += 1
@@ -126,6 +127,10 @@ class PlaywrightMcpToolClient:
             raise PlaywrightMcpToolContractError(
                 "Playwright MCP invalid tool response"
             ) from None
+        if response.id != request_id:
+            raise PlaywrightMcpToolContractError(
+                "Playwright MCP tool response correlation mismatch"
+            )
         tools = response.result.tools
         names = {tool.name for tool in tools}
         if len(names) != len(tools) or any(

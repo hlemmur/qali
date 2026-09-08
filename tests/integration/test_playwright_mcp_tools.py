@@ -134,6 +134,34 @@ async def test_discovery_fails_closed_when_an_allowed_tool_is_missing() -> None:
 
 
 @pytest.mark.asyncio
+async def test_discovery_retry_accepts_the_correlated_dynamic_response_id() -> None:
+    transport = _TransportDouble(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {
+                "tools": [_tool(name) for name in PLAYWRIGHT_MCP_ALLOWED_TOOLS[:-1]]
+            },
+        },
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "result": {"tools": [_tool(name) for name in PLAYWRIGHT_MCP_ALLOWED_TOOLS]},
+        },
+    )
+    client = PlaywrightMcpToolClient(transport=transport)
+
+    with pytest.raises(PlaywrightMcpToolContractError, match="allowlist mismatch"):
+        await client.discover()
+
+    assert await client.discover() == PLAYWRIGHT_MCP_ALLOWED_TOOLS
+    assert [json.loads(message)["id"] for message in transport.stdin.messages] == [
+        2,
+        3,
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "defect", ["duplicate", "non-object-schema", "missing-required-input"]
 )
