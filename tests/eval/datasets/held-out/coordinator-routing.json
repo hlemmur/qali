@@ -1,0 +1,46 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "unsupported_general_question",
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "{\"project_id\":\"project-alpha\",\"request_text\":\"What is the weather today?\",\"project_ready\":true,\"known_finding_ids\":[]}"
+          }
+        ]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "{\"status\":\"needs_clarification\",\"workflow\":null,\"finding_id\":null,\"clarification_question\":\"Would you like to onboard a project, test one frontend feature, or explain a known finding?\"}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "source_update_after_onboarding",
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "{\"project_id\":\"project-alpha\",\"request_text\":\"Update the project knowledge with these revised product notes.\",\"project_ready\":true,\"known_finding_ids\":[]}"
+          }
+        ]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "{\"status\":\"ready\",\"workflow\":\"onboard_project\",\"finding_id\":null,\"clarification_question\":null}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -90,7 +90,7 @@ the separately approved GCP and Slack integrations.
 | `agents-cli install` | Install dependencies using uv                                                         |
 | `agents-cli playground` | Launch local development environment                                                  |
 | `agents-cli lint`    | Run code quality checks                                                               |
-| `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
+| `agents-cli eval run --dataset tests/eval/datasets/coordinator-routing.json` | Evaluate coordinator routing with the approved synthetic core cases; requires explicit approval and a free-tier credential |
 | `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
 
 ## 🛠️ Project Management
