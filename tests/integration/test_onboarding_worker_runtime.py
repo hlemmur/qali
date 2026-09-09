@@ -12,7 +12,9 @@ from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from pydantic import BaseModel
 
+from app.browser_policy import BrowserActionKind, BrowserTargetPolicy
 from app.cloud_tasks_dispatcher import task_id_for_job
+from app.feature_context_loader import FeatureProjectContext
 from app.firestore_project_repository import ProjectChannelBinding
 from app.knowledge_quality import (
     KnowledgeCompilation,
@@ -116,11 +118,28 @@ class _KnowledgeRepository:
         return self.artifact
 
 
+class _FeatureContextRepository:
+    def __init__(self) -> None:
+        self.context: FeatureProjectContext | None = None
+        self.expected_generation: int | None = None
+
+    async def publish(
+        self,
+        context: FeatureProjectContext,
+        *,
+        expected_generation: int,
+    ) -> object:
+        self.context = context
+        self.expected_generation = expected_generation
+        return object()
+
+
 @pytest.mark.asyncio
 async def test_worker_runtime_completes_ready_onboarding_through_http() -> None:
     jobs = InMemoryJobRepository()
     progress = InMemorySlackProgressReporter()
     knowledge = _KnowledgeRepository()
+    contexts = _FeatureContextRepository()
     job = OnboardProjectJob(
         job_id="slack:Ev-runtime-001",
         source_event_id="Ev-runtime-001",
@@ -138,6 +157,24 @@ async def test_worker_runtime_completes_ready_onboarding_through_http() -> None:
         source_flow=_SourceFlow(),
         source_loader=_SourceLoader(),
         knowledge_repository=knowledge,
+        feature_context_repository=contexts,
+        target_policy=BrowserTargetPolicy(
+            project_id="project-alpha",
+            start_url="https://app.example.test/profile",
+            allowed_origins=("https://app.example.test",),
+            allowed_actions=(
+                BrowserActionKind.NAVIGATE,
+                BrowserActionKind.SNAPSHOT,
+                BrowserActionKind.CLICK_REF,
+                BrowserActionKind.TYPE_TEXT,
+                BrowserActionKind.OBSERVE_ORACLE,
+                BrowserActionKind.CAPTURE_EVIDENCE,
+            ),
+            credential_references=(),
+            safe_consequential_actions=("save-profile",),
+            max_steps=20,
+            timeout_seconds=300,
+        ),
         analyst_model=_StructuredModel(
             KnowledgeCompilation(
                 project_id="project-alpha",
@@ -175,6 +212,15 @@ async def test_worker_runtime_completes_ready_onboarding_through_http() -> None:
     assert response.json() == {"ok": True}
     assert knowledge.artifact is not None
     assert knowledge.artifact.project_id == "project-alpha"
+    assert contexts.expected_generation == 0
+    assert contexts.context is not None
+    assert contexts.context.project_id == "project-alpha"
+    assert contexts.context.workspace_id == job.workspace_id
+    assert contexts.context.channel_id == job.channel_id
+    assert contexts.context.knowledge.overview == "A profile application."
+    assert contexts.context.target_policy.start_url == (
+        "https://app.example.test/profile"
+    )
     [record] = progress.list_messages()
     assert record.stage is OnboardingProgressStage.READY
     assert await jobs.claim(job.job_id) is None

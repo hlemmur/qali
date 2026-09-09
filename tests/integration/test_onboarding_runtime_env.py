@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 
 from app.onboarding_runtime import create_onboarding_runtime_from_env
+from app.project_identity import project_id_for_channel
 
 
 def _live_environment() -> dict[str, str]:
-    return {
+    environment = {
         "QALI_MODE": "live",
         "GOOGLE_GENAI_USE_VERTEXAI": "false",
         "GEMINI_API_KEY": "synthetic-free-tier-key",
@@ -36,6 +38,26 @@ def _live_environment() -> dict[str, str]:
         "QALI_JOB_TIMEOUT_SECONDS": "900",
         "QALI_JOB_MAX_DELIVERY_ATTEMPTS": "3",
     }
+    environment["QALI_BROWSER_TARGET_POLICY_JSON"] = json.dumps(
+        {
+            "project_id": project_id_for_channel("T-QALI", "C-QALI"),
+            "start_url": "https://app.example.test/profile",
+            "allowed_origins": ["https://app.example.test"],
+            "allowed_actions": [
+                "navigate",
+                "snapshot",
+                "click_ref",
+                "type_text",
+                "observe_oracle",
+                "capture_evidence",
+            ],
+            "credential_references": [],
+            "safe_consequential_actions": ["save-profile"],
+            "max_steps": 20,
+            "timeout_seconds": 300,
+        }
+    )
+    return environment
 
 
 def test_live_worker_composes_durable_adapters_from_explicit_environment(
@@ -49,6 +71,7 @@ def test_live_worker_composes_durable_adapters_from_explicit_environment(
         "knowledge": [],
         "progress": [],
         "slack_files": [],
+        "feature_context": [],
     }
     jobs = object()
     projects = object()
@@ -57,6 +80,7 @@ def test_live_worker_composes_durable_adapters_from_explicit_environment(
     knowledge = object()
     progress = object()
     slack_files = object()
+    feature_context = object()
 
     def capture(name: str, result: object):
         def factory(settings):
@@ -84,6 +108,10 @@ def test_live_worker_composes_durable_adapters_from_explicit_environment(
     monkeypatch.setattr(
         "app.onboarding_runtime.create_gcs_knowledge_repository",
         capture("knowledge", knowledge),
+    )
+    monkeypatch.setattr(
+        "app.onboarding_runtime.create_gcs_feature_context_repository",
+        capture("feature_context", feature_context),
     )
 
     def create_progress(token: str) -> object:
@@ -128,6 +156,27 @@ def test_live_worker_composes_durable_adapters_from_explicit_environment(
     assert captured["knowledge"][0].model_dump() == {
         "bucket_name": "qali-private-artifacts",
         "timeout_seconds": 60,
+    }
+    assert captured["feature_context"][0].model_dump() == {
+        "bucket_name": "qali-private-artifacts",
+        "timeout_seconds": 60,
+    }
+    assert app.state.feature_target_policy.model_dump(mode="json") == {
+        "project_id": project_id_for_channel("T-QALI", "C-QALI"),
+        "start_url": "https://app.example.test/profile",
+        "allowed_origins": ["https://app.example.test"],
+        "allowed_actions": [
+            "navigate",
+            "snapshot",
+            "click_ref",
+            "type_text",
+            "observe_oracle",
+            "capture_evidence",
+        ],
+        "credential_references": [],
+        "safe_consequential_actions": ["save-profile"],
+        "max_steps": 20,
+        "timeout_seconds": 300,
     }
     slack_file_settings = captured["slack_files"][0]
     assert slack_file_settings.token.get_secret_value() == "xoxb-synthetic-token"

@@ -8,6 +8,11 @@ from fastapi import FastAPI
 from google.adk.models.base_llm import BaseLlm
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.browser_policy import BrowserTargetPolicy
+from app.feature_context_repository import (
+    GcsFeatureContextSettings,
+    create_gcs_feature_context_repository,
+)
 from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
@@ -33,6 +38,7 @@ from app.knowledge_source_loader import (
     RawSourceRepository as LoaderRawSourceRepository,
 )
 from app.knowledge_workflow import KnowledgeRepository
+from app.onboarding_knowledge_flow import FeatureContextRepository
 from app.onboarding_processor import ProgressReporter
 from app.onboarding_source_flow import ProjectRepository
 from app.onboarding_worker_runtime import (
@@ -102,6 +108,8 @@ def create_onboarding_runtime(
     raw_sources: RuntimeRawSourceRepository,
     source_index: RuntimeSourceIndex,
     knowledge_repository: KnowledgeRepository,
+    feature_context_repository: FeatureContextRepository | None = None,
+    target_policy: BrowserTargetPolicy | None = None,
     analyst_model: BaseLlm | str | None = None,
     reviewer_model: BaseLlm | str | None = None,
     quality_policy: KnowledgeQualityPolicy | None = None,
@@ -143,6 +151,8 @@ def create_onboarding_runtime(
         source_flow=source_flow,
         source_loader=source_loader,
         knowledge_repository=knowledge_repository,
+        feature_context_repository=feature_context_repository,
+        target_policy=target_policy,
         analyst_model=analyst_model,
         reviewer_model=reviewer_model,
         quality_policy=quality_policy,
@@ -169,6 +179,9 @@ def create_onboarding_runtime_from_env(
     bucket_name = _required(values, "GCS_ARTIFACTS_BUCKET")
     storage_timeout = _required_int(values, "GCS_TIMEOUT_SECONDS")
     slack_token = _required(values, "SLACK_BOT_TOKEN")
+    target_policy = BrowserTargetPolicy.model_validate_json(
+        _required(values, "QALI_BROWSER_TARGET_POLICY_JSON")
+    )
     settings = OnboardingRuntimeSettings(
         worker=WorkerIngressSettings(
             queue_name=_required(values, "CLOUD_TASKS_QUEUE_ID")
@@ -225,6 +238,10 @@ def create_onboarding_runtime_from_env(
         bucket_name=bucket_name,
         timeout_seconds=storage_timeout,
     )
+    feature_context_settings = GcsFeatureContextSettings(
+        bucket_name=bucket_name,
+        timeout_seconds=storage_timeout,
+    )
     source_policy = SourceUrlPolicy(
         allowed_origins=set(settings.source.allowed_origins)
     )
@@ -240,9 +257,14 @@ def create_onboarding_runtime_from_env(
         raw_sources=create_gcs_raw_source_repository(raw_source_settings),
         source_index=create_firestore_source_repository(source_index_settings),
         knowledge_repository=create_gcs_knowledge_repository(knowledge_settings),
+        feature_context_repository=create_gcs_feature_context_repository(
+            feature_context_settings
+        ),
+        target_policy=target_policy,
     )
     app.state.qali_mode = "live"
     app.state.onboarding_runtime_settings = settings
+    app.state.feature_target_policy = target_policy
     return app
 
 

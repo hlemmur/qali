@@ -4,6 +4,8 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from app.browser_policy import BrowserTargetPolicy
+from app.feature_context_loader import FeatureProjectContext
 from app.knowledge_quality import KnowledgeReadiness
 from app.knowledge_workflow import (
     KnowledgeAnalysisTask,
@@ -28,6 +30,15 @@ class SourceLoader(Protocol):
 
 class KnowledgeWorkflow(Protocol):
     async def run(self, task: KnowledgeAnalysisTask) -> KnowledgeWorkflowResult: ...
+
+
+class FeatureContextRepository(Protocol):
+    async def publish(
+        self,
+        context: FeatureProjectContext,
+        *,
+        expected_generation: int,
+    ) -> object: ...
 
 
 class OnboardingKnowledgeIntegrityError(RuntimeError):
@@ -90,7 +101,47 @@ class OnboardingKnowledgeFlow:
         )
 
 
+class FeatureContextPublishingOnboardingFlow:
+    def __init__(
+        self,
+        *,
+        delegate: OnboardingKnowledgeFlow,
+        contexts: FeatureContextRepository,
+        target_policy: BrowserTargetPolicy,
+    ) -> None:
+        self._delegate = delegate
+        self._contexts = contexts
+        self._target_policy = target_policy
+
+    async def process(self, job: OnboardProjectJob) -> KnowledgeReadiness:
+        result = await self._delegate.run(job, expected_generation=0)
+        readiness = result.knowledge.decision.readiness
+        if readiness is not KnowledgeReadiness.READY:
+            return readiness
+        project = result.source_result.project
+        if (
+            project.workspace_id != job.workspace_id
+            or project.channel_id != job.channel_id
+            or self._target_policy.project_id != project.project_id
+        ):
+            raise OnboardingKnowledgeIntegrityError
+        await self._contexts.publish(
+            FeatureProjectContext(
+                project_id=project.project_id,
+                workspace_id=project.workspace_id,
+                channel_id=project.channel_id,
+                readiness=readiness,
+                knowledge=result.knowledge.compilation,
+                target_policy=self._target_policy,
+            ),
+            expected_generation=0,
+        )
+        return readiness
+
+
 __all__ = [
+    "FeatureContextPublishingOnboardingFlow",
+    "FeatureContextRepository",
     "OnboardingKnowledgeFlow",
     "OnboardingKnowledgeIntegrityError",
     "OnboardingKnowledgeResult",
