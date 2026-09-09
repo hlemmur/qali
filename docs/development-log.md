@@ -3445,3 +3445,53 @@ Commands and evidence:
 Phase result: passed for the local scripted MCP/browser protocol contract. The next
 isolated slice must wire only production browser integrations into runtime composition;
 package-managed Linux browser qualification remains a pre-deployment gate.
+
+## 2026-09-09 — Phase 3: production browser runtime composition
+
+Isolated slice: added the live browser composition root that assembles the concrete
+pinned Playwright MCP backend/context factory, ADK Browser Executor, immutable GCS
+evidence exporter, and a checksum-validating Secret Manager credential resolver into
+the existing browser attempt runner.
+
+Reason: every browser component existed, but no runtime path connected them. Test
+doubles could therefore still be the only way to construct a feature attempt, and the
+credential facade had only a protocol despite the approved requirement to resolve named
+references directly from Secret Manager.
+
+TDD evidence:
+
+- RED/GREEN: the first resolver tracer proved an approved resource reference is expanded
+  only to `versions/latest`, fetched with a bounded timeout, CRC32C-validated, decoded as
+  UTF-8, and returned only across the private credential boundary.
+- RED/GREEN: provider exceptions originally leaked their text. They now map to one stable
+  credential-unavailable error without resource names or provider details.
+- Guards reject cross-project references before SDK access, corrupt/empty/oversized
+  payloads, invalid UTF-8, invalid runtime settings, and missing live environment values.
+- RED/GREEN: the production factory now shares one concrete MCP backend factory between
+  fresh context creation and failure capture, publishes evidence through the GCS
+  repository, and uses the concrete ADK executor and Secret Manager resolver. No
+  in-memory repository or browser double is available from this composition root.
+- Environment composition requires explicit live mode, Gemini Developer API mode and a
+  key, GCP project, artifact bucket/timeouts, isolated MCP output root, and Secret
+  Manager timeout before creating any production adapter.
+
+Safety and scope:
+
+- Tests replace only Google SDK factory boundaries. Qali's context, executor, evidence,
+  policy, and attempt-runner implementations are real.
+- Test credentials are synthetic bytes and never enter prompts or logs. No Playwright
+  child, model call, Slack API, Secret Manager/GCS request, cloud resource, target
+  integration, or deployment was used.
+- Secret values are bounded to 64 KiB and integrity checked before decoding. Production
+  resource references are confined to the configured GCP project.
+
+Commands and evidence:
+
+- Browser runtime and Secret Manager composition/security suite — `15 passed`.
+- Browser integration blast-radius suite — `43 passed`.
+- Complete explicit offline unit/integration/contract gate — `411 passed, 1 skipped`.
+
+Phase result: passed for fail-closed production browser attempt composition. The next
+isolated feature-testing slice must install this runner into the feature worker runtime;
+live credentials, external targets, infrastructure, and deployment remain separately
+approval-gated.
