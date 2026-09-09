@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.feature_worker_job import FeatureTestJob
+from app.finding_follow_up import ExplainFindingJob
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import (
     InMemoryJobRepository,
@@ -344,6 +345,60 @@ async def test_valid_feature_mention_creates_and_routes_one_typed_feature_job() 
     assert job.run_id.startswith("run-")
     assert job.feature_slug.startswith("feature-")
     assert onboarding_tasks.dispatched_job_ids() == []
+    assert feature_tasks.dispatched_job_ids() == [job.job_id]
+
+
+@pytest.mark.asyncio
+async def test_valid_finding_mention_routes_a_typed_same_thread_follow_up_job() -> None:
+    now = 1_788_220_800
+    secret = "test-signing-secret"
+    jobs = InMemoryJobRepository()
+    feature_tasks = InMemoryTaskDispatcher()
+    app = FastAPI()
+    app.include_router(
+        create_slack_router(
+            settings=SlackIngressSettings(
+                signing_secret=secret,
+                workspace_id="T-QALI",
+                channel_id="C-QALI",
+                owner_user_id="U-OWNER",
+            ),
+            jobs=jobs,
+            tasks=InMemoryTaskDispatcher(),
+            feature_tasks=feature_tasks,
+            clock=lambda: now,
+        )
+    )
+    payload = {
+        "type": "event_callback",
+        "team_id": "T-QALI",
+        "event_id": "Ev-explain-profile",
+        "event": {
+            "type": "app_mention",
+            "user": "U-OWNER",
+            "channel": "C-QALI",
+            "ts": "1788220800.151000",
+            "text": "<@U-QALI> explain finding-0123456789abcdef",
+        },
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://qali.test",
+    ) as client:
+        response = await client.post(
+            "/slack/events",
+            content=body,
+            headers=_signed_headers(body, now, secret),
+        )
+
+    assert response.status_code == 200
+    [job] = jobs.list_jobs()
+    assert isinstance(job, ExplainFindingJob)
+    assert job.project_id.startswith("slack-project-")
+    assert job.finding_id == "finding-0123456789abcdef"
+    assert job.thread_ts == "1788220800.151000"
     assert feature_tasks.dispatched_job_ids() == [job.job_id]
 
 

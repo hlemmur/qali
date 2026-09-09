@@ -3802,3 +3802,51 @@ Commands and evidence:
 Phase result: passed for automatic onboarding-to-feature authority publication. The
 next isolated slice must connect grounded finding follow-up requests to immutable run
 artifacts and concise same-thread Slack explanations.
+
+## 2026-09-09 — Phase 3: durable finding follow-up dispatch
+
+Isolated slice: routed signed `explain finding-…` Slack mentions through the durable
+job boundary, resolved the originating run from immutable finding metadata, rebuilt
+the validated run record, and posted the existing concise grounded explanation in the
+originating thread.
+
+Reason: the result renderer could already explain a finding from an in-memory run
+record, but a later Slack request could not recover that record after a process restart
+or reach a production worker.
+
+TDD evidence:
+
+- RED/GREEN: no persisted follow-up processor existed. It now resolves a finding to its
+  immutable run, reads the request, plan, and result artifacts, validates their content
+  types, scope, counts, verdicts, and finding identities, then renders without rerunning
+  a browser or model.
+- RED/GREEN: GCS exposed only create-only publication. Production and in-memory
+  repositories now support hash-verified reads and project-scoped finding-to-run
+  resolution using immutable artifact metadata.
+- RED/GREEN: signed Slack ingress ignored finding explanations. It now creates one
+  typed `ExplainFindingJob` for an exact stable finding ID, persists it in the shared
+  durable lifecycle, and dispatches it to the feature worker.
+- RED/GREEN: the feature worker accepted only feature-test jobs. The authenticated
+  Cloud Tasks endpoint now selects the dedicated follow-up lifecycle handler and posts
+  in the originating Slack thread with a stable `client_msg_id` for retry safety.
+
+Safety and scope:
+
+- Project and finding identifiers constrain all object names; resolved run IDs are
+  validated before reads. Artifact hashes and typed cross-document invariants fail
+  closed before any Slack publication.
+- Follow-up text remains essentials-first and excludes fingerprints, context IDs, and
+  secret references. Tests use in-memory storage, Slack, task, and lifecycle doubles.
+  No live Slack API, storage service, browser, model, credential, cloud resource,
+  target integration, or deployment was used.
+
+Commands and evidence:
+
+- Finding follow-up, ingress, storage, worker, Firestore, and task blast-radius suite —
+  `64 passed`.
+- Complete explicit offline unit/integration/contract gate — `455 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for restart-safe, same-thread finding explanations from immutable
+evidence. The next isolated slice must compose deterministic testing-log and issue-index
+projection publication into the completed feature-run path.
