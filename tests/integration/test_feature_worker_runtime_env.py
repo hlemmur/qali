@@ -79,6 +79,7 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
     monkeypatch,
 ) -> None:
     captured: dict[str, list[Any]] = {
+        "artifacts": [],
         "jobs": [],
         "contexts": [],
         "slack": [],
@@ -103,6 +104,11 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
     monkeypatch.setattr(
         "app.feature_worker_runtime.create_gcs_feature_context_repository",
         capture("contexts", contexts),
+    )
+    artifacts = object()
+    monkeypatch.setattr(
+        "app.feature_worker_runtime.create_gcs_run_artifact_repository",
+        capture("artifacts", artifacts),
     )
 
     def create_slack(token: str) -> object:
@@ -139,6 +145,11 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
         "bucket_name": "qali-private-artifacts",
         "timeout_seconds": 60,
     }
+    assert captured["artifacts"][0].model_dump() == {
+        "bucket_name": "qali-private-artifacts",
+        "timeout_seconds": 60,
+    }
+    assert app.state.finding_follow_ups is True
     browser_settings, workflow_slack, models = captured["workflow"][0]
     assert workflow_slack is slack
     assert models == {"specialist_model": None, "reviewer_model": None}

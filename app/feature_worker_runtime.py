@@ -40,6 +40,11 @@ from app.feature_worker_job import (
     FeatureTestJob,
     FeatureWorkflow,
 )
+from app.finding_follow_up import (
+    ExplainFindingJob,
+    FindingFollowUpProcessor,
+    SlackFindingFollowUpPublisher,
+)
 from app.firestore_job_repository import (
     FirestoreJobSettings,
     create_firestore_job_repository,
@@ -53,6 +58,7 @@ from app.product_alignment_agent import (
 from app.qa_strategy_agent import AdkQaStrategist, create_qa_strategy_agent
 from app.risk_analysis_agent import AdkRiskAnalyst, create_risk_analysis_agent
 from app.run_artifact_repository import (
+    GcsRunArtifactRepository,
     GcsRunArtifactSettings,
     create_gcs_run_artifact_repository,
 )
@@ -80,6 +86,10 @@ class FeatureJobRepository(JobLifecycleRepository[FeatureTestJob], Protocol):
     async def get_progress(self, job_id: str) -> ProgressMessage | None: ...
 
 
+class FindingJobRepository(JobLifecycleRepository[ExplainFindingJob], Protocol):
+    pass
+
+
 class SlackFeatureWorkerClient(SlackFeatureResultClient, Protocol):
     async def chat_postMessage(
         self,
@@ -89,6 +99,7 @@ class SlackFeatureWorkerClient(SlackFeatureResultClient, Protocol):
         text: str,
         unfurl_links: bool,
         unfurl_media: bool,
+        client_msg_id: str | None = None,
     ) -> Any: ...
 
 
@@ -131,6 +142,7 @@ def create_feature_worker_app(
     progress: FeatureProgressReporter,
     tasks: FeatureRequestTaskLoader,
     workflow: FeatureWorkflow,
+    finding_follow_ups: FindingFollowUpProcessor | None = None,
     execution_settings: JobExecutionSettings | None = None,
 ) -> FastAPI:
     """Expose typed feature jobs behind the authenticated Cloud Tasks boundary."""
@@ -148,6 +160,15 @@ def create_feature_worker_app(
         processor=processor,
         settings=execution_settings,
     )
+    finding_handler = (
+        None
+        if finding_follow_ups is None
+        else LifecycleJobHandler[ExplainFindingJob](
+            jobs=jobs,
+            processor=finding_follow_ups,
+            settings=execution_settings,
+        )
+    )
     app = FastAPI(
         title="Qali feature worker ingress",
         description="Receives typed feature jobs from the authenticated task queue.",
@@ -155,7 +176,7 @@ def create_feature_worker_app(
 
     @app.post("/internal/feature-jobs")
     async def receive_feature_job(
-        job: FeatureTestJob,
+        job: FeatureTestJob | ExplainFindingJob,
         received_queue_name: Annotated[
             str,
             Header(alias="X-CloudTasks-QueueName"),
@@ -174,7 +195,15 @@ def create_feature_worker_app(
                 detail="Cloud Tasks name does not match the job payload",
             )
         try:
-            await handler.handle(job, execution_count=execution_count)
+            if isinstance(job, ExplainFindingJob):
+                if finding_handler is None:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="finding follow-up is not configured",
+                    )
+                await finding_handler.handle(job, execution_count=execution_count)
+            else:
+                await handler.handle(job, execution_count=execution_count)
         except ProjectBusyError as exc:
             raise HTTPException(
                 status_code=503,
@@ -246,6 +275,7 @@ def create_feature_worker_runtime(
     jobs: FeatureJobRepository,
     contexts: FeatureProjectContextRepository,
     slack_client: SlackFeatureWorkerClient,
+    artifacts: GcsRunArtifactRepository | None = None,
     specialist_model: BaseLlm | str | None = None,
     reviewer_model: BaseLlm | str | None = None,
 ) -> FastAPI:
@@ -263,9 +293,19 @@ def create_feature_worker_runtime(
         progress=SlackFeatureProgressReporter(client=slack_client),
         tasks=ApprovedFeatureRequestTaskLoader(contexts=contexts),
         workflow=workflow,
+        finding_follow_ups=(
+            None
+            if artifacts is None
+            else FindingFollowUpProcessor(
+                artifacts=artifacts,
+                publisher=SlackFindingFollowUpPublisher(client=slack_client),
+                mock_mode=False,
+            )
+        ),
         execution_settings=settings.execution,
     )
     app.state.feature_runtime_settings = settings
+    app.state.finding_follow_ups = artifacts is not None
     return app
 
 
@@ -321,11 +361,18 @@ def create_feature_worker_runtime_from_env(
         timeout_seconds=settings.context_timeout_seconds,
     )
     slack_client = create_slack_web_client(slack_token)
+    artifacts = create_gcs_run_artifact_repository(
+        GcsRunArtifactSettings(
+            bucket_name=bucket_name,
+            timeout_seconds=storage_timeout,
+        )
+    )
     app = create_feature_worker_runtime(
         settings=settings,
         jobs=create_firestore_job_repository(job_settings),
         contexts=create_gcs_feature_context_repository(context_settings),
         slack_client=slack_client,
+        artifacts=artifacts,
     )
     app.state.qali_mode = "live"
     return app
@@ -363,6 +410,7 @@ def _required_float(values: Mapping[str, str], name: str) -> float:
 __all__ = [
     "FeatureJobRepository",
     "FeatureRuntimeSettings",
+    "FindingJobRepository",
     "SlackFeatureProgressReporter",
     "SlackFeatureWorkerClient",
     "create_feature_worker_app",

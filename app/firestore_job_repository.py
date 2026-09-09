@@ -10,11 +10,12 @@ from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.feature_worker_job import FeatureTestJob
+from app.finding_follow_up import ExplainFindingJob
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 from app.slack_progress import ProgressMessage
 
-DurableJob = OnboardProjectJob | FeatureTestJob
+DurableJob = OnboardProjectJob | FeatureTestJob | ExplainFindingJob
 
 
 class FirestoreJobSettings(BaseModel):
@@ -369,6 +370,11 @@ def _job_from_data(data: dict[str, Any]) -> DurableJob:
             name: data[name] for name in FeatureTestJob.model_fields if name in data
         }
         return FeatureTestJob.model_validate(payload)
+    if kind == "explain_finding":
+        payload = {
+            name: data[name] for name in ExplainFindingJob.model_fields if name in data
+        }
+        return ExplainFindingJob.model_validate(payload)
     raise ValueError("unsupported durable job kind")
 
 

@@ -7,6 +7,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 
 from app.feature_worker_job import FeatureTestJob
+from app.finding_follow_up import ExplainFindingJob
 from app.firestore_job_repository import (
     FirestoreJobRepository,
     FirestoreJobSettings,
@@ -29,6 +30,20 @@ def _feature_job() -> FeatureTestJob:
         run_id="run-feature-lifecycle",
         feature_slug="profile-editing",
         request_text="Test profile editing",
+    )
+
+
+def _finding_job() -> ExplainFindingJob:
+    return ExplainFindingJob(
+        job_id="slack:Ev-finding-lifecycle",
+        source_event_id="Ev-finding-lifecycle",
+        project_id="project-alpha",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.151000",
+        finding_id="finding-0123456789abcdef",
+        request_text="Explain finding-0123456789abcdef",
     )
 
 
@@ -206,6 +221,26 @@ async def test_feature_job_uses_the_durable_claim_progress_and_completion_lifecy
     assert await repository.claim(job.job_id) == job
     assert await repository.attach_progress(job.job_id, message) is True
     assert await repository.get_progress(job.job_id) == message
+    assert await repository.complete(job.job_id) is True
+
+
+@pytest.mark.asyncio
+async def test_finding_job_uses_the_durable_claim_and_completion_lifecycle() -> None:
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = _finding_job()
+
+    assert await repository.create(job) is True
+    assert await repository.claim(job.job_id) == job
     assert await repository.complete(job.job_id) is True
 
 

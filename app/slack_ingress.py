@@ -17,6 +17,7 @@ from app.project_identity import project_id_for_channel
 
 if TYPE_CHECKING:
     from app.feature_worker_job import FeatureTestJob
+    from app.finding_follow_up import ExplainFindingJob
     from app.slack_progress import ProgressMessage
 
 
@@ -61,7 +62,7 @@ class OnboardProjectJob(BaseModel):
 
 
 if TYPE_CHECKING:
-    DurableSlackJob: TypeAlias = OnboardProjectJob | FeatureTestJob
+    DurableSlackJob: TypeAlias = OnboardProjectJob | FeatureTestJob | ExplainFindingJob
 else:
     DurableSlackJob: TypeAlias = OnboardProjectJob
 
@@ -259,6 +260,12 @@ def _is_feature_request(text: str) -> bool:
     return command.startswith("test ") and len(command) > len("test ")
 
 
+def _finding_id(text: str) -> str | None:
+    command = _slack_command(text).casefold()
+    match = re.fullmatch(r"explain\s+(finding-[0-9a-f]{16})", command)
+    return None if match is None else match.group(1)
+
+
 def _slack_command(text: str) -> str:
     return re.sub(r"^\s*<@[^>]+>\s*", "", text).strip()
 
@@ -279,6 +286,26 @@ def _feature_job(event: _SlackEvent, envelope: _SlackEnvelope) -> DurableSlackJo
         thread_ts=event.ts,
         run_id=f"run-{run_digest[:24]}",
         feature_slug=f"feature-{feature_digest[:16]}",
+        request_text=event.text,
+    )
+
+
+def _finding_job(
+    event: _SlackEvent,
+    envelope: _SlackEnvelope,
+    finding_id: str,
+) -> DurableSlackJob:
+    from app.finding_follow_up import ExplainFindingJob
+
+    return ExplainFindingJob(
+        job_id=f"slack:{envelope.event_id}",
+        source_event_id=envelope.event_id,
+        project_id=project_id_for_channel(envelope.team_id, event.channel),
+        workspace_id=envelope.team_id,
+        channel_id=event.channel,
+        requester_user_id=event.user,
+        thread_ts=event.ts,
+        finding_id=finding_id,
         request_text=event.text,
     )
 
@@ -323,6 +350,15 @@ def create_slack_router(
             or event.user != settings.owner_user_id
         ):
             raise HTTPException(status_code=403, detail="Slack event is not authorized")
+
+        finding_id = _finding_id(event.text)
+        if finding_id is not None:
+            if feature_tasks is None:
+                return {"ok": True}
+            finding_job = _finding_job(event, envelope, finding_id)
+            await jobs.create(finding_job)
+            await feature_tasks.dispatch(finding_job)
+            return {"ok": True}
 
         if _is_feature_request(event.text):
             if feature_tasks is None:

@@ -44,6 +44,7 @@ class PublishedRunArtifacts(BaseModel):
 class RunArtifactBlob(Protocol):
     metadata: dict[str, str] | None
     generation: int | None
+    content_type: str | None
 
     def upload_from_string(self, data: bytes, **kwargs: Any) -> None: ...
 
@@ -70,6 +71,7 @@ class InMemoryRunArtifactRepository:
         self._clock = clock or _utc_now
         self._documents: dict[str, RunArtifactDocument] = {}
         self._pointers: dict[str, RunArtifactPointer] = {}
+        self._scope_by_object: dict[str, tuple[str, str]] = {}
         self._lock = asyncio.Lock()
 
     async def publish(
@@ -91,6 +93,10 @@ class InMemoryRunArtifactRepository:
                         generation=1,
                         created_at=created_at,
                     )
+                    self._scope_by_object[document.object_name] = (
+                        bundle.project_id,
+                        bundle.run_id,
+                    )
             return PublishedRunArtifacts(
                 project_id=bundle.project_id,
                 run_id=bundle.run_id,
@@ -103,6 +109,14 @@ class InMemoryRunArtifactRepository:
     async def read(self, object_name: str) -> RunArtifactDocument:
         async with self._lock:
             return self._documents[object_name]
+
+    async def resolve_finding_run(self, project_id: str, finding_id: str) -> str:
+        object_name = f"projects/{project_id}/issues/{finding_id}.md"
+        async with self._lock:
+            stored_project_id, run_id = self._scope_by_object[object_name]
+            if stored_project_id != project_id:
+                raise KeyError(finding_id)
+            return run_id
 
 
 class GcsRunArtifactRepository:
@@ -165,6 +179,41 @@ class GcsRunArtifactRepository:
             run_id=bundle.run_id,
             artifacts=tuple(pointers),
         )
+
+    async def read(self, object_name: str) -> RunArtifactDocument:
+        blob = self._client.bucket(self._settings.bucket_name).blob(object_name)
+        await asyncio.to_thread(blob.reload, timeout=self._settings.timeout_seconds)
+        metadata = blob.metadata or {}
+        content_type = blob.content_type
+        expected_hash = metadata.get("sha256")
+        if content_type is None or expected_hash is None:
+            raise RunArtifactWriteConflict
+        content = await asyncio.to_thread(
+            blob.download_as_bytes,
+            checksum="auto",
+            timeout=self._settings.timeout_seconds,
+        )
+        try:
+            return RunArtifactDocument(
+                object_name=object_name,
+                content_type=content_type,
+                content=content,
+                sha256=expected_hash,
+            )
+        except ValueError:
+            raise RunArtifactWriteConflict from None
+
+    async def resolve_finding_run(self, project_id: str, finding_id: str) -> str:
+        object_name = f"projects/{project_id}/issues/{finding_id}.md"
+        blob = self._client.bucket(self._settings.bucket_name).blob(object_name)
+        await asyncio.to_thread(blob.reload, timeout=self._settings.timeout_seconds)
+        metadata = blob.metadata or {}
+        if metadata.get("project_id") != project_id:
+            raise KeyError(finding_id)
+        run_id = metadata.get("run_id")
+        if run_id is None:
+            raise KeyError(finding_id)
+        return run_id
 
     async def _resolve_retry(
         self,

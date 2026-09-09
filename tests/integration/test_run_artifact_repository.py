@@ -23,6 +23,7 @@ class _Blob:
         self.stored_metadata: dict[str, str] | None = None
         self.data: bytes | None = None
         self.generation: int | None = None
+        self.content_type: str | None = None
         self.uploads: list[dict[str, Any]] = []
 
     def upload_from_string(self, data: bytes, **kwargs: Any) -> None:
@@ -31,6 +32,7 @@ class _Blob:
             raise PreconditionFailed("already exists")
         self.generation = 1
         self.data = data
+        self.content_type = kwargs["content_type"]
         self.stored_metadata = None if self.metadata is None else self.metadata.copy()
 
     def reload(self, **kwargs: Any) -> None:
@@ -123,3 +125,30 @@ async def test_gcs_repository_uses_create_only_writes_and_safe_retry() -> None:
     )
     with pytest.raises(RunArtifactWriteConflict):
         await repository.publish(changed)
+
+
+@pytest.mark.asyncio
+async def test_gcs_repository_reads_and_verifies_immutable_artifact() -> None:
+    bundle = compile_feature_run_artifacts(await _failed_run())
+    client = _Client()
+    repository = GcsRunArtifactRepository(
+        settings=GcsRunArtifactSettings(bucket_name="qali-private-artifacts"),
+        client=client,
+    )
+    await repository.publish(bundle)
+
+    document = await repository.read(bundle.documents[1].object_name)
+
+    assert document == bundle.documents[1]
+    finding = (await _failed_run()).investigations[0].finding
+    assert finding is not None
+    assert (
+        await repository.resolve_finding_run(bundle.project_id, finding.finding_id)
+        == bundle.run_id
+    )
+
+    blob = client.bucket_reference.blobs[bundle.documents[1].object_name]
+    assert blob.stored_metadata is not None
+    blob.stored_metadata["sha256"] = "0" * 64
+    with pytest.raises(RunArtifactWriteConflict):
+        await repository.read(bundle.documents[1].object_name)
