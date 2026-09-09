@@ -56,6 +56,8 @@ def build_playwright_mcp_process(
             "--isolated",
             "--browser",
             "chromium",
+            "--caps",
+            "devtools",
             "--codegen",
             "none",
             "--image-responses",
@@ -65,6 +67,8 @@ def build_playwright_mcp_process(
             allowed_origins,
             "--output-dir",
             str(output_dir),
+            "--output-max-size",
+            "65000000",
         ),
         environment={"PATH": PLAYWRIGHT_MCP_SAFE_PATH},
     )

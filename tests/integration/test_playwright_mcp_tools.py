@@ -67,6 +67,8 @@ def _tool(name: str) -> dict[str, object]:
         },
         "browser_network_requests": {"static": {"type": "boolean"}},
         "browser_take_screenshot": {"scale": {"type": "string"}},
+        "browser_start_tracing": {},
+        "browser_stop_tracing": {},
     }.get(name, {})
     return {
         "name": name,
@@ -351,6 +353,8 @@ async def test_tool_response_is_bounded_before_content_parsing() -> None:
         ("browser_wait_for", {"time": 30}),
         ("browser_console_messages", {"level": "debug", "all": True}),
         ("browser_network_requests", {"static": True}),
+        ("browser_start_tracing", {"filename": "escape.zip"}),
+        ("browser_stop_tracing", {"path": "/tmp/escape.zip"}),
     ],
 )
 async def test_tool_call_rejects_arguments_outside_qali_contract(
@@ -386,6 +390,8 @@ async def test_tool_call_rejects_arguments_outside_qali_contract(
         ("browser_console_messages", {"level": "error", "all": False}),
         ("browser_network_requests", {"static": False}),
         ("browser_take_screenshot", {"scale": "css"}),
+        ("browser_start_tracing", {}),
+        ("browser_stop_tracing", {}),
     ],
 )
 async def test_tool_call_accepts_only_the_minimal_qali_arguments(

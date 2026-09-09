@@ -18,6 +18,8 @@ PLAYWRIGHT_MCP_ALLOWED_TOOLS = (
     "browser_console_messages",
     "browser_network_requests",
     "browser_take_screenshot",
+    "browser_start_tracing",
+    "browser_stop_tracing",
 )
 _REQUIRED_TOOL_INPUT_TYPES = {
     "browser_navigate": {"url": "string"},
@@ -28,6 +30,8 @@ _REQUIRED_TOOL_INPUT_TYPES = {
     "browser_console_messages": {"level": "string", "all": "boolean"},
     "browser_network_requests": {"static": "boolean"},
     "browser_take_screenshot": {"scale": "string"},
+    "browser_start_tracing": {},
+    "browser_stop_tracing": {},
 }
 
 
@@ -250,11 +254,16 @@ def _arguments_allowed(tool_name: str, arguments: dict[str, object]) -> bool:
             next(iter(arguments.values())), 500
         )
     if tool_name == "browser_console_messages":
-        return arguments == {"level": "error", "all": False}
+        return arguments in (
+            {"level": "error", "all": False},
+            {"level": "info", "all": True},
+        )
     if tool_name == "browser_network_requests":
         return arguments == {"static": False}
     if tool_name == "browser_take_screenshot":
         return arguments == {"scale": "css"}
+    if tool_name in ("browser_start_tracing", "browser_stop_tracing"):
+        return not arguments
     return False
 
 

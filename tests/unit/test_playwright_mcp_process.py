@@ -32,6 +32,8 @@ def test_process_spec_pins_an_isolated_headless_browser_context() -> None:
         "--isolated",
         "--browser",
         "chromium",
+        "--caps",
+        "devtools",
         "--codegen",
         "none",
         "--image-responses",
@@ -41,11 +43,13 @@ def test_process_spec_pins_an_isolated_headless_browser_context() -> None:
         ";".join(task.target_policy.allowed_origins),
         "--output-dir",
         "/tmp/qali-browser/context-cart-001",
+        "--output-max-size",
+        "65000000",
     )
     assert spec.environment == {"PATH": PLAYWRIGHT_MCP_SAFE_PATH}
     assert "--allow-unrestricted-file-access" not in spec.arguments
     assert "--no-sandbox" not in spec.arguments
-    assert "--caps" not in spec.arguments
+    assert spec.arguments[spec.arguments.index("--caps") + 1] == "devtools"
 
 
 @pytest.mark.parametrize("output_root", [PurePosixPath("relative"), PurePosixPath("/")])
