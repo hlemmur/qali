@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import Annotated, Protocol
+import os
+from collections.abc import Mapping
+from pathlib import PurePosixPath
+from typing import Annotated, Any, Protocol
 
 from fastapi import FastAPI, Header, HTTPException
 from google.adk.models.base_llm import BaseLlm
+from pydantic import BaseModel, ConfigDict, Field
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.browser_runtime import (
     BrowserRuntimeSettings,
@@ -17,6 +22,14 @@ from app.failure_investigator_agents import (
     create_failure_investigator_agent,
     create_failure_reviewer_agent,
 )
+from app.feature_context_loader import (
+    ApprovedFeatureRequestTaskLoader,
+    FeatureProjectContextRepository,
+)
+from app.feature_context_repository import (
+    GcsFeatureContextSettings,
+    create_gcs_feature_context_repository,
+)
 from app.feature_planning_workflow import FeaturePlanningWorkflow
 from app.feature_request_workflow import FeatureRequestWorkflow
 from app.feature_run_workflow import FeatureRunWorkflow
@@ -26,6 +39,10 @@ from app.feature_worker_job import (
     FeatureRequestTaskLoader,
     FeatureTestJob,
     FeatureWorkflow,
+)
+from app.firestore_job_repository import (
+    FirestoreJobSettings,
+    create_firestore_job_repository,
 )
 from app.job_lifecycle import ProjectBusyError
 from app.plan_reviewer_agent import AdkPlanReviewer, create_plan_reviewer_agent
@@ -61,6 +78,50 @@ class FeatureJobRepository(JobLifecycleRepository[FeatureTestJob], Protocol):
     ) -> bool: ...
 
     async def get_progress(self, job_id: str) -> ProgressMessage | None: ...
+
+
+class SlackFeatureWorkerClient(SlackFeatureResultClient, Protocol):
+    async def chat_postMessage(
+        self,
+        *,
+        channel: str,
+        thread_ts: str,
+        text: str,
+        unfurl_links: bool,
+        unfurl_media: bool,
+    ) -> Any: ...
+
+
+class FeatureRuntimeSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    queue_name: str = Field(min_length=1)
+    browser: BrowserRuntimeSettings
+    context_bucket_name: str = Field(min_length=1)
+    context_timeout_seconds: int = Field(default=60, ge=1, le=300)
+    execution: JobExecutionSettings = Field(default_factory=JobExecutionSettings)
+
+
+class SlackFeatureProgressReporter:
+    def __init__(self, *, client: SlackFeatureWorkerClient) -> None:
+        self._client = client
+
+    async def start(self, job: FeatureTestJob) -> ProgressMessage:
+        response = await self._client.chat_postMessage(
+            channel=job.channel_id,
+            thread_ts=job.thread_ts,
+            text="Feature testing: request received.",
+            unfurl_links=False,
+            unfurl_media=False,
+        )
+        message_ts = response.get("ts")
+        if not isinstance(message_ts, str) or not message_ts:
+            raise RuntimeError("Slack did not return a progress message timestamp")
+        return ProgressMessage(
+            channel_id=job.channel_id,
+            thread_ts=job.thread_ts,
+            message_ts=message_ts,
+        )
 
 
 def create_feature_worker_app(
@@ -179,8 +240,134 @@ def create_production_feature_request_workflow(
     return FeatureRequestWorkflow(planning=planning, execution=execution)
 
 
+def create_feature_worker_runtime(
+    *,
+    settings: FeatureRuntimeSettings,
+    jobs: FeatureJobRepository,
+    contexts: FeatureProjectContextRepository,
+    slack_client: SlackFeatureWorkerClient,
+    specialist_model: BaseLlm | str | None = None,
+    reviewer_model: BaseLlm | str | None = None,
+) -> FastAPI:
+    """Compose the complete live feature-testing worker from typed boundaries."""
+
+    workflow = create_production_feature_request_workflow(
+        browser_settings=settings.browser,
+        slack_client=slack_client,
+        specialist_model=specialist_model,
+        reviewer_model=reviewer_model,
+    )
+    app = create_feature_worker_app(
+        queue_name=settings.queue_name,
+        jobs=jobs,
+        progress=SlackFeatureProgressReporter(client=slack_client),
+        tasks=ApprovedFeatureRequestTaskLoader(contexts=contexts),
+        workflow=workflow,
+        execution_settings=settings.execution,
+    )
+    app.state.feature_runtime_settings = settings
+    return app
+
+
+def create_feature_worker_runtime_from_env(
+    environ: Mapping[str, str] | None = None,
+) -> FastAPI:
+    """Compose the live feature worker from explicit, fail-closed environment."""
+
+    values = os.environ if environ is None else environ
+    if values.get("QALI_MODE") != "live":
+        raise RuntimeError("QALI_MODE must be 'live' for the feature worker")
+    if values.get("GOOGLE_GENAI_USE_VERTEXAI", "").casefold() != "false":
+        raise RuntimeError(
+            "GOOGLE_GENAI_USE_VERTEXAI must be 'false' for free-tier model use"
+        )
+    _required(values, "GEMINI_API_KEY")
+    project_id = _required(values, "GOOGLE_CLOUD_PROJECT")
+    database_id = _required(values, "FIRESTORE_DATABASE_ID")
+    bucket_name = _required(values, "GCS_ARTIFACTS_BUCKET")
+    storage_timeout = _required_int(values, "GCS_TIMEOUT_SECONDS")
+    slack_token = _required(values, "SLACK_BOT_TOKEN")
+    settings = FeatureRuntimeSettings(
+        queue_name=_required(values, "CLOUD_TASKS_QUEUE_ID"),
+        browser=BrowserRuntimeSettings(
+            output_root=PurePosixPath(_required(values, "PLAYWRIGHT_MCP_OUTPUT_ROOT")),
+            gcp_project_id=project_id,
+            artifact_bucket_name=bucket_name,
+            artifact_timeout_seconds=storage_timeout,
+            credential_timeout_seconds=_required_float(
+                values,
+                "SECRET_MANAGER_TIMEOUT_SECONDS",
+            ),
+        ),
+        context_bucket_name=bucket_name,
+        context_timeout_seconds=storage_timeout,
+        execution=JobExecutionSettings(
+            timeout_seconds=_required_float(values, "QALI_JOB_TIMEOUT_SECONDS"),
+            max_delivery_attempts=_required_int(
+                values,
+                "QALI_JOB_MAX_DELIVERY_ATTEMPTS",
+            ),
+        ),
+    )
+    job_settings = FirestoreJobSettings(
+        project_id=project_id,
+        database_id=database_id,
+        collection=_required(values, "FIRESTORE_JOBS_COLLECTION"),
+        lock_collection=_required(values, "FIRESTORE_JOB_LOCKS_COLLECTION"),
+        lease_seconds=_required_int(values, "FIRESTORE_JOB_LEASE_SECONDS"),
+    )
+    context_settings = GcsFeatureContextSettings(
+        bucket_name=settings.context_bucket_name,
+        timeout_seconds=settings.context_timeout_seconds,
+    )
+    slack_client = create_slack_web_client(slack_token)
+    app = create_feature_worker_runtime(
+        settings=settings,
+        jobs=create_firestore_job_repository(job_settings),
+        contexts=create_gcs_feature_context_repository(context_settings),
+        slack_client=slack_client,
+    )
+    app.state.qali_mode = "live"
+    return app
+
+
+def create_slack_web_client(token: str) -> AsyncWebClient:
+    if not token.strip():
+        raise ValueError("Slack bot token must not be empty")
+    return AsyncWebClient(token=token)
+
+
+def _required(values: Mapping[str, str], name: str) -> str:
+    value = values.get(name)
+    if value is None or not value.strip():
+        raise RuntimeError(f"{name} must be set in live mode")
+    return value
+
+
+def _required_int(values: Mapping[str, str], name: str) -> int:
+    value = _required(values, name)
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+
+
+def _required_float(values: Mapping[str, str], name: str) -> float:
+    value = _required(values, name)
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be a number") from exc
+
+
 __all__ = [
     "FeatureJobRepository",
+    "FeatureRuntimeSettings",
+    "SlackFeatureProgressReporter",
+    "SlackFeatureWorkerClient",
     "create_feature_worker_app",
+    "create_feature_worker_runtime",
+    "create_feature_worker_runtime_from_env",
     "create_production_feature_request_workflow",
+    "create_slack_web_client",
 ]

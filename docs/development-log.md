@@ -3666,3 +3666,47 @@ Commands and evidence:
 Phase result: passed for restart-safe approved context storage. The next isolated slice
 must compose this repository, the live task loader, feature workflow, Slack progress,
 and durable feature-job lifecycle from fail-closed environment settings.
+
+## 2026-09-09 — Phase 3: complete feature worker environment composition
+
+Isolated slice: added one fail-closed environment factory that composes the durable
+Firestore feature-job lifecycle, approved GCS context loader, production browser and
+specialist workflow, same-thread Slack progress, and final Slack result publication.
+
+Reason: the individual production adapters and typed worker boundary existed, but there
+was no deployable application composition root. The shared Firestore repository also
+parsed every claimed document as an onboarding job, so a persisted feature job could
+not traverse the real lifecycle after a worker restart.
+
+TDD evidence:
+
+- RED/GREEN: importing the live feature-worker environment factory failed. Explicit,
+  fully validated environment settings now build one FastAPI worker while keeping the
+  Slack client shared between progress and final-result publication.
+- RED/GREEN: a persisted `test_feature` document failed onboarding-job validation when
+  claimed. The durable repository now discriminates the two approved job kinds and
+  completes the same claim, lock, progress-reference, retry, failure, and completion
+  lifecycle for either typed payload.
+- The feature progress reporter posts one concise request-received message in the
+  originating Slack thread and requires Slack to return a message timestamp before the
+  job can continue.
+- Missing mode, free-tier, model-key, Firestore, GCS, queue, Slack, browser, credential,
+  or execution settings fail before an external adapter is created.
+
+Safety and scope:
+
+- Tests replace only Firestore, GCS, Slack, browser, and model system boundaries. No
+  browser process, model request, Slack API, credential lookup, storage service, cloud
+  resource, target integration, or deployment was used.
+- The factory requires live mode and the Gemini Developer API path; Vertex AI remains
+  rejected for this free-tier MVP boundary.
+
+Commands and evidence:
+
+- Feature worker, context, Slack progress, and Firestore lifecycle suite — `42 passed`.
+- Complete explicit offline unit/integration/contract gate — `443 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for restart-safe production feature-worker composition. The next
+isolated slice must route an authorized one-feature Slack request into the typed durable
+feature job and Cloud Tasks boundary without expanding onboarding semantics.
