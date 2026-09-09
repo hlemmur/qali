@@ -3581,3 +3581,45 @@ Commands and evidence:
 Phase result: passed for typed, idempotent feature-job intake. The next isolated slice
 must load approved compiled knowledge and browser policy into a matching live
 `FeatureRequestTask`; external qualification remains approval-gated.
+
+## 2026-09-09 — Phase 3: approved feature context task loader
+
+Isolated slice: added the fail-closed application boundary that loads one approved
+project context and builds the live `FeatureRequestTask` consumed by the production
+feature workflow.
+
+Reason: the typed feature job intentionally carries no project knowledge, browser URL,
+credentials, or action policy. Those authoritative values must come from Qali's stored
+project context after the job is claimed, while the Slack payload contributes only the
+requested feature and run identity.
+
+TDD evidence:
+
+- RED/GREEN: no feature-context loader existed. A ready context now supplies the
+  structured compiled knowledge and browser target policy while the claimed job supplies
+  the request, run ID, feature slug, and Slack scope.
+- RED/GREEN: repository/provider failures originally exposed their details. They now map
+  to one stable context-unavailable error without project or provider text.
+- Guards reject insufficient knowledge, a workspace/channel mismatch, cross-project
+  knowledge or browser policy, and any context that cannot pass strict schema validation.
+- The loader always produces `mock_mode=False`; the downstream feature-job processor
+  independently rechecks the task against the claimed job before execution.
+
+Safety and scope:
+
+- The queued job cannot provide or override target origins, credential references,
+  consequential-action permissions, step limits, timeouts, or compiled project facts.
+- Tests replace only the project-context repository boundary. No model request, browser,
+  Slack API, credential, storage request, cloud resource, target integration, or
+  deployment was used.
+
+Commands and evidence:
+
+- Approved feature-context loader suite — `4 passed`.
+- Feature context/job/request blast-radius suite — `12 passed`.
+- Complete explicit offline unit/integration/contract gate — `418 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for authoritative live task construction. The next isolated slice
+must persist and retrieve the approved structured feature context through production
+storage before the complete worker can be composed from environment settings.
