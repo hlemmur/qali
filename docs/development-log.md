@@ -4068,3 +4068,40 @@ Safety and scope:
 - The test uses a deterministic hanging model double. No live Gemini request, API key,
   browser, Slack API, storage, cloud resource, target integration, deployment, or
   secret was used.
+
+## 2026-09-09 — Phase 4: per-invocation model request budgets
+
+Isolated slice: replaced ADK's 500-call default with explicit request ceilings for
+Qali's tool-free specialists and browser executor.
+
+Reason: retry and timeout limits still allowed a looping agent to consume hundreds of
+free-tier requests within one invocation. The allowed call count must derive from the
+agent's actual responsibility rather than the framework default.
+
+TDD evidence:
+
+- RED: a deterministic model that repeatedly called a harmless tool had no Qali-owned
+  request ceiling, and the shared runtime did not expose a stable budget error.
+- GREEN: tool-free invocations default to one model request and translate ADK budget
+  exhaustion to `structured agent model request budget exceeded` without exception
+  chaining.
+- GREEN: browser execution receives only `target_policy.max_steps + 1` model calls,
+  covering approved action turns plus final structured completion. The existing
+  multi-turn browser integration path remains green.
+
+Official implementation study:
+
+- Inspected the installed ADK 2.8.0 `RunConfig` and `Runner.run_async` signatures.
+  Qali now uses native `RunConfig.max_llm_calls` instead of implementing a parallel
+  counter; the installed framework default was 500.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `484 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Budget errors contain no prompt, model output, target data, or credentials and flow
+  into the existing application-owned job retry/failure boundary.
+- Tests use deterministic model and browser doubles. No live Gemini request, API key,
+  browser, Slack API, storage, cloud resource, target integration, deployment, or
+  secret was used.

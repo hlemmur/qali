@@ -59,7 +59,9 @@ Every default Gemini-backed agent uses the same free-tier runtime policy: the pi
 and at most three attempts for transient timeout/server errors. HTTP 429 quota errors
 are deliberately excluded from SDK retries so exhausted free quota fails visibly and
 cannot trigger an automatic paid fallback. Every isolated ADK invocation also has a
-300-second wall-clock timeout and emits a stable, content-free timeout error.
+300-second wall-clock timeout and emits a stable, content-free timeout error. Tool-free
+specialists may make one model request per invocation; the browser executor may make
+at most its approved browser step budget plus one final completion request.
 
 You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
 

@@ -5,6 +5,8 @@ from typing import TypeVar
 from uuid import uuid4
 
 from google.adk.agents import Agent
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from google.adk.agents.run_config import RunConfig
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -12,6 +14,12 @@ from pydantic import BaseModel
 
 StructuredResult = TypeVar("StructuredResult", bound=BaseModel)
 DEFAULT_AGENT_TIMEOUT_SECONDS = 300.0
+DEFAULT_MAX_LLM_CALLS = 1
+
+
+class StructuredAgentRequestBudgetError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("structured agent model request budget exceeded")
 
 
 class StructuredAgentTimeoutError(RuntimeError):
@@ -27,6 +35,7 @@ async def run_isolated_structured_agent(
     request: BaseModel,
     result_type: type[StructuredResult],
     timeout_seconds: float = DEFAULT_AGENT_TIMEOUT_SECONDS,
+    max_llm_calls: int = DEFAULT_MAX_LLM_CALLS,
 ) -> StructuredResult:
     session_service = InMemorySessionService()
     session = await session_service.create_session(
@@ -49,6 +58,7 @@ async def run_isolated_structured_agent(
                     role="user",
                     parts=[types.Part.from_text(text=request.model_dump_json())],
                 ),
+                run_config=RunConfig(max_llm_calls=max_llm_calls),
             ):
                 if event.is_final_response() and event.content is not None:
                     output_text = "".join(
@@ -56,6 +66,8 @@ async def run_isolated_structured_agent(
                     )
     except TimeoutError:
         raise StructuredAgentTimeoutError from None
+    except LlmCallsLimitExceededError:
+        raise StructuredAgentRequestBudgetError from None
     if output_text is None:
         raise ValueError("structured agent returned no final output")
     return result_type.model_validate_json(output_text)
@@ -63,6 +75,8 @@ async def run_isolated_structured_agent(
 
 __all__ = [
     "DEFAULT_AGENT_TIMEOUT_SECONDS",
+    "DEFAULT_MAX_LLM_CALLS",
+    "StructuredAgentRequestBudgetError",
     "StructuredAgentTimeoutError",
     "run_isolated_structured_agent",
 ]
