@@ -3495,3 +3495,47 @@ Phase result: passed for fail-closed production browser attempt composition. The
 isolated feature-testing slice must install this runner into the feature worker runtime;
 live credentials, external targets, infrastructure, and deployment remain separately
 approval-gated.
+
+## 2026-09-09 — Phase 3: production feature workflow composition
+
+Isolated slice: installed the production browser attempt runner into the complete
+one-feature request workflow, including reviewed planning, scenario execution, fresh
+failure reproduction, immutable run-artifact publication, and concise Slack results.
+
+Reason: the production browser composition existed in isolation, while the complete
+feature workflow could still only be assembled manually from test doubles. Failure
+investigation also required a differently named reproduction boundary even though it
+must use the exact same guarded fresh-context attempt path.
+
+TDD evidence:
+
+- RED/GREEN: no production feature composition module existed. The new factory now
+  installs one production browser runner as both the initial scenario runner and the
+  failure reproducer, composes all specialist and independent reviewer agents, writes
+  run artifacts through GCS, and publishes the final result through the Slack client
+  boundary.
+- RED/GREEN: `BrowserAttemptRunner` did not satisfy the failure reproducer contract.
+  Its public `reproduce` operation now delegates to the same context reservation,
+  restricted execution, deterministic verdict, and failure-evidence path as an initial
+  attempt; the existing context-ID guard therefore enforces fresh isolation across both.
+- The production factory exposes no in-memory artifact repository, browser session, or
+  Slack result publisher. Tests replace only the browser/GCS construction boundaries
+  and the external Slack client while exercising Qali's real composition logic.
+
+Safety and scope:
+
+- The factory receives the already validated browser runtime settings and preserves the
+  explicit specialist/reviewer model boundaries without changing the pinned model.
+- No model request, Playwright process, browser, Slack API, Secret Manager/GCS request,
+  cloud resource, target integration, or deployment was used.
+
+Commands and evidence:
+
+- Feature runtime and shared browser reproduction suite — `7 passed`.
+- Feature workflow/browser runtime blast-radius suite — `36 passed`.
+- Complete explicit offline unit/integration/contract gate — `413 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for production one-feature workflow composition. A later isolated
+slice must add the typed feature-job HTTP/lifecycle boundary and project-knowledge task
+construction before live qualification; all external use remains approval-gated.

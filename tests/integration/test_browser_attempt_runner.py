@@ -142,6 +142,28 @@ async def test_context_id_cannot_be_reused_for_a_later_attempt() -> None:
 
 
 @pytest.mark.asyncio
+async def test_failure_reproduction_uses_the_same_guarded_attempt_path() -> None:
+    task = _execution_task()
+    initial = _context("context-initial-001")
+    reproduction = _context("context-reproduction-001")
+    result = _result(passed=False)
+    exporter = _EvidenceExporterDouble(_evidence("failure"))
+    runner = BrowserAttemptRunner(
+        contexts=_ContextFactoryDouble([initial, reproduction]),
+        executor=_ExecutorDouble([result, result]),
+        evidence=exporter,
+    )
+
+    initial_attempt = await runner.execute(task)
+    reproduced_attempt = await runner.reproduce(task)
+
+    assert initial_attempt.context_id == initial.context_id
+    assert reproduced_attempt.context_id == reproduction.context_id
+    assert reproduced_attempt.result == result
+    assert reproduced_attempt.evidence == _evidence("failure")
+
+
+@pytest.mark.asyncio
 async def test_executor_cannot_substitute_another_scenario_result() -> None:
     task = _execution_task()
     substituted = _result(passed=True).model_copy(
