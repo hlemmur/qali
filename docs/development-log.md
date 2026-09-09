@@ -3944,8 +3944,10 @@ Safety and scope:
 
 Commands and evidence:
 
-- Focused coordinator schema and isolated-agent suite — `7 passed`.
-- Complete explicit offline unit/integration/contract gate — `465 passed, 1 skipped`.
+- Focused coordinator schema, isolated-agent, and generated root-surface suite —
+  `8 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `466 passed, 1 skipped`.
 - Agents CLI lint (Ruff, format, codespell, and ty) — passed.
 
 Phase result: passed for bounded, typed natural-language routing with no coordinator
