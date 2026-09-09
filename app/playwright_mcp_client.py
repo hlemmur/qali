@@ -7,7 +7,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.playwright_mcp_process import PLAYWRIGHT_MCP_VERSION
+from app.playwright_mcp_process import PLAYWRIGHT_MCP_SERVER_VERSION
 
 MCP_PROTOCOL_VERSION = "2025-11-25"
 MCP_STDIO_LIMIT_BYTES = 1024 * 1024
@@ -131,7 +131,7 @@ class PlaywrightMcpInitializer:
             raise PlaywrightMcpProtocolError("Playwright MCP protocol mismatch")
         if result.capabilities.tools is None:
             raise PlaywrightMcpProtocolError("Playwright MCP tools unavailable")
-        if result.server_info.version != PLAYWRIGHT_MCP_VERSION:
+        if result.server_info.version != PLAYWRIGHT_MCP_SERVER_VERSION:
             raise PlaywrightMcpProtocolError("Playwright MCP server version mismatch")
         await self._send(
             transport.stdin,

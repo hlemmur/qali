@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.playwright_mcp_process import (
     PLAYWRIGHT_MCP_PACKAGE,
     PLAYWRIGHT_MCP_SAFE_PATH,
+    PLAYWRIGHT_MCP_SERVER_VERSION,
     PlaywrightMcpSettings,
     build_playwright_mcp_process,
 )
@@ -23,6 +24,7 @@ def test_process_spec_pins_an_isolated_headless_browser_context() -> None:
     )
 
     assert PLAYWRIGHT_MCP_PACKAGE == "@playwright/mcp@0.0.80"
+    assert PLAYWRIGHT_MCP_SERVER_VERSION == "1.63.0-alpha-2026-08-31"
     assert spec.executable == "npx"
     assert spec.arguments == (
         "--offline",

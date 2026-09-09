@@ -110,7 +110,10 @@ def _initialize_response() -> dict[str, object]:
         "result": {
             "protocolVersion": "2025-11-25",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "Playwright", "version": "0.0.80"},
+            "serverInfo": {
+                "name": "Playwright",
+                "version": "1.63.0-alpha-2026-08-31",
+            },
         },
     }
 

@@ -9,6 +9,7 @@ from app.browser_executor_agent import BrowserExecutionTask
 
 PLAYWRIGHT_MCP_VERSION = "0.0.80"
 PLAYWRIGHT_MCP_PACKAGE = f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}"
+PLAYWRIGHT_MCP_SERVER_VERSION = "1.63.0-alpha-2026-08-31"
 PLAYWRIGHT_MCP_SAFE_PATH = "/usr/local/bin:/usr/bin:/bin"
 _CONTEXT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,127}$")
 
@@ -77,6 +78,7 @@ def build_playwright_mcp_process(
 __all__ = [
     "PLAYWRIGHT_MCP_PACKAGE",
     "PLAYWRIGHT_MCP_SAFE_PATH",
+    "PLAYWRIGHT_MCP_SERVER_VERSION",
     "PLAYWRIGHT_MCP_VERSION",
     "PlaywrightMcpProcessSpec",
     "PlaywrightMcpSettings",
