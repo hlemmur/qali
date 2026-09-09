@@ -3710,3 +3710,48 @@ Commands and evidence:
 Phase result: passed for restart-safe production feature-worker composition. The next
 isolated slice must route an authorized one-feature Slack request into the typed durable
 feature job and Cloud Tasks boundary without expanding onboarding semantics.
+
+## 2026-09-09 — Phase 3: authorized Slack feature-job dispatch
+
+Isolated slice: extended the signed Slack ingress to turn one authorized `test ...`
+mention into a typed, project-scoped feature job and route it to a separately configured
+feature-worker Cloud Tasks target.
+
+Reason: the complete feature worker could process a typed job, but the Slack ingress
+acknowledged every non-onboarding request without durable creation or dispatch. Reusing
+the onboarding worker URL would also send the new payload to the wrong HTTP contract.
+
+TDD evidence:
+
+- RED/GREEN: a signed feature mention could not supply a feature dispatcher and created
+  no job. It now creates one deterministic `FeatureTestJob`, derives the same stable
+  Slack channel project identity used during onboarding, and dispatches only through the
+  feature task boundary.
+- RED/GREEN: live ingress created only the onboarding Cloud Tasks adapter and did not
+  require feature-worker configuration. It now validates and composes distinct HTTPS
+  worker URL and OIDC audience settings before creating any external adapter.
+- The feature run ID and provisional feature slug are deterministic, bounded hashes of
+  the Slack event and normalized request. Natural-language feature meaning remains the
+  responsibility of the grounded Product Alignment workflow rather than ingress code.
+- The generic Cloud Tasks adapter preserves the complete typed feature payload and uses
+  deterministic task naming, authenticated delivery, and duplicate-task idempotency.
+
+Safety and scope:
+
+- Existing authorization, Slack signature, replay-window, private workspace/channel,
+  and owner checks run before feature routing. Requests without a configured feature
+  dispatcher fail closed without being sent to the onboarding worker.
+- Tests use in-memory job/task boundaries and recorded cloud requests. No Slack API,
+  Cloud Tasks, browser, model, credential, storage service, cloud resource, target
+  integration, or deployment was used.
+
+Commands and evidence:
+
+- Slack ingress, task routing, project identity, and durable lifecycle suite —
+  `57 passed`.
+- Complete explicit offline unit/integration/contract gate — `447 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for signed one-feature request dispatch into the production worker
+contract. The next isolated slice must publish the approved feature context from a
+successful onboarding result so a live feature job can load it without manual seeding.

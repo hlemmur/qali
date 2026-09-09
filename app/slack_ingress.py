@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from slack_sdk.signature import Clock, SignatureVerifier
 
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
+from app.project_identity import project_id_for_channel
 
 if TYPE_CHECKING:
+    from app.feature_worker_job import FeatureTestJob
     from app.slack_progress import ProgressMessage
 
 
@@ -57,6 +60,12 @@ class OnboardProjectJob(BaseModel):
     files: tuple[SlackFileReference, ...] = Field(default=(), max_length=10)
 
 
+if TYPE_CHECKING:
+    DurableSlackJob: TypeAlias = OnboardProjectJob | FeatureTestJob
+else:
+    DurableSlackJob: TypeAlias = OnboardProjectJob
+
+
 class _SlackEvent(BaseModel):
     type: Literal["app_mention"]
     user: str
@@ -79,13 +88,13 @@ class _SlackUrlVerification(BaseModel):
 
 
 class JobRepository(Protocol):
-    async def create(self, job: OnboardProjectJob) -> bool: ...
+    async def create(self, job: DurableSlackJob) -> bool: ...
 
 
 class TaskDispatcher(Protocol):
     """Dispatch a job idempotently using its deterministic job ID."""
 
-    async def dispatch(self, job: OnboardProjectJob) -> None: ...
+    async def dispatch(self, job: DurableSlackJob) -> None: ...
 
 
 class InMemoryJobRepository:
@@ -97,7 +106,7 @@ class InMemoryJobRepository:
     ) -> None:
         if not 900 < lease_seconds <= 3_600:
             raise ValueError("lease_seconds must be greater than 900 and at most 3600")
-        self._jobs: dict[str, OnboardProjectJob] = {}
+        self._jobs: dict[str, DurableSlackJob] = {}
         self._claimed_job_ids: set[str] = set()
         self._completed_job_ids: set[str] = set()
         self._failed_job_ids: set[str] = set()
@@ -107,14 +116,14 @@ class InMemoryJobRepository:
         self._lease_seconds = lease_seconds
         self._lock = asyncio.Lock()
 
-    async def create(self, job: OnboardProjectJob) -> bool:
+    async def create(self, job: DurableSlackJob) -> bool:
         async with self._lock:
             if job.job_id in self._jobs:
                 return False
             self._jobs[job.job_id] = job
             return True
 
-    async def claim(self, job_id: str) -> OnboardProjectJob | None:
+    async def claim(self, job_id: str) -> DurableSlackJob | None:
         async with self._lock:
             job = self._jobs.get(job_id)
             if (
@@ -215,7 +224,7 @@ class InMemoryJobRepository:
         if active_job is not None and active_job[0] == job_id:
             del self._active_job_by_project[project_key]
 
-    def list_jobs(self) -> list[OnboardProjectJob]:
+    def list_jobs(self) -> list[DurableSlackJob]:
         return list(self._jobs.values())
 
 
@@ -224,7 +233,7 @@ class InMemoryTaskDispatcher:
         self._job_ids: dict[str, None] = {}
         self._lock = asyncio.Lock()
 
-    async def dispatch(self, job: OnboardProjectJob) -> None:
+    async def dispatch(self, job: DurableSlackJob) -> None:
         async with self._lock:
             self._job_ids.setdefault(job.job_id, None)
 
@@ -241,8 +250,37 @@ class _CallableClock(Clock):
 
 
 def _is_onboarding_request(text: str) -> bool:
-    command = re.sub(r"^\s*<@[^>]+>\s*", "", text).strip().casefold()
+    command = _slack_command(text).casefold()
     return command == "onboard project" or command.startswith("onboard project ")
+
+
+def _is_feature_request(text: str) -> bool:
+    command = _slack_command(text).casefold()
+    return command.startswith("test ") and len(command) > len("test ")
+
+
+def _slack_command(text: str) -> str:
+    return re.sub(r"^\s*<@[^>]+>\s*", "", text).strip()
+
+
+def _feature_job(event: _SlackEvent, envelope: _SlackEnvelope) -> DurableSlackJob:
+    from app.feature_worker_job import FeatureTestJob
+
+    command = _slack_command(event.text).casefold()
+    run_digest = hashlib.sha256(envelope.event_id.encode()).hexdigest()
+    feature_digest = hashlib.sha256(command.encode()).hexdigest()
+    return FeatureTestJob(
+        job_id=f"slack:{envelope.event_id}",
+        source_event_id=envelope.event_id,
+        project_id=project_id_for_channel(envelope.team_id, event.channel),
+        workspace_id=envelope.team_id,
+        channel_id=event.channel,
+        requester_user_id=event.user,
+        thread_ts=event.ts,
+        run_id=f"run-{run_digest[:24]}",
+        feature_slug=f"feature-{feature_digest[:16]}",
+        request_text=event.text,
+    )
 
 
 def create_slack_router(
@@ -250,6 +288,7 @@ def create_slack_router(
     settings: SlackIngressSettings,
     jobs: JobRepository,
     tasks: TaskDispatcher,
+    feature_tasks: TaskDispatcher | None = None,
     clock: Callable[[], float],
 ) -> APIRouter:
     router = APIRouter()
@@ -284,6 +323,14 @@ def create_slack_router(
             or event.user != settings.owner_user_id
         ):
             raise HTTPException(status_code=403, detail="Slack event is not authorized")
+
+        if _is_feature_request(event.text):
+            if feature_tasks is None:
+                return {"ok": True}
+            feature_job = _feature_job(event, envelope)
+            await jobs.create(feature_job)
+            await feature_tasks.dispatch(feature_job)
+            return {"ok": True}
 
         if not _is_onboarding_request(event.text):
             return {"ok": True}
