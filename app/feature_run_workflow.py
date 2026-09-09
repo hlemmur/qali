@@ -11,6 +11,7 @@ from app.failure_investigation import (
     FailureInvestigationResult,
     FailureInvestigationTask,
 )
+from app.project_projection_repository import PublishedProjectProjections
 from app.run_artifact_repository import PublishedRunArtifacts
 from app.run_artifacts import (
     FeatureRunArtifactBundle,
@@ -65,6 +66,7 @@ class FeatureRunWorkflowResult(BaseModel):
 
     record: FeatureRunRecord
     published_artifacts: PublishedRunArtifacts
+    published_projections: PublishedProjectProjections | None = None
     slack_result: SlackFeatureResult
 
 
@@ -94,6 +96,10 @@ class SlackResultPublisher(Protocol):
     ) -> None: ...
 
 
+class ProjectProjectionPublisher(Protocol):
+    async def refresh(self, project_id: str) -> PublishedProjectProjections: ...
+
+
 class FeatureRunWorkflowError(RuntimeError):
     pass
 
@@ -106,11 +112,13 @@ class FeatureRunWorkflow:
         failure_workflow: FailureWorkflow,
         artifacts: RunArtifactPublisher,
         slack_results: SlackResultPublisher,
+        project_projections: ProjectProjectionPublisher | None = None,
     ) -> None:
         self._scenario_runner = scenario_runner
         self._failure_workflow = failure_workflow
         self._artifacts = artifacts
         self._slack_results = slack_results
+        self._project_projections = project_projections
 
     async def run(self, task: FeatureRunTask) -> FeatureRunWorkflowResult:
         scenario_results = []
@@ -152,11 +160,17 @@ class FeatureRunWorkflow:
         published_artifacts = await self._artifacts.publish(
             compile_feature_run_artifacts(record)
         )
+        published_projections = (
+            None
+            if self._project_projections is None
+            else await self._project_projections.refresh(task.project_id)
+        )
         slack_result = render_feature_result(record, mock_mode=task.mock_mode)
         await self._slack_results.publish(task.progress_message, slack_result)
         return FeatureRunWorkflowResult(
             record=record,
             published_artifacts=published_artifacts,
+            published_projections=published_projections,
             slack_result=slack_result,
         )
 
@@ -166,4 +180,5 @@ __all__ = [
     "FeatureRunWorkflow",
     "FeatureRunWorkflowError",
     "FeatureRunWorkflowResult",
+    "ProjectProjectionPublisher",
 ]

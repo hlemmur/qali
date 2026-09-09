@@ -10,6 +10,7 @@ from app.feature_worker_runtime import (
     SlackFeatureProgressReporter,
     create_feature_worker_runtime_from_env,
 )
+from app.project_projection_service import ProjectProjectionUpdater
 
 
 def _live_environment() -> dict[str, str]:
@@ -81,6 +82,7 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
     captured: dict[str, list[Any]] = {
         "artifacts": [],
         "jobs": [],
+        "projections": [],
         "contexts": [],
         "slack": [],
         "workflow": [],
@@ -109,6 +111,11 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
     monkeypatch.setattr(
         "app.feature_worker_runtime.create_gcs_run_artifact_repository",
         capture("artifacts", artifacts),
+    )
+    projection_repository = object()
+    monkeypatch.setattr(
+        "app.feature_worker_runtime.create_gcs_project_projection_repository",
+        capture("projections", projection_repository),
     )
 
     def create_slack(token: str) -> object:
@@ -150,9 +157,17 @@ def test_live_feature_worker_composes_durable_runtime_from_explicit_environment(
         "timeout_seconds": 60,
     }
     assert app.state.finding_follow_ups is True
+    assert app.state.project_projections is True
+    assert captured["projections"][0].model_dump() == {
+        "bucket_name": "qali-private-artifacts",
+        "timeout_seconds": 60,
+    }
     browser_settings, workflow_slack, models = captured["workflow"][0]
     assert workflow_slack is slack
-    assert models == {"specialist_model": None, "reviewer_model": None}
+    assert models["artifacts"] is artifacts
+    assert isinstance(models["project_projections"], ProjectProjectionUpdater)
+    assert models["specialist_model"] is None
+    assert models["reviewer_model"] is None
     assert browser_settings.model_dump(mode="json") == {
         "output_root": "/tmp/qali-mcp",
         "gcp_project_id": "qali-507317",
