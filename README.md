@@ -61,7 +61,9 @@ are deliberately excluded from SDK retries so exhausted free quota fails visibly
 cannot trigger an automatic paid fallback. Every isolated ADK invocation also has a
 300-second wall-clock timeout and emits a stable, content-free timeout error. Tool-free
 specialists may make one model request per invocation; the browser executor may make
-at most its approved browser step budget plus one final completion request.
+at most its approved browser step budget plus one final completion request. A shared
+process gate permits at most two active ADK invocations, preserving the strategy/risk
+fan-out without allowing an unbounded free-tier request burst.
 
 You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
 

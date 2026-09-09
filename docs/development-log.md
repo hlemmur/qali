@@ -4105,3 +4105,32 @@ Safety and scope:
 - Tests use deterministic model and browser doubles. No live Gemini request, API key,
   browser, Slack API, storage, cloud resource, target integration, deployment, or
   secret was used.
+
+## 2026-09-09 — Phase 4: process-level model concurrency gate
+
+Isolated slice: bounded each worker process to two active structured ADK invocations.
+
+Reason: per-invocation request and time ceilings do not prevent concurrent jobs from
+bursting free-tier model traffic. Qali still requires the intentionally parallel QA
+Strategy and Risk analysis pair, so the process limit must permit exactly that fan-out
+without allowing a third invocation to enter.
+
+TDD evidence:
+
+- RED: three isolated agents backed by deterministic blocking model doubles entered
+  model generation concurrently and reached a peak of three.
+- GREEN: the shared runtime gate admits two invocations and holds the third until a
+  slot is released. All three then complete with their typed results.
+- The 300-second invocation timeout includes time spent waiting for the gate, so a
+  queued call cannot wait indefinitely outside Qali's wall-clock budget.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `485 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The gate is process-local and code-owned. It adds no distributed lock, queue,
+  environment toggle, cloud resource, or provider-specific integration.
+- Tests use deterministic blocking model doubles. No live Gemini request, API key,
+  browser, Slack API, storage, cloud resource, target integration, deployment, or
+  secret was used.

@@ -15,6 +15,8 @@ from pydantic import BaseModel
 StructuredResult = TypeVar("StructuredResult", bound=BaseModel)
 DEFAULT_AGENT_TIMEOUT_SECONDS = 300.0
 DEFAULT_MAX_LLM_CALLS = 1
+MAX_CONCURRENT_AGENT_INVOCATIONS = 2
+_AGENT_INVOCATION_GATE = asyncio.Semaphore(MAX_CONCURRENT_AGENT_INVOCATIONS)
 
 
 class StructuredAgentRequestBudgetError(RuntimeError):
@@ -51,19 +53,20 @@ async def run_isolated_structured_agent(
     output_text: str | None = None
     try:
         async with asyncio.timeout(timeout_seconds):
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session.id,
-                new_message=types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=request.model_dump_json())],
-                ),
-                run_config=RunConfig(max_llm_calls=max_llm_calls),
-            ):
-                if event.is_final_response() and event.content is not None:
-                    output_text = "".join(
-                        part.text or "" for part in event.content.parts or []
-                    )
+            async with _AGENT_INVOCATION_GATE:
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session.id,
+                    new_message=types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=request.model_dump_json())],
+                    ),
+                    run_config=RunConfig(max_llm_calls=max_llm_calls),
+                ):
+                    if event.is_final_response() and event.content is not None:
+                        output_text = "".join(
+                            part.text or "" for part in event.content.parts or []
+                        )
     except TimeoutError:
         raise StructuredAgentTimeoutError from None
     except LlmCallsLimitExceededError:
@@ -76,6 +79,7 @@ async def run_isolated_structured_agent(
 __all__ = [
     "DEFAULT_AGENT_TIMEOUT_SECONDS",
     "DEFAULT_MAX_LLM_CALLS",
+    "MAX_CONCURRENT_AGENT_INVOCATIONS",
     "StructuredAgentRequestBudgetError",
     "StructuredAgentTimeoutError",
     "run_isolated_structured_agent",
