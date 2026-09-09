@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 
 from app.adk_structured_runtime import run_isolated_structured_agent
 from app.feature_planning import (
@@ -11,9 +9,9 @@ from app.feature_planning import (
     RiskTask,
     validate_risk_assessment,
 )
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 
 _APP_NAME = "qali_risk_analysis"
-_MODEL = "gemini-3.7-flash"
 
 
 class RiskAnalysisOutputError(RuntimeError):
@@ -22,10 +20,7 @@ class RiskAnalysisOutputError(RuntimeError):
 
 
 def create_risk_analysis_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="risk_analyst",
         description="Independently identifies risks from approved product intent.",
@@ -40,6 +35,7 @@ def create_risk_analysis_agent(*, model: BaseLlm | str | None = None) -> Agent:
         ),
         input_schema=RiskTask,
         output_schema=RiskAssessment,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,

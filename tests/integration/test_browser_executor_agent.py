@@ -14,6 +14,7 @@ from app.browser_executor_agent import (
     AdkBrowserExecutor,
     BrowserAgentCompletion,
     BrowserExecutionTask,
+    create_browser_executor_agent,
 )
 from app.browser_executor_agent import (
     BrowserExecutorOutputError as ExecutorOutputError,
@@ -131,6 +132,29 @@ def test_browser_execution_task_rejects_an_unsafe_run_id() -> None:
 
     with pytest.raises(ValidationError, match="string_pattern_mismatch"):
         BrowserExecutionTask.model_validate(payload)
+
+
+def test_default_browser_model_uses_the_bounded_runtime_policy() -> None:
+    task = _execution_task()
+    session = RestrictedBrowserSession(
+        policy=task.target_policy,
+        approved_oracles=(
+            *task.scenario.positive_oracles,
+            *task.scenario.forbidden_state_oracles,
+        ),
+        backend=_ScenarioBackend(),
+        credentials=_CredentialResolverDouble(),
+    )
+
+    agent = create_browser_executor_agent(session=session, task=task)
+
+    assert agent.model.model == "gemini-3.7-flash"
+    assert agent.model.retry_options is not None
+    assert agent.model.retry_options.http_status_codes == [408, 500, 502, 503, 504]
+    assert 429 not in agent.model.retry_options.http_status_codes
+    assert agent.generate_content_config is not None
+    assert agent.generate_content_config.temperature == 0
+    assert agent.generate_content_config.max_output_tokens == 4_096
 
 
 @pytest.mark.asyncio

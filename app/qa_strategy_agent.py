@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 
 from app.adk_structured_runtime import run_isolated_structured_agent
 from app.feature_planning import StrategyTask, TestStrategy, validate_strategy
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 
 _APP_NAME = "qali_qa_strategy"
-_MODEL = "gemini-3.7-flash"
 
 
 class QaStrategyOutputError(RuntimeError):
@@ -18,10 +16,7 @@ class QaStrategyOutputError(RuntimeError):
 
 
 def create_qa_strategy_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="qa_strategist",
         description="Defines a bounded QA mission from approved product intent.",
@@ -36,6 +31,7 @@ def create_qa_strategy_agent(*, model: BaseLlm | str | None = None) -> Agent:
         ),
         input_schema=StrategyTask,
         output_schema=TestStrategy,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,

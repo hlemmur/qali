@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 
 from app.adk_structured_runtime import run_isolated_structured_agent
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 from app.test_design import validate_test_plan
 from app.test_plan_workflow import PlanReview, PlanReviewTask
 
 _APP_NAME = "qali_plan_reviewer"
-_MODEL = "gemini-3.7-flash"
 
 
 class PlanReviewerOutputError(RuntimeError):
@@ -19,10 +17,7 @@ class PlanReviewerOutputError(RuntimeError):
 
 
 def create_plan_reviewer_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="plan_reviewer",
         description="Independently reviews a synthesized test plan.",
@@ -38,6 +33,7 @@ def create_plan_reviewer_agent(*, model: BaseLlm | str | None = None) -> Agent:
         ),
         input_schema=PlanReviewTask,
         output_schema=PlanReview,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,

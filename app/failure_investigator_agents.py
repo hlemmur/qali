@@ -3,9 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.adk_structured_runtime import run_isolated_structured_agent
@@ -17,10 +15,10 @@ from app.failure_investigation import (
     FailureReviewTask,
     validate_failure_analysis,
 )
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 
 _INVESTIGATOR_APP_NAME = "qali_failure_investigator"
 _REVIEWER_APP_NAME = "qali_failure_reviewer"
-_MODEL = "gemini-3.7-flash"
 
 
 class FailureInvestigatorRequest(BaseModel):
@@ -50,10 +48,7 @@ class FailureReviewerOutputError(RuntimeError):
 
 
 def create_failure_investigator_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="failure_investigator",
         description="Classifies a deterministically evaluated browser failure.",
@@ -71,6 +66,7 @@ def create_failure_investigator_agent(*, model: BaseLlm | str | None = None) -> 
         ),
         input_schema=FailureInvestigatorRequest,
         output_schema=FailureAnalysis,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
@@ -78,10 +74,7 @@ def create_failure_investigator_agent(*, model: BaseLlm | str | None = None) -> 
 
 
 def create_failure_reviewer_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="failure_reviewer",
         description="Independently gates one failure classification.",
@@ -97,6 +90,7 @@ def create_failure_reviewer_agent(*, model: BaseLlm | str | None = None) -> Agen
         ),
         input_schema=FailureReviewTask,
         output_schema=FailureReview,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,

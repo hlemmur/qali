@@ -54,6 +54,12 @@ question. The coordinator has no tools and cannot access browsers, storage, secr
 shells, Git, or deployment capabilities. Production Slack HTTP acknowledgement and
 durable queue dispatch remain in the separate lightweight ingress service below.
 
+Every default Gemini-backed agent uses the same free-tier runtime policy: the pinned
+`gemini-3.7-flash` model, deterministic temperature, a 4,096-token output ceiling,
+and at most three attempts for transient timeout/server errors. HTTP 429 quota errors
+are deliberately excluded from SDK retries so exhausted free quota fails visibly and
+cannot trigger an automatic paid fallback.
+
 You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
 
 Run the standalone Slack ingress locally with explicit mock adapters:

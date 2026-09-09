@@ -3,16 +3,14 @@ from __future__ import annotations
 from typing import Literal
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.adk_structured_runtime import run_isolated_structured_agent
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 from app.test_design import TestDesignTask, TestPlan, validate_test_plan
 
 _APP_NAME = "qali_test_designer"
-_MODEL = "gemini-3.7-flash"
 
 
 class TestDesignerRequest(BaseModel):
@@ -37,10 +35,7 @@ class TestDesignerOutputError(RuntimeError):
 
 
 def create_test_designer_agent(*, model: BaseLlm | str | None = None) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="test_designer",
         description="Synthesizes approved intent, strategy, and risks into scenarios.",
@@ -56,6 +51,7 @@ def create_test_designer_agent(*, model: BaseLlm | str | None = None) -> Agent:
         ),
         input_schema=TestDesignerRequest,
         output_schema=TestPlan,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
