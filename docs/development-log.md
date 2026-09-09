@@ -3623,3 +3623,46 @@ Commands and evidence:
 Phase result: passed for authoritative live task construction. The next isolated slice
 must persist and retrieve the approved structured feature context through production
 storage before the complete worker can be composed from environment settings.
+
+## 2026-09-09 — Phase 3: durable approved feature context
+
+Isolated slice: added the production GCS repository for the complete approved feature
+context: Slack project binding, readiness, structured compiled knowledge, and the
+deny-by-default browser target policy.
+
+Reason: the live task loader had only a repository protocol. Without a durable,
+integrity-checked implementation, a worker restart could not recover the authoritative
+knowledge and action policy needed to build the same feature request.
+
+TDD evidence:
+
+- RED/GREEN: no feature-context persistence adapter existed. A ready context now writes
+  canonical JSON under `projects/{project_id}/context/feature.json` with a generation
+  precondition, content checksum, project metadata, and a bounded request timeout, then
+  reloads through strict schema and scope validation.
+- RED/GREEN: an identical redelivery initially surfaced GCS's precondition failure. It
+  now resolves only when remote bytes, digest, project metadata, and generation exactly
+  match; changed stale content raises a stable generation conflict.
+- RED/GREEN: an insufficient context could initially reach the storage write. Publication
+  now rejects it before touching GCS, so only a ready project can be stored as approved.
+- Load rejects missing/corrupt metadata, an invalid generation, unsafe or mismatched
+  project identity, malformed JSON/schema, provider failures, and content tampering with
+  one redacted context-unavailable error.
+
+Safety and scope:
+
+- The adapter stores secret references only; credential values remain exclusively behind
+  Secret Manager resolution and never enter context JSON.
+- Tests use an in-memory GCS boundary. No browser, model, Slack API, credential, storage
+  service, cloud resource, target integration, or deployment was used.
+
+Commands and evidence:
+
+- GCS feature-context repository suite — `5 passed`.
+- Context persistence/loading/worker blast-radius suite — `10 passed`.
+- Complete explicit offline unit/integration/contract gate — `423 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for restart-safe approved context storage. The next isolated slice
+must compose this repository, the live task loader, feature workflow, Slack progress,
+and durable feature-job lifecycle from fail-closed environment settings.
