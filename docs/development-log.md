@@ -3850,3 +3850,52 @@ Commands and evidence:
 Phase result: passed for restart-safe, same-thread finding explanations from immutable
 evidence. The next isolated slice must compose deterministic testing-log and issue-index
 projection publication into the completed feature-run path.
+
+## 2026-09-09 — Phase 3: completed-run projection publication
+
+Isolated slice: rebuilt each project's chronological testing log and current issue
+index from immutable feature-run history after every completed run, then wired the
+projection refresh into the production feature worker before Slack success publication.
+
+Reason: deterministic projection compilers and generation-guarded GCS writers existed,
+but the live feature workflow never invoked them. Project logs and issue indexes could
+therefore remain stale even when immutable run artifacts and Slack results succeeded.
+
+TDD evidence:
+
+- RED/GREEN: a completed workflow persisted run artifacts but did not refresh project
+  views. It now publishes both projections after immutable artifacts and before the
+  Slack result, and fails closed without a success message if projection publication
+  fails.
+- RED/GREEN: projection code had no durable history source. Run-artifact repositories
+  now enumerate validated result pointers with immutable creation timestamps, and a
+  shared typed loader reconstructs cross-checked run records for both projections and
+  finding follow-ups.
+- RED/GREEN: two sequential runs now regenerate a chronological log containing both
+  exact outcomes and an issue index derived from the complete persisted history.
+- RED/GREEN: projection publishers now expose current generations; production uses GCS
+  generation preconditions while the in-memory path preserves equivalent behavior.
+- Live worker composition shares one run-artifact repository across execution,
+  follow-up, and history reads, and creates the production projection repository only
+  after all environment configuration validates.
+
+Safety and scope:
+
+- History enumeration is project-prefix scoped. Listed run IDs and timestamps pass
+  typed validation, every loaded artifact is hash-verified, and all cross-document
+  counts, verdicts, findings, and project/run identities fail closed before projection
+  or Slack publication.
+- Tests use synthetic feature records and in-memory or recorded storage boundaries. No
+  Slack API, storage service, browser, model, credential, cloud resource, target
+  integration, or deployment was used.
+
+Commands and evidence:
+
+- Feature workflow, projection, history, follow-up, and live-composition blast radius —
+  `46 passed`.
+- Complete explicit offline unit/integration/contract gate — `458 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for fail-closed project projection publication from durable run
+truth. The next isolated slice must add the bounded Slack-facing coordinator that routes
+only onboarding, one-feature testing, and finding explanations from natural language.

@@ -55,6 +55,12 @@ from app.product_alignment_agent import (
     AdkProductAlignmentAnalyst,
     create_product_alignment_agent,
 )
+from app.project_projection_repository import (
+    GcsProjectProjectionRepository,
+    GcsProjectProjectionSettings,
+    create_gcs_project_projection_repository,
+)
+from app.project_projection_service import ProjectProjectionUpdater
 from app.qa_strategy_agent import AdkQaStrategist, create_qa_strategy_agent
 from app.risk_analysis_agent import AdkRiskAnalyst, create_risk_analysis_agent
 from app.run_artifact_repository import (
@@ -218,6 +224,8 @@ def create_production_feature_request_workflow(
     *,
     browser_settings: BrowserRuntimeSettings,
     slack_client: SlackFeatureResultClient,
+    artifacts: GcsRunArtifactRepository | None = None,
+    project_projections: ProjectProjectionUpdater | None = None,
     specialist_model: BaseLlm | str | None = None,
     reviewer_model: BaseLlm | str | None = None,
 ) -> FeatureRequestWorkflow:
@@ -255,16 +263,27 @@ def create_production_feature_request_workflow(
             agent=create_failure_reviewer_agent(model=reviewer_model)
         ),
     )
-    execution = FeatureRunWorkflow(
-        scenario_runner=browser,
-        failure_workflow=failure_workflow,
-        artifacts=create_gcs_run_artifact_repository(
-            GcsRunArtifactSettings(
+    artifact_repository = artifacts or create_gcs_run_artifact_repository(
+        GcsRunArtifactSettings(
+            bucket_name=browser_settings.artifact_bucket_name,
+            timeout_seconds=browser_settings.artifact_timeout_seconds,
+        )
+    )
+    projection_updater = project_projections or ProjectProjectionUpdater(
+        history=artifact_repository,
+        projections=create_gcs_project_projection_repository(
+            GcsProjectProjectionSettings(
                 bucket_name=browser_settings.artifact_bucket_name,
                 timeout_seconds=browser_settings.artifact_timeout_seconds,
             )
         ),
+    )
+    execution = FeatureRunWorkflow(
+        scenario_runner=browser,
+        failure_workflow=failure_workflow,
+        artifacts=artifact_repository,
         slack_results=SlackFeatureResultPublisher(client=slack_client),
+        project_projections=projection_updater,
     )
     return FeatureRequestWorkflow(planning=planning, execution=execution)
 
@@ -276,14 +295,25 @@ def create_feature_worker_runtime(
     contexts: FeatureProjectContextRepository,
     slack_client: SlackFeatureWorkerClient,
     artifacts: GcsRunArtifactRepository | None = None,
+    projection_repository: GcsProjectProjectionRepository | None = None,
     specialist_model: BaseLlm | str | None = None,
     reviewer_model: BaseLlm | str | None = None,
 ) -> FastAPI:
     """Compose the complete live feature-testing worker from typed boundaries."""
 
+    project_projections = (
+        None
+        if artifacts is None or projection_repository is None
+        else ProjectProjectionUpdater(
+            history=artifacts,
+            projections=projection_repository,
+        )
+    )
     workflow = create_production_feature_request_workflow(
         browser_settings=settings.browser,
         slack_client=slack_client,
+        artifacts=artifacts,
+        project_projections=project_projections,
         specialist_model=specialist_model,
         reviewer_model=reviewer_model,
     )
@@ -306,6 +336,7 @@ def create_feature_worker_runtime(
     )
     app.state.feature_runtime_settings = settings
     app.state.finding_follow_ups = artifacts is not None
+    app.state.project_projections = project_projections is not None
     return app
 
 
@@ -367,12 +398,19 @@ def create_feature_worker_runtime_from_env(
             timeout_seconds=storage_timeout,
         )
     )
+    projection_repository = create_gcs_project_projection_repository(
+        GcsProjectProjectionSettings(
+            bucket_name=bucket_name,
+            timeout_seconds=storage_timeout,
+        )
+    )
     app = create_feature_worker_runtime(
         settings=settings,
         jobs=create_firestore_job_repository(job_settings),
         contexts=create_gcs_feature_context_repository(context_settings),
         slack_client=slack_client,
         artifacts=artifacts,
+        projection_repository=projection_repository,
     )
     app.state.qali_mode = "live"
     return app

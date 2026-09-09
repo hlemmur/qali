@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -33,6 +33,14 @@ class RunArtifactPointer(BaseModel):
     created_at: datetime
 
 
+class StoredRunPointer(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,127}$")
+    run_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,127}$")
+    created_at: datetime
+
+
 class PublishedRunArtifacts(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -42,6 +50,7 @@ class PublishedRunArtifacts(BaseModel):
 
 
 class RunArtifactBlob(Protocol):
+    name: str
     metadata: dict[str, str] | None
     generation: int | None
     content_type: str | None
@@ -59,6 +68,10 @@ class RunArtifactBucket(Protocol):
 
 class RunArtifactStorageClient(Protocol):
     def bucket(self, bucket_name: str) -> RunArtifactBucket: ...
+
+    def list_blobs(
+        self, bucket_name: str, *, prefix: str
+    ) -> Iterable[RunArtifactBlob]: ...
 
 
 class RunArtifactWriteConflict(RuntimeError):
@@ -117,6 +130,24 @@ class InMemoryRunArtifactRepository:
             if stored_project_id != project_id:
                 raise KeyError(finding_id)
             return run_id
+
+    async def list_runs(self, project_id: str) -> tuple[StoredRunPointer, ...]:
+        async with self._lock:
+            runs = {
+                run_id: self._pointers[object_name].created_at
+                for object_name, (
+                    stored_project_id,
+                    run_id,
+                ) in self._scope_by_object.items()
+                if stored_project_id == project_id
+                and object_name.endswith("/result.json")
+            }
+        return tuple(
+            StoredRunPointer(
+                project_id=project_id, run_id=run_id, created_at=created_at
+            )
+            for run_id, created_at in sorted(runs.items())
+        )
 
 
 class GcsRunArtifactRepository:
@@ -215,6 +246,39 @@ class GcsRunArtifactRepository:
             raise KeyError(finding_id)
         return run_id
 
+    async def list_runs(self, project_id: str) -> tuple[StoredRunPointer, ...]:
+        prefix = f"projects/{project_id}/runs/"
+        blobs = await asyncio.to_thread(
+            lambda: tuple(
+                self._client.list_blobs(self._settings.bucket_name, prefix=prefix)
+            )
+        )
+        runs = []
+        for blob in blobs:
+            if not blob.name.endswith("/result.json"):
+                continue
+            metadata = blob.metadata or {}
+            run_id = metadata.get("run_id")
+            if metadata.get("project_id") != project_id or run_id is None:
+                raise RunArtifactWriteConflict
+            expected_name = f"{prefix}{run_id}/result.json"
+            try:
+                created_at = datetime.fromisoformat(
+                    metadata["created_at"].replace("Z", "+00:00")
+                )
+            except (KeyError, ValueError):
+                raise RunArtifactWriteConflict from None
+            if blob.name != expected_name:
+                raise RunArtifactWriteConflict
+            runs.append(
+                StoredRunPointer(
+                    project_id=project_id,
+                    run_id=run_id,
+                    created_at=_aware_utc(created_at),
+                )
+            )
+        return tuple(sorted(runs, key=lambda item: (item.created_at, item.run_id)))
+
     async def _resolve_retry(
         self,
         blob: RunArtifactBlob,
@@ -283,5 +347,6 @@ __all__ = [
     "PublishedRunArtifacts",
     "RunArtifactPointer",
     "RunArtifactWriteConflict",
+    "StoredRunPointer",
     "create_gcs_run_artifact_repository",
 ]

@@ -18,6 +18,9 @@ def test_production_feature_workflow_installs_one_browser_runner_for_attempts_an
 ) -> None:
     browser_runner = object()
     run_artifacts = object()
+    project_projections = object()
+    projection_updater = object()
+    captured_projection_dependencies = []
     monkeypatch.setattr(
         "app.feature_worker_runtime.create_production_browser_attempt_runner",
         lambda settings, *, browser_model=None: browser_runner,
@@ -25,6 +28,16 @@ def test_production_feature_workflow_installs_one_browser_runner_for_attempts_an
     monkeypatch.setattr(
         "app.feature_worker_runtime.create_gcs_run_artifact_repository",
         lambda settings: run_artifacts,
+    )
+    monkeypatch.setattr(
+        "app.feature_worker_runtime.create_gcs_project_projection_repository",
+        lambda settings: project_projections,
+    )
+    monkeypatch.setattr(
+        "app.feature_worker_runtime.ProjectProjectionUpdater",
+        lambda **dependencies: (
+            captured_projection_dependencies.append(dependencies) or projection_updater
+        ),
     )
 
     workflow = create_production_feature_request_workflow(
@@ -43,4 +56,8 @@ def test_production_feature_workflow_installs_one_browser_runner_for_attempts_an
     assert execution._scenario_runner is browser_runner
     assert execution._failure_workflow._reproducer is browser_runner
     assert execution._artifacts is run_artifacts
+    assert execution._project_projections is projection_updater
+    assert captured_projection_dependencies == [
+        {"history": run_artifacts, "projections": project_projections}
+    ]
     assert isinstance(execution._slack_results, SlackFeatureResultPublisher)

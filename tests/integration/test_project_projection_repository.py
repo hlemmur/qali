@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from google.api_core.exceptions import PreconditionFailed
+from google.api_core.exceptions import NotFound, PreconditionFailed
 
 from app.project_projection_repository import (
     GcsProjectProjectionRepository,
@@ -40,6 +40,8 @@ class _VersionedBlob:
 
     def reload(self, **kwargs: Any) -> None:
         del kwargs
+        if self.generation is None:
+            raise NotFound("projection does not exist")
         self.metadata = (
             None if self.stored_metadata is None else self.stored_metadata.copy()
         )
@@ -87,6 +89,11 @@ async def test_mock_repository_publishes_and_reads_both_project_projections() ->
         bundle,
         expected_generations={document.object_name: 0 for document in bundle.documents},
     )
+
+    assert await repository.current_generations("project-alpha") == {
+        "projects/project-alpha/logs/testing-log.md": 1,
+        "projects/project-alpha/issues/index.md": 1,
+    }
 
     assert published.project_id == "project-alpha"
     assert tuple(pointer.generation for pointer in published.projections) == (1, 1)
@@ -170,13 +177,23 @@ async def test_gcs_repository_publishes_each_projection_with_generation_guards()
         clock=lambda: datetime(2026, 9, 8, 10, 1, tzinfo=UTC),
     )
 
+    assert await repository.current_generations("project-alpha") == {
+        "projects/project-alpha/logs/testing-log.md": 0,
+        "projects/project-alpha/issues/index.md": 0,
+    }
+
     published = await repository.publish(
         bundle,
         expected_generations={document.object_name: 0 for document in bundle.documents},
     )
 
+    assert await repository.current_generations("project-alpha") == {
+        "projects/project-alpha/logs/testing-log.md": 1,
+        "projects/project-alpha/issues/index.md": 1,
+    }
+
     assert tuple(pointer.generation for pointer in published.projections) == (1, 1)
-    assert client.bucket_names == ["qali-private-artifacts"]
+    assert client.bucket_names == ["qali-private-artifacts"] * 3
     for document in bundle.documents:
         blob = client.bucket_reference.blobs[document.object_name]
         assert blob.stored_data == document.content

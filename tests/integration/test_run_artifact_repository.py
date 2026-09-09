@@ -18,7 +18,8 @@ from tests.integration.test_run_artifacts import _failed_run
 
 
 class _Blob:
-    def __init__(self) -> None:
+    def __init__(self, name: str) -> None:
+        self.name = name
         self.metadata: dict[str, str] | None = None
         self.stored_metadata: dict[str, str] | None = None
         self.data: bytes | None = None
@@ -52,7 +53,7 @@ class _Bucket:
         self.blobs: dict[str, _Blob] = {}
 
     def blob(self, object_name: str) -> _Blob:
-        return self.blobs.setdefault(object_name, _Blob())
+        return self.blobs.setdefault(object_name, _Blob(object_name))
 
 
 class _Client:
@@ -63,6 +64,14 @@ class _Client:
     def bucket(self, bucket_name: str) -> _Bucket:
         self.bucket_name = bucket_name
         return self.bucket_reference
+
+    def list_blobs(self, bucket_name: str, *, prefix: str):
+        self.bucket_name = bucket_name
+        return tuple(
+            blob
+            for name, blob in self.bucket_reference.blobs.items()
+            if name.startswith(prefix)
+        )
 
 
 def _changed(document: RunArtifactDocument) -> RunArtifactDocument:
@@ -152,3 +161,25 @@ async def test_gcs_repository_reads_and_verifies_immutable_artifact() -> None:
     blob.stored_metadata["sha256"] = "0" * 64
     with pytest.raises(RunArtifactWriteConflict):
         await repository.read(bundle.documents[1].object_name)
+
+
+@pytest.mark.asyncio
+async def test_gcs_repository_lists_persisted_runs_for_projection_rebuilds() -> None:
+    bundle = compile_feature_run_artifacts(await _failed_run())
+    client = _Client()
+    repository = GcsRunArtifactRepository(
+        settings=GcsRunArtifactSettings(bucket_name="qali-private-artifacts"),
+        client=client,
+        clock=lambda: datetime(2026, 9, 9, 14, 45, tzinfo=UTC),
+    )
+    await repository.publish(bundle)
+
+    pointers = await repository.list_runs(bundle.project_id)
+
+    assert [pointer.model_dump(mode="json") for pointer in pointers] == [
+        {
+            "project_id": bundle.project_id,
+            "run_id": bundle.run_id,
+            "created_at": "2026-09-09T14:45:00Z",
+        }
+    ]

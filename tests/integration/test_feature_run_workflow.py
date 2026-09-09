@@ -9,6 +9,8 @@ from app.feature_run_workflow import (
     FeatureRunWorkflow,
     FeatureRunWorkflowError,
 )
+from app.project_projection_repository import InMemoryProjectProjectionRepository
+from app.project_projection_service import ProjectProjectionUpdater
 from app.run_artifact_repository import InMemoryRunArtifactRepository
 from app.slack_feature_results import InMemorySlackFeatureResultPublisher
 from app.test_plan_workflow import PlanGateStatus, PlanReview
@@ -46,6 +48,12 @@ class _FailingArtifactPublisher:
         raise RuntimeError("artifact persistence unavailable")
 
 
+class _FailingProjectionPublisher:
+    async def refresh(self, project_id):
+        del project_id
+        raise RuntimeError("projection persistence unavailable")
+
+
 def _approved_plan() -> ApprovedPlanResult:
     return ApprovedPlanResult(
         plan=_review_task().plan,
@@ -63,11 +71,16 @@ async def test_approved_feature_run_persists_before_publishing_mock_result() -> 
         clock=lambda: datetime(2026, 9, 8, 11, 0, tzinfo=UTC)
     )
     slack = InMemorySlackFeatureResultPublisher()
+    projections = InMemoryProjectProjectionRepository()
     workflow = FeatureRunWorkflow(
         scenario_runner=runner,
         failure_workflow=investigator,
         artifacts=artifacts,
         slack_results=slack,
+        project_projections=ProjectProjectionUpdater(
+            history=artifacts,
+            projections=projections,
+        ),
     )
     task = FeatureRunTask(
         project_id="project-alpha",
@@ -85,6 +98,12 @@ async def test_approved_feature_run_persists_before_publishing_mock_result() -> 
     assert result.record.scenario_results[0].evaluation.passed is True
     assert result.record.investigations == ()
     assert len(result.published_artifacts.artifacts) == 4
+    assert result.published_projections is not None
+    assert tuple(
+        pointer.generation for pointer in result.published_projections.projections
+    ) == (1, 1)
+    testing_log = await projections.read("projects/project-alpha/logs/testing-log.md")
+    assert "run-profile-workflow" in testing_log.content.decode()
     assert result.slack_result.text == (
         "[MOCK MODE]\nProfile display-name editing: 1 scenario passed (2 checks)."
     )
@@ -223,6 +242,34 @@ async def test_artifact_failure_prevents_a_success_message() -> None:
     )
 
     with pytest.raises(RuntimeError, match="persistence unavailable"):
+        await workflow.run(task)
+
+    assert slack.list_messages() == []
+
+
+@pytest.mark.asyncio
+async def test_projection_failure_prevents_a_success_message() -> None:
+    artifacts = InMemoryRunArtifactRepository()
+    slack = InMemorySlackFeatureResultPublisher()
+    workflow = FeatureRunWorkflow(
+        scenario_runner=_ScenarioRunnerDouble([_attempt(passed=True, run="initial")]),
+        failure_workflow=_FailureWorkflowDouble(),
+        artifacts=artifacts,
+        slack_results=slack,
+        project_projections=_FailingProjectionPublisher(),
+    )
+    task = FeatureRunTask(
+        project_id="project-alpha",
+        run_id="run-profile-projection-failure",
+        feature_slug="profile-editing",
+        request_markdown="Test profile display-name editing.",
+        approved_plan=_approved_plan(),
+        target_policy=_execution_task().target_policy,
+        progress_message=_message(),
+        mock_mode=True,
+    )
+
+    with pytest.raises(RuntimeError, match="projection persistence unavailable"):
         await workflow.run(task)
 
     assert slack.list_messages() == []

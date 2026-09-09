@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from google.api_core.exceptions import PreconditionFailed
+from google.api_core.exceptions import NotFound, PreconditionFailed
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.project_projections import ProjectProjectionBundle
@@ -107,6 +107,17 @@ class InMemoryProjectProjectionRepository:
         async with self._lock:
             return self._documents[object_name]
 
+    async def current_generations(self, project_id: str) -> dict[str, int]:
+        async with self._lock:
+            return {
+                object_name: (
+                    0
+                    if (pointer := self._pointers.get(object_name)) is None
+                    else pointer.generation
+                )
+                for object_name in _projection_paths(project_id)
+            }
+
     def _published(
         self,
         bundle: ProjectProjectionBundle,
@@ -184,6 +195,24 @@ class GcsProjectProjectionRepository:
             projections=(first, second),
         )
 
+    async def current_generations(self, project_id: str) -> dict[str, int]:
+        bucket = self._client.bucket(self._settings.bucket_name)
+        generations = {}
+        for object_name in _projection_paths(project_id):
+            blob = bucket.blob(object_name)
+            try:
+                await asyncio.to_thread(
+                    blob.reload,
+                    timeout=self._settings.timeout_seconds,
+                )
+            except NotFound:
+                generations[object_name] = 0
+                continue
+            if blob.generation is None or blob.generation < 1:
+                raise ProjectProjectionWriteConflict
+            generations[object_name] = int(blob.generation)
+        return generations
+
     async def _resolve_retry(
         self,
         blob: ProjectProjectionBlob,
@@ -239,6 +268,13 @@ def _validate_expected_generations(
         raise ValueError("expected generations must cover both project projections")
     if any(generation < 0 for generation in expected_generations.values()):
         raise ValueError("expected projection generation cannot be negative")
+
+
+def _projection_paths(project_id: str) -> tuple[str, str]:
+    return (
+        f"projects/{project_id}/logs/testing-log.md",
+        f"projects/{project_id}/issues/index.md",
+    )
 
 
 def _aware_utc(value: datetime) -> datetime:
