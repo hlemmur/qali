@@ -9,9 +9,12 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.feature_worker_job import FeatureTestJob
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 from app.slack_progress import ProgressMessage
+
+DurableJob = OnboardProjectJob | FeatureTestJob
 
 
 class FirestoreJobSettings(BaseModel):
@@ -98,7 +101,7 @@ class FirestoreJobRepository:
         self._transactions = transactions or _FirestoreTransactionRunner(client)
         self._clock = clock or _utc_now
 
-    async def create(self, job: OnboardProjectJob) -> bool:
+    async def create(self, job: DurableJob) -> bool:
         document = self._client.collection(self._settings.collection).document(
             _document_id(job.job_id)
         )
@@ -114,14 +117,14 @@ class FirestoreJobRepository:
             return False
         return True
 
-    async def claim(self, job_id: str) -> OnboardProjectJob | None:
+    async def claim(self, job_id: str) -> DurableJob | None:
         document = self._client.collection(self._settings.collection).document(
             _document_id(job_id)
         )
 
         async def claim_pending(
             transaction: FirestoreTransaction,
-        ) -> OnboardProjectJob | None:
+        ) -> DurableJob | None:
             snapshot = await document.get(transaction=transaction)
             data = snapshot.to_dict()
             if not snapshot.exists or data is None:
@@ -129,7 +132,7 @@ class FirestoreJobRepository:
             status = data.get("status")
             if status not in {"pending", "running"}:
                 return None
-            job = OnboardProjectJob.model_validate(data)
+            job = _job_from_data(data)
             lock_document = self._project_lock_document(job)
             lock_snapshot = await lock_document.get(transaction=transaction)
             lock_data = lock_snapshot.to_dict()
@@ -201,7 +204,7 @@ class FirestoreJobRepository:
                 or data.get("thread_ts") != message.thread_ts
             ):
                 return False
-            job = OnboardProjectJob.model_validate(data)
+            job = _job_from_data(data)
             lock_document = self._project_lock_document(job)
             if not await _owns_lock(transaction, lock_document, job_id):
                 return False
@@ -252,7 +255,7 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
-            job = OnboardProjectJob.model_validate(data)
+            job = _job_from_data(data)
             lock_document = self._project_lock_document(job)
             if not await _owns_lock(transaction, lock_document, job_id):
                 return False
@@ -279,7 +282,7 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
-            job = OnboardProjectJob.model_validate(data)
+            job = _job_from_data(data)
             lock_document = self._project_lock_document(job)
             if not await _owns_lock(transaction, lock_document, job_id):
                 return False
@@ -308,7 +311,7 @@ class FirestoreJobRepository:
             data = snapshot.to_dict()
             if not snapshot.exists or data is None or data.get("status") != "running":
                 return False
-            job = OnboardProjectJob.model_validate(data)
+            job = _job_from_data(data)
             lock_document = self._project_lock_document(job)
             if not await _owns_lock(transaction, lock_document, job_id):
                 return False
@@ -325,7 +328,7 @@ class FirestoreJobRepository:
 
         return await self._transactions.run(fail_running)
 
-    def _project_lock_document(self, job: OnboardProjectJob) -> FirestoreDocument:
+    def _project_lock_document(self, job: DurableJob) -> FirestoreDocument:
         return self._client.collection(self._settings.lock_collection).document(
             _project_lock_id(job)
         )
@@ -346,7 +349,7 @@ def _document_id(job_id: str) -> str:
     return f"qali-job-{digest}"
 
 
-def _project_lock_id(job: OnboardProjectJob) -> str:
+def _project_lock_id(job: DurableJob) -> str:
     scope = f"{job.workspace_id}\0{job.channel_id}"
     digest = hashlib.sha256(scope.encode()).hexdigest()
     return f"qali-project-lock-{digest}"
@@ -355,6 +358,18 @@ def _project_lock_id(job: OnboardProjectJob) -> str:
 def _lease_is_active(lock_data: dict[str, Any], now: datetime) -> bool:
     lease_expires_at = lock_data.get("lease_expires_at")
     return not isinstance(lease_expires_at, datetime) or now < lease_expires_at
+
+
+def _job_from_data(data: dict[str, Any]) -> DurableJob:
+    kind = data.get("kind")
+    if kind == "onboard_project":
+        return OnboardProjectJob.model_validate(data)
+    if kind == "test_feature":
+        payload = {
+            name: data[name] for name in FeatureTestJob.model_fields if name in data
+        }
+        return FeatureTestJob.model_validate(payload)
+    raise ValueError("unsupported durable job kind")
 
 
 def _utc_now() -> datetime:

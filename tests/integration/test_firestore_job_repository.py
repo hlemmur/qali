@@ -6,6 +6,7 @@ import pytest
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 
+from app.feature_worker_job import FeatureTestJob
 from app.firestore_job_repository import (
     FirestoreJobRepository,
     FirestoreJobSettings,
@@ -14,6 +15,21 @@ from app.firestore_job_repository import (
 from app.job_lifecycle import JobFailureReason, JobRetryReason, ProjectBusyError
 from app.slack_ingress import OnboardProjectJob
 from app.slack_progress import ProgressMessage
+
+
+def _feature_job() -> FeatureTestJob:
+    return FeatureTestJob(
+        job_id="slack:Ev-feature-lifecycle",
+        source_event_id="Ev-feature-lifecycle",
+        project_id="project-alpha",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.111000",
+        run_id="run-feature-lifecycle",
+        feature_slug="profile-editing",
+        request_text="Test profile editing",
+    )
 
 
 class _RecordingDocument:
@@ -162,6 +178,35 @@ async def test_create_persists_typed_pending_job_once() -> None:
             "created_at": firestore_v1.SERVER_TIMESTAMP,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_feature_job_uses_the_durable_claim_progress_and_completion_lifecycle() -> (
+    None
+):
+    client = _RecordingFirestoreClient()
+    transactions = _TransactionRunner()
+    repository = FirestoreJobRepository(
+        settings=FirestoreJobSettings(
+            project_id="qali-507317",
+            database_id="(default)",
+            collection="jobs",
+        ),
+        client=client,
+        transactions=transactions,
+    )
+    job = _feature_job()
+    message = ProgressMessage(
+        channel_id=job.channel_id,
+        thread_ts=job.thread_ts,
+        message_ts="1788220800.112000",
+    )
+
+    assert await repository.create(job) is True
+    assert await repository.claim(job.job_id) == job
+    assert await repository.attach_progress(job.job_id, message) is True
+    assert await repository.get_progress(job.job_id) == message
+    assert await repository.complete(job.job_id) is True
 
 
 @pytest.mark.asyncio
