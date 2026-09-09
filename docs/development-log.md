@@ -3953,3 +3953,51 @@ Commands and evidence:
 Phase result: passed for bounded, typed natural-language routing with no coordinator
 tools or hidden history. The next isolated slice should add coordinator behavioral eval
 cases and trajectory qualification through the existing workflow boundaries.
+
+## 2026-09-09 — Phase 4: coordinator evaluation assets
+
+Isolated slice: replaced the generated weather/general-assistant evaluation examples
+with typed coordinator-routing cases, a local deterministic route-contract metric, and
+a disjoint held-out set for the final gate.
+
+Reason: the ADK root now accepts `CoordinatorRequest` JSON and returns a
+`CoordinatorDecision`, so the scaffolded free-form examples could not evaluate the
+Qali surface. Routing correctness is schema-exact and does not require an LLM judge.
+
+TDD evidence:
+
+- RED/GREEN: the eval-asset test initially failed because the coordinator dataset and
+  metric did not exist. The core dataset now covers all three approved workflows plus
+  multi-feature ambiguity, missing onboarding, and an unknown-finding injection.
+- RED/GREEN: the local metric parses both response and reference through the production
+  decision schema, compares status/workflow/finding identity, and rejects prose or
+  malformed output instead of crediting substring matches.
+- A separate held-out dataset covers an unsupported general question and a project
+  knowledge update. Tests verify its schemas and disjoint case IDs without running it
+  during prompt iteration.
+
+Skill and implementation protocol:
+
+- Re-read `google-agents-cli-eval` version 1.4.2 and its dataset/metric references.
+  The installed CLI has no offline dataset-validation command, so deterministic pytest
+  validates the committed assets and the CLI's local code metric remains the eventual
+  scoring path.
+
+Safety and scope:
+
+- Every case is synthetic and project-agnostic. The route metric runs locally, performs
+  no network or model call, and uses the same Pydantic decision contract as production.
+- `agents-cli eval run` was deliberately not invoked: inference would call the live
+  Gemini integration, which requires explicit approval and an eligible free-tier
+  credential. No secret, cloud resource, live integration, or deployment was used.
+
+Commands and evidence:
+
+- Focused eval dataset and metric contract suite — `4 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `470 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for typed coordinator core/held-out datasets and deterministic
+route scoring. Live core and held-out scores remain a separate explicitly approved
+qualification step.

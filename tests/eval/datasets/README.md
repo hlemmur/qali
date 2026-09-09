@@ -4,15 +4,30 @@ This directory contains evaluation datasets for testing agent behavior.
 
 ## Running Evaluations
 
-### Default Dataset
+### Coordinator Core Dataset
 ```bash
-# Run the agent over the default dataset and grade the traces
-agents-cli eval run
+# Run the approved coordinator cases and deterministic route-contract metric
+agents-cli eval run --dataset tests/eval/datasets/coordinator-routing.json
+```
+
+This command invokes the configured Gemini model and requires explicit approval plus
+an eligible free-tier credential. It must not be used with confidential project data.
+The committed core cases use synthetic project requests only.
+
+### Held-Out Coordinator Dataset
+
+`tests/eval/datasets/held-out/coordinator-routing.json` is reserved for the final
+qualification gate. Do not include it in prompt iteration or move its cases into the
+core dataset. Run it only after the core cases meet the approved threshold:
+
+```bash
+agents-cli eval run \
+  --dataset tests/eval/datasets/held-out/coordinator-routing.json
 ```
 
 ### Custom Dataset
 ```bash
-agents-cli eval run --dataset tests/eval/datasets/custom-dataset.json --metrics general_quality
+agents-cli eval run --dataset tests/eval/datasets/custom-dataset.json --metrics coordinator_route_contract
 ```
 
 ### Decoupled Runs
@@ -92,7 +107,7 @@ user message; `eval generate` appends the next agent response.
 
 You can create custom datasets in two ways:
 
-1. **By Hand**: Copy `basic-dataset.json` as a template and manually add evaluation cases.
+1. **By Hand**: Copy `coordinator-routing.json` as a template and add synthetic evaluation cases.
 2. **Synthesize**: Use the synthetic dataset generation command to generate conversation scenarios:
    ```bash
    agents-cli eval dataset synthesize --count 10
