@@ -3,15 +3,13 @@ from __future__ import annotations
 from enum import StrEnum
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.adk_structured_runtime import run_isolated_structured_agent
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 
 _APP_NAME = "qali_slack_coordinator"
-_MODEL = "gemini-3.7-flash"
 
 
 class CoordinatorWorkflow(StrEnum):
@@ -96,10 +94,7 @@ def create_slack_coordinator_agent(
     *,
     model: BaseLlm | str | None = None,
 ) -> Agent:
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="slack_coordinator",
         description="Routes one bounded Qali request to an approved workflow.",
@@ -117,6 +112,7 @@ def create_slack_coordinator_agent(
         ),
         input_schema=CoordinatorRequest,
         output_schema=CoordinatorDecision,
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,

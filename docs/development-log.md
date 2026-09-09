@@ -4001,3 +4001,41 @@ Commands and evidence:
 Phase result: passed for typed coordinator core/held-out datasets and deterministic
 route scoring. Live core and held-out scores remain a separate explicitly approved
 qualification step.
+
+## 2026-09-09 — Phase 4: bounded free-tier model runtime policy
+
+Isolated slice: centralized the default Gemini construction and generation settings
+used by every Qali ADK agent, including the restricted browser executor.
+
+Reason: per-agent retry defaults could silently diverge, and unqualified HTTP status
+retries risked spending the remaining free quota after a 429 response. Output size was
+also bounded only by schemas rather than an explicit provider request ceiling.
+
+TDD evidence:
+
+- RED: a cross-agent contract test showed every specialist still used the SDK's
+  unqualified retry status set and had no output-token limit.
+- GREEN: all default model factories now share the pinned `gemini-3.7-flash` model,
+  temperature `0`, a `4096` output-token ceiling, and three total attempts with
+  bounded backoff for HTTP `408`, `500`, `502`, `503`, and `504` only.
+- GREEN: the browser executor has an integration-level assertion for the same policy,
+  preventing its tool-bearing execution path from drifting from tool-free agents.
+
+Implementation verification:
+
+- Inspected the installed Google Gen AI `HttpRetryOptions` and
+  `GenerateContentConfig` fields before writing the shared factory.
+- Repository search confirms production constructs `Gemini`, `HttpRetryOptions`, and
+  `GenerateContentConfig` only in `app/model_runtime.py`.
+- Focused model policy and browser executor suite — `16 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `482 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- HTTP 429 is not retried inside the model SDK, so free-quota exhaustion propagates to
+  the existing application-owned failure and task-retry boundaries without a paid
+  model or Vertex AI fallback.
+- Tests construct agents but use no live model, API key, network integration, cloud
+  resource, browser, Slack API, deployment, or secret.

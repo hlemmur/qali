@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.adk.models.base_llm import BaseLlm
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.adk_structured_runtime import run_isolated_structured_agent
@@ -20,11 +18,11 @@ from app.browser_policy import (
     TypeTextAction,
     WaitForAction,
 )
+from app.model_runtime import bounded_generation_config, create_free_tier_gemini
 from app.oracle_evaluation import OracleEvaluationResult, evaluate_oracles
 from app.test_design import TestScenario
 
 _APP_NAME = "qali_browser_executor"
-_MODEL = "gemini-3.7-flash"
 
 
 class BrowserExecutionTask(BaseModel):
@@ -167,10 +165,7 @@ def create_browser_executor_agent(
         BrowserActionKind.OBSERVE_ORACLE: observe_oracle,
         BrowserActionKind.CAPTURE_EVIDENCE: capture_evidence,
     }
-    configured_model = model or Gemini(
-        model=_MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
+    configured_model = model or create_free_tier_gemini()
     return Agent(
         name="browser_executor",
         description="Executes one approved browser scenario without grading it.",
@@ -193,7 +188,7 @@ def create_browser_executor_agent(
             for kind in task.target_policy.allowed_actions
             if kind in tools_by_kind
         ],
-        generate_content_config=types.GenerateContentConfig(temperature=0),
+        generate_content_config=bounded_generation_config(),
         include_contents="none",
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
