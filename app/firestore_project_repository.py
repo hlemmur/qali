@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Protocol
 
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore_v1
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.project_identity import project_id_for_channel, project_scope_digest
 
 
 class FirestoreProjectSettings(BaseModel):
@@ -68,7 +69,7 @@ class FirestoreProjectRepository:
         created_by: str,
     ) -> ProjectChannelBinding:
         binding = ProjectChannelBinding(
-            project_id=_project_id(workspace_id, channel_id),
+            project_id=project_id_for_channel(workspace_id, channel_id),
             workspace_id=workspace_id,
             channel_id=channel_id,
             created_by=created_by,
@@ -113,16 +114,8 @@ def create_firestore_project_repository(
     return FirestoreProjectRepository(settings=settings, client=client)
 
 
-def _scope_digest(workspace_id: str, channel_id: str) -> str:
-    return hashlib.sha256(f"{workspace_id}\0{channel_id}".encode()).hexdigest()
-
-
-def _project_id(workspace_id: str, channel_id: str) -> str:
-    return f"slack-project-{_scope_digest(workspace_id, channel_id)[:32]}"
-
-
 def _document_id(workspace_id: str, channel_id: str) -> str:
-    return f"qali-project-channel-{_scope_digest(workspace_id, channel_id)[:40]}"
+    return f"qali-project-channel-{project_scope_digest(workspace_id, channel_id)[:40]}"
 
 
 __all__ = [

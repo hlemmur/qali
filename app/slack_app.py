@@ -32,6 +32,7 @@ def create_slack_ingress_app(
     settings: SlackIngressSettings,
     jobs: JobRepository,
     tasks: TaskDispatcher,
+    feature_tasks: TaskDispatcher | None = None,
     mode: RuntimeMode,
     clock: Callable[[], float] = time.time,
 ) -> FastAPI:
@@ -45,6 +46,7 @@ def create_slack_ingress_app(
             settings=settings,
             jobs=jobs,
             tasks=tasks,
+            feature_tasks=feature_tasks,
             clock=clock,
         )
     )
@@ -87,15 +89,25 @@ def create_slack_ingress_app_from_env(
             oidc_audience=_required(values, "QALI_WORKER_OIDC_AUDIENCE"),
             service_account_email=_required(values, "QALI_TASKS_SERVICE_ACCOUNT_EMAIL"),
         )
+        feature_cloud_tasks_settings = CloudTasksSettings(
+            project_id=project_id,
+            location=_required(values, "CLOUD_TASKS_LOCATION"),
+            queue_id=_required(values, "CLOUD_TASKS_QUEUE_ID"),
+            worker_url=_required(values, "QALI_FEATURE_WORKER_URL"),
+            oidc_audience=_required(values, "QALI_FEATURE_WORKER_OIDC_AUDIENCE"),
+            service_account_email=_required(values, "QALI_TASKS_SERVICE_ACCOUNT_EMAIL"),
+        )
         return create_slack_ingress_app(
             settings=slack_settings,
             jobs=create_firestore_job_repository(firestore_settings),
             tasks=create_cloud_tasks_dispatcher(cloud_tasks_settings),
+            feature_tasks=create_cloud_tasks_dispatcher(feature_cloud_tasks_settings),
             mode="live",
         )
     if mode != "mock":
         raise RuntimeError("QALI_MODE must be either 'mock' or 'live'")
 
+    tasks = InMemoryTaskDispatcher()
     return create_slack_ingress_app(
         settings=SlackIngressSettings(
             signing_secret=values.get(
@@ -106,7 +118,8 @@ def create_slack_ingress_app_from_env(
             owner_user_id=values.get("SLACK_OWNER_USER_ID", "U-MOCK-OWNER"),
         ),
         jobs=InMemoryJobRepository(),
-        tasks=InMemoryTaskDispatcher(),
+        tasks=tasks,
+        feature_tasks=tasks,
         mode="mock",
     )
 

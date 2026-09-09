@@ -7,7 +7,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import tasks_v2
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
 
-from app.slack_ingress import OnboardProjectJob
+from app.slack_ingress import DurableSlackJob
 
 
 class CloudTasksSettings(BaseModel):
@@ -52,7 +52,7 @@ class CloudTasksDispatcher:
         self._settings = settings
         self._client = client
 
-    async def dispatch(self, job: OnboardProjectJob) -> None:
+    async def dispatch(self, job: DurableSlackJob) -> None:
         settings = self._settings
         parent = self._client.queue_path(
             settings.project_id,

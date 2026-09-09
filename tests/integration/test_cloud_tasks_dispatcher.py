@@ -9,6 +9,7 @@ from app.cloud_tasks_dispatcher import (
     CloudTasksSettings,
     create_cloud_tasks_dispatcher,
 )
+from app.feature_worker_job import FeatureTestJob
 from app.slack_ingress import OnboardProjectJob
 
 
@@ -95,6 +96,47 @@ async def test_dispatch_creates_deterministic_authenticated_worker_task() -> Non
             },
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_dispatch_preserves_the_typed_feature_job_for_its_worker() -> None:
+    client = _RecordingCloudTasksClient()
+    dispatcher = CloudTasksDispatcher(
+        settings=CloudTasksSettings(
+            project_id="qali-507317",
+            location="europe-west1",
+            queue_id="qali-jobs",
+            worker_url=(
+                "https://qali-feature-worker.example.test/internal/feature-jobs"
+            ),
+            oidc_audience="https://qali-feature-worker.example.test",
+            service_account_email="qali-tasks@qali-507317.iam.gserviceaccount.com",
+        ),
+        client=client,
+    )
+    job = FeatureTestJob(
+        job_id="slack:Ev-feature-dispatch",
+        source_event_id="Ev-feature-dispatch",
+        project_id="project-alpha",
+        workspace_id="T-QALI",
+        channel_id="C-QALI",
+        requester_user_id="U-OWNER",
+        thread_ts="1788220800.121000",
+        run_id="run-feature-dispatch",
+        feature_slug="catalog-filtering",
+        request_text="<@U-QALI> test the catalog filtering feature",
+    )
+
+    await dispatcher.dispatch(job)
+
+    request = client.requests[0]["task"]["http_request"]
+    assert request["url"] == (
+        "https://qali-feature-worker.example.test/internal/feature-jobs"
+    )
+    assert request["body"] == job.model_dump_json().encode()
+    assert request["oidc_token"]["audience"] == (
+        "https://qali-feature-worker.example.test/"
+    )
 
 
 @pytest.mark.asyncio

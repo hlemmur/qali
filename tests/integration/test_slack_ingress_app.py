@@ -29,6 +29,12 @@ def _live_environment() -> dict[str, str]:
         "CLOUD_TASKS_QUEUE_ID": "qali-jobs",
         "QALI_WORKER_URL": "https://qali-worker.example.test/internal/jobs",
         "QALI_WORKER_OIDC_AUDIENCE": "https://qali-worker.example.test",
+        "QALI_FEATURE_WORKER_URL": (
+            "https://qali-feature-worker.example.test/internal/feature-jobs"
+        ),
+        "QALI_FEATURE_WORKER_OIDC_AUDIENCE": (
+            "https://qali-feature-worker.example.test"
+        ),
         "QALI_TASKS_SERVICE_ACCOUNT_EMAIL": (
             "qali-tasks@qali-507317.iam.gserviceaccount.com"
         ),
@@ -124,7 +130,17 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
             "worker_url": "https://qali-worker.example.test/internal/jobs",
             "oidc_audience": "https://qali-worker.example.test/",
             "service_account_email": ("qali-tasks@qali-507317.iam.gserviceaccount.com"),
-        }
+        },
+        {
+            "project_id": "qali-507317",
+            "location": "europe-west1",
+            "queue_id": "qali-jobs",
+            "worker_url": (
+                "https://qali-feature-worker.example.test/internal/feature-jobs"
+            ),
+            "oidc_audience": "https://qali-feature-worker.example.test/",
+            "service_account_email": ("qali-tasks@qali-507317.iam.gserviceaccount.com"),
+        },
     ]
 
 
@@ -144,6 +160,8 @@ def test_live_runtime_composes_durable_adapters_from_explicit_environment(
         "CLOUD_TASKS_QUEUE_ID",
         "QALI_WORKER_URL",
         "QALI_WORKER_OIDC_AUDIENCE",
+        "QALI_FEATURE_WORKER_URL",
+        "QALI_FEATURE_WORKER_OIDC_AUDIENCE",
         "QALI_TASKS_SERVICE_ACCOUNT_EMAIL",
     ],
 )
