@@ -77,7 +77,10 @@ async def test_initialize_negotiates_pinned_protocol_and_enables_tools() -> None
             "result": {
                 "protocolVersion": "2025-11-25",
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "Playwright", "version": "0.0.80"},
+                "serverInfo": {
+                    "name": "Playwright",
+                    "version": "1.63.0-alpha-2026-08-31",
+                },
             },
         }
     )
@@ -86,7 +89,7 @@ async def test_initialize_negotiates_pinned_protocol_and_enables_tools() -> None
 
     assert session.protocol_version == "2025-11-25"
     assert session.server_name == "Playwright"
-    assert session.server_version == "0.0.80"
+    assert session.server_version == "1.63.0-alpha-2026-08-31"
     assert [json.loads(message) for message in transport.stdin.messages] == [
         {
             "jsonrpc": "2.0",
@@ -114,7 +117,10 @@ async def test_initialize_rejects_server_protocol_drift_before_ready_notificatio
             "result": {
                 "protocolVersion": "2026-07-28",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "Playwright", "version": "0.0.80"},
+                "serverInfo": {
+                    "name": "Playwright",
+                    "version": "1.63.0-alpha-2026-08-31",
+                },
             },
         }
     )
@@ -134,7 +140,10 @@ async def test_initialize_rejects_server_without_tools_capability() -> None:
             "result": {
                 "protocolVersion": "2025-11-25",
                 "capabilities": {},
-                "serverInfo": {"name": "Playwright", "version": "0.0.80"},
+                "serverInfo": {
+                    "name": "Playwright",
+                    "version": "1.63.0-alpha-2026-08-31",
+                },
             },
         }
     )

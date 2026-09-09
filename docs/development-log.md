@@ -3395,3 +3395,53 @@ Commands and evidence:
 Phase result: passed for mock-safe, bounded production failure-evidence capture. A
 scripted real-browser contract qualification remains the next isolated browser-runtime
 slice and requires its own safe execution evidence.
+
+## 2026-09-09 — Phase 3: Playwright MCP runtime contract qualification
+
+Isolated slice: added an opt-in contract that launches the pinned Playwright MCP npm
+package, negotiates the real stdio protocol, validates Qali's restricted tool schemas,
+and invokes `browser_snapshot` in a headless isolated Chromium context without
+navigating to a target application.
+
+Reason: all prior browser adapter tests used in-memory MCP frames. The real server
+reports its embedded Playwright runtime version in `serverInfo.version`, not the npm
+package version, so the first qualification correctly failed and exposed that Qali
+would reject its own pinned runtime before any browser action.
+
+TDD and contract evidence:
+
+- RED: the opt-in contract first failed because the npm package was not cached, then
+  failed at initialization after the exact package was cached because Qali compared
+  `serverInfo.version` with `0.0.80`.
+- GREEN: Qali now pins `@playwright/mcp@0.0.80` and its reported embedded runtime
+  `1.63.0-alpha-2026-08-31` independently. Existing initialization tests continue to
+  prove drift is rejected before the ready notification.
+- The package tool contract matched Qali's deny-by-default allowlist and required input
+  shapes. The live local call launched Chromium and returned the `about:blank`
+  accessibility snapshot, proving an actual browser process—not a protocol double—was
+  exercised.
+- The contract is disabled unless `QALI_RUN_PLAYWRIGHT_MCP_CONTRACT=1`, keeping normal
+  tests offline. `QALI_PLAYWRIGHT_MCP_EXECUTABLE_PATH` optionally selects a preinstalled
+  local browser without changing production process composition.
+
+Safety and scope:
+
+- No target URL was visited; the browser remained at `about:blank`. No model, Slack,
+  credential, cloud, or external application integration was called.
+- This macOS 13 host cannot install the Chromium revision bundled with the alpha
+  Playwright runtime, so qualification used an already-cached Chromium executable via
+  the explicit test-only override. Linux container qualification must still exercise
+  the package-managed browser before deployment.
+
+Commands and evidence:
+
+- Focused MCP process/initialize/tool/default-contract gate — `52 passed, 1 skipped`.
+- Opt-in real-browser contract with the test-only executable override — `1 passed`.
+- Complete explicit offline unit/integration/contract gate — `396 passed, 1 skipped`.
+- A diagnostic broad collection reached the same `396 passed, 1 skipped` before the
+  unchanged generated live Gemini and server tests reported one missing-API-key failure
+  and three missing-ADC setup errors; no live credentials were supplied.
+
+Phase result: passed for the local scripted MCP/browser protocol contract. The next
+isolated slice must wire only production browser integrations into runtime composition;
+package-managed Linux browser qualification remains a pre-deployment gate.
