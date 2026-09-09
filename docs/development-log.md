@@ -3539,3 +3539,45 @@ Commands and evidence:
 Phase result: passed for production one-feature workflow composition. A later isolated
 slice must add the typed feature-job HTTP/lifecycle boundary and project-knowledge task
 construction before live qualification; all external use remains approval-gated.
+
+## 2026-09-09 — Phase 3: typed feature-job worker boundary
+
+Isolated slice: added a dedicated typed Cloud Tasks intake and lifecycle processor for
+one live feature-test job, while making the shared claim/timeout/retry handler generic
+over its validated job contract.
+
+Reason: the production feature workflow had no authenticated HTTP job boundary. The
+existing worker accepted only onboarding payloads, so feature execution could not be
+claimed once, associated with one Slack progress message, or safely redelivered.
+
+TDD evidence:
+
+- RED/GREEN: no `FeatureTestJob` or feature worker endpoint existed. A validated
+  `test_feature` payload now reaches the task-loader and feature-workflow boundaries
+  through `/internal/feature-jobs`, completes once, and becomes a no-op on redelivery.
+- The processor creates or recovers exactly one progress message, requires the loaded
+  live request task to match the claimed project, request, run, feature, and message,
+  and rejects mock-mode task construction before browser execution.
+- Queue identity, deterministic Cloud Tasks name, delivery-attempt budget, project-busy
+  handling, timeout, retry, and terminal completion remain governed by the existing
+  worker lifecycle behavior rather than a second implementation.
+- The lifecycle protocols are generic only at the typed job seam; existing onboarding
+  behavior remains unchanged and passes its worker regression suite.
+
+Safety and scope:
+
+- Project knowledge and browser target policy are deliberately loaded behind the task
+  construction boundary and are not accepted from the queued Slack request as
+  authority. Their production repository composition remains the next isolated slice.
+- No model request, browser, Slack API, credential, Cloud Tasks/Firestore/GCS request,
+  cloud resource, target integration, or deployment was used.
+
+Commands and evidence:
+
+- Feature and onboarding worker lifecycle blast-radius suite — `15 passed`.
+- Complete explicit offline unit/integration/contract gate — `414 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for typed, idempotent feature-job intake. The next isolated slice
+must load approved compiled knowledge and browser policy into a matching live
+`FeatureRequestTask`; external qualification remains approval-gated.
