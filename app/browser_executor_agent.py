@@ -221,6 +221,7 @@ class AdkBrowserExecutor:
                     user_id=task.project_id,
                     request=_request_for_task(task),
                     result_type=BrowserAgentCompletion,
+                    max_llm_calls=task.target_policy.max_steps + 1,
                 )
             expected_oracle_ids = {oracle.oracle_id for oracle in oracles}
             recorded_oracle_ids = {
