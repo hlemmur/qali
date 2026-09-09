@@ -46,6 +46,14 @@ Test the agent with a local web server:
 agents-cli playground
 ```
 
+The generated ADK surface now exposes Qali's bounded coordinator. It accepts a typed
+request containing the project readiness state, natural-language Slack request, and
+known finding IDs, then returns either one approved workflow route
+(`onboard_project`, `test_feature`, or `explain_finding`) or one clarification
+question. The coordinator has no tools and cannot access browsers, storage, secrets,
+shells, Git, or deployment capabilities. Production Slack HTTP acknowledgement and
+durable queue dispatch remain in the separate lightweight ingress service below.
+
 You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
 
 Run the standalone Slack ingress locally with explicit mock adapters:
