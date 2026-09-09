@@ -3755,3 +3755,50 @@ Commands and evidence:
 Phase result: passed for signed one-feature request dispatch into the production worker
 contract. The next isolated slice must publish the approved feature context from a
 successful onboarding result so a live feature job can load it without manual seeding.
+
+## 2026-09-09 — Phase 3: onboarding feature-context publication
+
+Isolated slice: connected a successful reviewed onboarding result to the durable
+approved feature-context repository, including its Slack binding and explicit browser
+target policy.
+
+Reason: feature dispatch and the complete feature worker were live-composable, but the
+worker's authoritative context object still required manual seeding. A successful
+onboarding run therefore could not make the same project testable after a process
+restart.
+
+TDD evidence:
+
+- RED/GREEN: the onboarding worker rejected feature-context publication dependencies.
+  A ready result now publishes the exact reviewed `KnowledgeCompilation`, project and
+  Slack scope, readiness decision, and deny-by-default `BrowserTargetPolicy` before the
+  worker reports completion.
+- RED/GREEN: the live onboarding environment did not create the GCS context adapter or
+  require a target policy. It now validates the complete policy JSON first, composes the
+  repository against the private artifacts bucket, and exposes only the typed policy in
+  application state for runtime inspection.
+- Insufficient knowledge returns without context publication. Project, workspace,
+  channel, or browser-policy scope drift fails the onboarding job instead of publishing
+  mismatched authority.
+- Initial and identical redeliveries use generation zero; the GCS adapter's existing
+  byte, digest, metadata, and generation checks remain the idempotency boundary.
+
+Safety and scope:
+
+- Browser origins, actions, credential references, consequential actions, step budget,
+  and timeout come from explicit validated configuration, not model output. Credential
+  values remain outside the context and behind Secret Manager resolution.
+- Tests use in-memory publication boundaries and synthetic policy data. No browser,
+  model API, Slack API, credential lookup, storage service, cloud resource, target
+  integration, or deployment was used.
+
+Commands and evidence:
+
+- Onboarding, knowledge, feature-context, and environment blast-radius suite —
+  `45 passed`.
+- Complete explicit offline unit/integration/contract gate — `448 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for automatic onboarding-to-feature authority publication. The
+next isolated slice must connect grounded finding follow-up requests to immutable run
+artifacts and concise same-thread Slack explanations.
