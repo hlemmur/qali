@@ -3325,3 +3325,73 @@ Commands and evidence:
 Phase result: passed for a mock-safe concrete Playwright MCP browser backend. A concrete
 failure-evidence capture source and scripted real-browser contract qualification remain
 the next isolated browser-runtime slices.
+
+## 2026-09-09 — Phase 3: Playwright MCP failure-evidence capture
+
+Isolated slice: made the concrete Playwright MCP backend factory the capture source for
+the existing immutable browser-evidence exporter. Each active attempt now starts the
+pinned runtime's trace before its first browser action, collects the final accessibility
+snapshot, console events, network events, and PNG screenshot before shutdown, and
+packages the trace streams/resources into the required deterministic archive.
+
+Reason: failed browser attempts already required five durable evidence artifacts, but
+the production MCP adapter could return only an individual screenshot reference. The
+browser backend closes before the harness assigns the deterministic verdict, so it must
+collect the bounded local bundle during shutdown and expose it only after the runner
+supplies the matching failed task/result scope.
+
+Guidance and reference:
+
+- `autopilot` (`SKILL.md`, local version not declared) confirmed the prior backend PR
+  was human-merged and fully triaged before this branch started.
+- `tdd` (`SKILL.md`, local version not declared), including its test and mocking
+  references, guided red-green tracers through the public factory/capture boundary with
+  only in-memory stdio and temporary local artifact doubles.
+- The trace capability, response links, console/network formats, and output-size option
+  were checked against the official source bundled by `@playwright/mcp@0.0.80` and its
+  exact `playwright-core` dependency. The adapter enables only the required `devtools`
+  capability while its client continues to deny every tool outside Qali's fixed list.
+
+TDD evidence:
+
+- Red/green: the factory initially had no `capture_failure` implementation and the
+  pinned process exposed no approved trace calls. It now retrieves a complete typed
+  bundle only for the exact failed scenario/context that created the backend.
+- Tracing starts lazily before the first browser action so navigation is included while
+  unused contexts do not create empty evidence. Shutdown captures the final snapshot,
+  all bounded informational-or-higher console output, recognized network records, the
+  default PNG screenshot, and then stops tracing before terminating the child.
+- Trace, network, resource, and screenshot references are resolved only beneath the
+  isolated context output directory. Absolute/traversal paths, symlinks, duplicate or
+  malformed links, missing/empty files, more than 10,000 events/files, and evidence over
+  the 50 MB trace or 10 MB screenshot limits fail closed.
+- Trace archive entries use stable names, timestamps, order, and permissions, keeping
+  immutable retry content deterministic. The server output budget is capped at 65 MB.
+- Credential values observed by the private fill boundary are redacted in plain,
+  JSON-escaped, and URL-encoded forms across snapshots, console/network records, trace
+  streams, and trace resources. A screenshot containing detectable credential bytes is
+  rejected rather than published.
+- A passing or substituted result cannot retrieve failure evidence, retrieval before
+  backend shutdown fails, repeated context creation is rejected, and capture failures
+  still reap the managed MCP process.
+
+Safety and scope:
+
+- Tests use only in-memory MCP frames and temporary local bytes. No Playwright package
+  or browser was launched, no model/Slack/credential/cloud integration was called, and
+  no infrastructure or deployment was created.
+- The generated live integration tests were deliberately not supplied credentials. A
+  diagnostic full collection reached `396 passed` before the unchanged live Gemini and
+  server tests reported one missing-API-key failure and three missing-ADC setup errors;
+  the explicit offline gate below is the authoritative validation for this slice.
+
+Commands and evidence:
+
+- Playwright MCP evidence/process/tool blast radius — `49 passed`.
+- Complete explicit offline unit/integration gate — `396 passed`.
+- `uv run agents-cli lint` — Ruff, Ruff format, codespell, and ty passed.
+- `git diff --check` — passed.
+
+Phase result: passed for mock-safe, bounded production failure-evidence capture. A
+scripted real-browser contract qualification remains the next isolated browser-runtime
+slice and requires its own safe execution evidence.
