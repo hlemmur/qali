@@ -96,6 +96,11 @@ class BrowserAttemptRunner:
             evidence=evidence,
         )
 
+    async def reproduce(self, task: BrowserExecutionTask) -> FailureAttempt:
+        """Repeat a failed scenario through the same fresh-context attempt boundary."""
+
+        return await self.execute(task)
+
 
 __all__ = [
     "BrowserAttemptContext",
