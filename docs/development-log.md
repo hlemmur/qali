@@ -4039,3 +4039,32 @@ Safety and scope:
   model or Vertex AI fallback.
 - Tests construct agents but use no live model, API key, network integration, cloud
   resource, browser, Slack API, deployment, or secret.
+
+## 2026-09-09 — Phase 4: isolated ADK invocation timeout
+
+Isolated slice: added a code-owned 300-second wall-clock timeout around every
+isolated structured ADK run.
+
+Reason: provider-level retry and token ceilings do not bound a stalled model stream or
+multi-step agent invocation. The worker has a broader job timeout, but specialist
+invocations also need a local cancellation boundary that leaves time for durable job
+release and retry handling.
+
+TDD evidence:
+
+- RED: a deterministic hanging `BaseLlm` double could keep the isolated runner open
+  indefinitely because the shared runtime exposed no timeout boundary.
+- GREEN: the public runtime accepts a testable timeout, defaults production calls to
+  300 seconds, cancels the runner on expiry, and raises only
+  `structured agent invocation timed out` without request text or exception chaining.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `483 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The timeout wraps the whole isolated agent invocation, including bounded browser
+  tool turns, while remaining below the existing 15-minute worker budget.
+- The test uses a deterministic hanging model double. No live Gemini request, API key,
+  browser, Slack API, storage, cloud resource, target integration, deployment, or
+  secret was used.

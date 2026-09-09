@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TypeVar
 from uuid import uuid4
 
@@ -10,6 +11,12 @@ from google.genai import types
 from pydantic import BaseModel
 
 StructuredResult = TypeVar("StructuredResult", bound=BaseModel)
+DEFAULT_AGENT_TIMEOUT_SECONDS = 300.0
+
+
+class StructuredAgentTimeoutError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("structured agent invocation timed out")
 
 
 async def run_isolated_structured_agent(
@@ -19,6 +26,7 @@ async def run_isolated_structured_agent(
     user_id: str,
     request: BaseModel,
     result_type: type[StructuredResult],
+    timeout_seconds: float = DEFAULT_AGENT_TIMEOUT_SECONDS,
 ) -> StructuredResult:
     session_service = InMemorySessionService()
     session = await session_service.create_session(
@@ -32,19 +40,29 @@ async def run_isolated_structured_agent(
         session_service=session_service,
     )
     output_text: str | None = None
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session.id,
-        new_message=types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=request.model_dump_json())],
-        ),
-    ):
-        if event.is_final_response() and event.content is not None:
-            output_text = "".join(part.text or "" for part in event.content.parts or [])
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session.id,
+                new_message=types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=request.model_dump_json())],
+                ),
+            ):
+                if event.is_final_response() and event.content is not None:
+                    output_text = "".join(
+                        part.text or "" for part in event.content.parts or []
+                    )
+    except TimeoutError:
+        raise StructuredAgentTimeoutError from None
     if output_text is None:
         raise ValueError("structured agent returned no final output")
     return result_type.model_validate_json(output_text)
 
 
-__all__ = ["run_isolated_structured_agent"]
+__all__ = [
+    "DEFAULT_AGENT_TIMEOUT_SECONDS",
+    "StructuredAgentTimeoutError",
+    "run_isolated_structured_agent",
+]
