@@ -3899,3 +3899,57 @@ Commands and evidence:
 Phase result: passed for fail-closed project projection publication from durable run
 truth. The next isolated slice must add the bounded Slack-facing coordinator that routes
 only onboarding, one-feature testing, and finding explanations from natural language.
+
+## 2026-09-09 — Phase 3: bounded Slack coordinator
+
+Isolated slice: replaced the generated demonstration agent with a tool-free ADK
+coordinator that classifies one natural-language Slack request into the three approved
+Qali workflows or returns one clarification question.
+
+Reason: the deterministic onboarding, feature-testing, and finding-follow-up workflows
+were production-composed, but the generated ADK root still exposed unrelated weather
+tools and had no typed Qali routing contract.
+
+TDD evidence:
+
+- RED/GREEN: coordinator tests initially failed because no routing module existed. The
+  new typed request and decision schemas now constrain ready decisions to exactly one
+  of `onboard_project`, `test_feature`, or `explain_finding`.
+- RED/GREEN: an explanation route may select only a syntactically valid finding ID
+  present in the supplied project context; invented identifiers fail closed.
+- RED/GREEN: feature testing cannot dispatch before the project is ready, and
+  ambiguous, unsupported, or multi-feature requests must return a question without a
+  workflow.
+- The isolated ADK adapter sends only the typed request into a fresh in-memory session,
+  rejects invalid structured output, and exposes no tools or conversation history.
+
+Official implementation study:
+
+- Re-read `google-agents-cli-workflow` and `google-agents-cli-adk-code` for Agents CLI
+  1.4.2, then inspected the installed `Agent` signature and the structured-output and
+  workflow references before coding.
+- Revisited `ambient-expense-agent` for deterministic business routing around bounded
+  model judgment and `long-horizon-harness` for isolated child-context contracts.
+  Qali adapts those ideas to one schema-only coordinator and existing application-owned
+  workflows; it does not copy Pub/Sub, background agents, general tools, or cloud
+  infrastructure.
+
+Safety and scope:
+
+- The model receives no storage primitive, browser, secret, shell, Git, deployment,
+  arbitrary network, or workflow-execution tool. Application code remains responsible
+  for authorization, lifecycle, persistence, dispatch, execution, and publication.
+- Tests use a deterministic `BaseLlm` double. No Slack API, browser, storage service,
+  real model, credential, cloud resource, target integration, or deployment was used.
+
+Commands and evidence:
+
+- Focused coordinator schema, isolated-agent, and generated root-surface suite —
+  `8 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `466 passed, 1 skipped`.
+- Agents CLI lint (Ruff, format, codespell, and ty) — passed.
+
+Phase result: passed for bounded, typed natural-language routing with no coordinator
+tools or hidden history. The next isolated slice should add coordinator behavioral eval
+cases and trajectory qualification through the existing workflow boundaries.

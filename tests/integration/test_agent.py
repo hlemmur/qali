@@ -12,27 +12,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.adk.agents.run_config import RunConfig, StreamingMode
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from app.agent import root_agent
+from app.slack_coordinator import (
+    CoordinatorDecision,
+    CoordinatorRequest,
+    CoordinatorStatus,
+    CoordinatorWorkflow,
+    create_slack_coordinator_agent,
+)
 
 
-def test_agent_stream() -> None:
-    """
-    Integration test for the agent stream functionality.
-    Tests that the agent returns valid streaming responses.
-    """
+class _CoordinatorModel(BaseLlm):
+    def __init__(self) -> None:
+        super().__init__(model="test-root-coordinator-model")
+
+    async def generate_content_async(
+        self,
+        llm_request: LlmRequest,
+        stream: bool = False,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        assert stream is False
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part.from_text(
+                        text=CoordinatorDecision(
+                            status=CoordinatorStatus.READY,
+                            workflow=CoordinatorWorkflow.TEST_FEATURE,
+                        ).model_dump_json()
+                    )
+                ],
+            )
+        )
+
+
+def test_agent_streams_a_typed_coordinator_decision() -> None:
+    assert root_agent.input_schema is CoordinatorRequest
+    assert root_agent.output_schema is CoordinatorDecision
 
     session_service = InMemorySessionService()
-
+    agent = create_slack_coordinator_agent(model=_CoordinatorModel())
     session = session_service.create_session_sync(user_id="test_user", app_name="test")
-    runner = Runner(agent=root_agent, session_service=session_service, app_name="test")
-
+    runner = Runner(agent=agent, session_service=session_service, app_name="test")
+    request = CoordinatorRequest(
+        project_id="project-alpha",
+        request_text="Please test profile editing.",
+        project_ready=True,
+    )
     message = types.Content(
-        role="user", parts=[types.Part.from_text(text="Why is the sky blue?")]
+        role="user",
+        parts=[types.Part.from_text(text=request.model_dump_json())],
     )
 
     events = list(
@@ -40,18 +81,16 @@ def test_agent_stream() -> None:
             new_message=message,
             user_id="test_user",
             session_id=session.id,
-            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         )
     )
-    assert len(events) > 0, "Expected at least one message"
 
-    has_text_content = False
-    for event in events:
-        if (
-            event.content
-            and event.content.parts
-            and any(part.text for part in event.content.parts)
-        ):
-            has_text_content = True
-            break
-    assert has_text_content, "Expected at least one message with text content"
+    final_text = "".join(
+        part.text or ""
+        for event in events
+        if event.is_final_response() and event.content is not None
+        for part in event.content.parts or []
+    )
+    assert CoordinatorDecision.model_validate_json(final_text) == CoordinatorDecision(
+        status=CoordinatorStatus.READY,
+        workflow=CoordinatorWorkflow.TEST_FEATURE,
+    )
