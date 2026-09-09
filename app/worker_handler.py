@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Protocol
+from typing import Generic, Protocol, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.job_lifecycle import JobFailureReason, JobRetryReason
-from app.slack_ingress import OnboardProjectJob
+
+
+class LifecycleJob(Protocol):
+    @property
+    def job_id(self) -> str: ...
+
+
+JobT = TypeVar("JobT", bound=LifecycleJob)
+JobT_co = TypeVar("JobT_co", bound=LifecycleJob, covariant=True)
+JobT_contra = TypeVar("JobT_contra", bound=LifecycleJob, contravariant=True)
 
 
 class JobExecutionSettings(BaseModel):
@@ -16,8 +25,8 @@ class JobExecutionSettings(BaseModel):
     max_delivery_attempts: int = Field(default=3, ge=2)
 
 
-class JobLifecycleRepository(Protocol):
-    async def claim(self, job_id: str) -> OnboardProjectJob | None: ...
+class JobLifecycleRepository(Protocol[JobT_co]):
+    async def claim(self, job_id: str) -> JobT_co | None: ...
 
     async def complete(self, job_id: str) -> bool: ...
 
@@ -26,16 +35,16 @@ class JobLifecycleRepository(Protocol):
     async def fail(self, job_id: str, *, reason: JobFailureReason) -> bool: ...
 
 
-class JobProcessor(Protocol):
-    async def process(self, job: OnboardProjectJob) -> None: ...
+class JobProcessor(Protocol[JobT_contra]):
+    async def process(self, job: JobT_contra) -> None: ...
 
 
-class LifecycleJobHandler:
+class LifecycleJobHandler(Generic[JobT]):
     def __init__(
         self,
         *,
-        jobs: JobLifecycleRepository,
-        processor: JobProcessor,
+        jobs: JobLifecycleRepository[JobT],
+        processor: JobProcessor[JobT],
         settings: JobExecutionSettings | None = None,
     ) -> None:
         self._jobs = jobs
@@ -44,7 +53,7 @@ class LifecycleJobHandler:
 
     async def handle(
         self,
-        job: OnboardProjectJob,
+        job: JobT,
         *,
         execution_count: int = 0,
     ) -> None:
