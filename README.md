@@ -94,6 +94,11 @@ validates the complete configuration before creating any production adapter.
 The command itself does not provision cloud resources; live requests require
 the separately approved GCP and Slack integrations.
 
+Release promotion is governed by the fail-closed checklist and rollback procedure in
+[`docs/release-readiness.md`](docs/release-readiness.md). Its decision remains NO-GO
+until every approval-gated live evaluation, integration, deployment, observability,
+and post-deployment gate has recorded evidence.
+
 ## Commands
 
 | Command              | Description                                                                                 |
