@@ -12,25 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Get the project number
-data "google_project" "project" {
-  project_id = var.project_id
-}
-
-# Agent service account
-resource "google_service_account" "app_sa" {
-  account_id   = "${var.project_name}-app"
-  display_name = "${var.project_name} Agent Service Account"
+# Slack ingress service account
+resource "google_service_account" "ingress_sa" {
+  account_id   = "${var.project_name}-ingress"
+  display_name = "${var.project_name} Slack Ingress Service Account"
   project      = var.project_id
   depends_on   = [resource.google_project_service.services]
 }
 
-# Grant application SA the required permissions to run the application
-resource "google_project_iam_member" "app_sa_roles" {
-  for_each = toset(var.app_sa_roles)
+# Unified worker service account
+resource "google_service_account" "worker_sa" {
+  account_id   = "${var.project_name}-worker"
+  display_name = "${var.project_name} Worker Service Account"
+  project      = var.project_id
+  depends_on   = [resource.google_project_service.services]
+}
+
+resource "google_project_iam_member" "ingress_sa_roles" {
+  for_each = toset(var.ingress_sa_roles)
 
   project    = var.project_id
   role       = each.value
-  member     = "serviceAccount:${google_service_account.app_sa.email}"
+  member     = "serviceAccount:${google_service_account.ingress_sa.email}"
+  depends_on = [resource.google_project_service.services]
+}
+
+resource "google_project_iam_member" "worker_sa_roles" {
+  for_each = toset(var.worker_sa_roles)
+
+  project    = var.project_id
+  role       = each.value
+  member     = "serviceAccount:${google_service_account.worker_sa.email}"
   depends_on = [resource.google_project_service.services]
 }

@@ -128,17 +128,21 @@ Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - 
 
 ## Deployment
 
-The repository now contains the reviewed Agents CLI Cloud Run baseline under
-`deployment/terraform/`. It is intentionally internal-only, scale-to-zero,
-single-concurrency, and configured for the Gemini Developer API rather than Vertex
-AI. Generated completion telemetry and content capture are disabled.
+The repository now contains a reviewed two-service Agents CLI Cloud Run baseline
+under `deployment/terraform/`. The lightweight Slack ingress accepts internet ingress
+at the Cloud Run networking layer so Slack can reach the signed-events application;
+its invocation policy is still pending. The unified worker is internal-only,
+scale-to-zero, single-concurrency, and configured for the Gemini Developer API rather
+than Vertex AI. Both services require an approved immutable image digest and use
+separate runtime identities. Generated completion telemetry and content capture are
+disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Cloud Tasks, Firestore, artifact storage, secret-level IAM, separate Slack ingress and
-browser-worker services, retention, and budget controls remain approval-gated work in
-the committed implementation plan. Follow `docs/release-readiness.md`; do not run
-`terraform apply`, `agents-cli deploy`, or any resource-creating command without the
-owner's explicit approval.
+Cloud Tasks, Firestore, artifact storage, secrets, resource-level IAM and invocation
+policies, retention, and budget controls remain approval-gated work in the committed
+implementation plan. Follow `docs/release-readiness.md`; do not run `terraform apply`,
+`agents-cli deploy`, or any resource-creating command without the owner's explicit
+approval.
 
 ## Observability
 
