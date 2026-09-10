@@ -50,6 +50,41 @@ resource "google_cloud_run_v2_service" "ingress" {
         value = var.project_id
       }
 
+      env {
+        name  = "CLOUD_TASKS_LOCATION"
+        value = var.region
+      }
+
+      env {
+        name  = "CLOUD_TASKS_QUEUE_ID"
+        value = google_cloud_tasks_queue.jobs.name
+      }
+
+      env {
+        name  = "QALI_WORKER_URL"
+        value = "${google_cloud_run_v2_service.worker.uri}/internal/jobs"
+      }
+
+      env {
+        name  = "QALI_WORKER_OIDC_AUDIENCE"
+        value = google_cloud_run_v2_service.worker.uri
+      }
+
+      env {
+        name  = "QALI_FEATURE_WORKER_URL"
+        value = "${google_cloud_run_v2_service.worker.uri}/internal/feature-jobs"
+      }
+
+      env {
+        name  = "QALI_FEATURE_WORKER_OIDC_AUDIENCE"
+        value = google_cloud_run_v2_service.worker.uri
+      }
+
+      env {
+        name  = "QALI_TASKS_SERVICE_ACCOUNT_EMAIL"
+        value = google_service_account.tasks_sa.email
+      }
+
       resources {
         limits = {
           cpu    = "1"
@@ -115,6 +150,16 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
+      }
+
+      env {
+        name  = "CLOUD_TASKS_QUEUE_ID"
+        value = google_cloud_tasks_queue.jobs.name
+      }
+
+      env {
+        name  = "QALI_JOB_MAX_DELIVERY_ATTEMPTS"
+        value = "3"
       }
 
       env {

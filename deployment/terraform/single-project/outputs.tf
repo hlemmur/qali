@@ -21,3 +21,13 @@ output "worker_service_account_email" {
   description = "Unified worker service account email"
   value       = google_service_account.worker_sa.email
 }
+
+output "tasks_service_account_email" {
+  description = "Cloud Tasks OIDC service account email"
+  value       = google_service_account.tasks_sa.email
+}
+
+output "tasks_queue_name" {
+  description = "Cloud Tasks queue name"
+  value       = google_cloud_tasks_queue.jobs.name
+}

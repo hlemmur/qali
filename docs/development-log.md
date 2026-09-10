@@ -4284,3 +4284,43 @@ Safety and scope:
 - No Cloud Tasks queue, database, bucket, secret, service invoker grant, resource-level
   IAM, image, plan, apply, credential, model, browser, Slack API, cloud call, or
   deployment was created or used. Release status remains NO-GO.
+
+## 2026-09-10 — Phase 4: authenticated Cloud Tasks queue
+
+Isolated slice: added the regional queue and least-privilege authenticated dispatch
+path from the Slack ingress to the private unified worker.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2 and its custom Terraform guidance.
+- Current Google provider documentation for `google_cloud_tasks_queue`, queue IAM,
+  and Cloud Run v2 service IAM resources.
+- Current Cloud Tasks documentation confirming that an OIDC task's service account
+  must share the queue project and that the creating caller needs
+  `iam.serviceAccounts.actAs`.
+
+TDD evidence:
+
+- RED/GREEN 1: no queue resource or Cloud Tasks API existed; Terraform now defines one
+  regional queue at one dispatch per second and one concurrent dispatch, protected
+  from deletion and limited to three attempts with bounded exponential backoff.
+- RED/GREEN 2: the ingress had no enqueue or token-minting path; queue-level IAM now
+  grants only `roles/cloudtasks.enqueuer`, the ingress can act only as the dedicated
+  task identity, and that identity can invoke only the private worker.
+- RED/GREEN 3: neither service received its queue contract; Terraform now injects the
+  queue, worker endpoint paths, root OIDC audience, task identity, and matching
+  three-attempt worker limit.
+- Scoped Terraform contract tests — `3 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `497 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The worker remains internal-only and receives task-level OIDC credentials; no public
+  or all-authenticated invoker principal was introduced.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No queue, IAM policy, API, resource, image, plan, apply, credential, model, browser,
+  Slack API, cloud call, or deployment was created or used. Release status remains
+  NO-GO.

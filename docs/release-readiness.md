@@ -60,9 +60,12 @@ secrets into this file.
 - [x] The generated Cloud Run/Terraform service baseline has been reviewed for the
       approved project and region without applying it; it defines separate Slack
       ingress and unified private worker services but is not the complete Qali topology.
-- [ ] Least-privilege service accounts, secret-level access, private worker ingress,
-      authenticated Cloud Tasks, lifecycle retention, scale-to-zero, and concurrency
-      one are verified in the reviewed plan.
+- [x] The reviewed Terraform defines a rate-limited Cloud Tasks queue, bounded retries,
+      task-level OIDC, queue-scoped enqueue permission, and a dedicated identity that
+      can invoke only the private unified worker. This is offline configuration
+      evidence, not a successful plan, apply, or live dispatch.
+- [ ] Secret-level access, durable storage IAM, lifecycle retention, ingress invocation
+      policy, and budget controls are verified in the complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and
