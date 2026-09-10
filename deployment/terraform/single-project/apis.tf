@@ -22,6 +22,7 @@ locals {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "serviceusage.googleapis.com",
+    "secretmanager.googleapis.com",
     "storage.googleapis.com",
     "logging.googleapis.com",
     "cloudtrace.googleapis.com",

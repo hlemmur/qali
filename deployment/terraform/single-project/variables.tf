@@ -39,6 +39,60 @@ variable "container_image" {
   }
 }
 
+variable "slack_signing_secret_id" {
+  type        = string
+  description = "Pre-provisioned Secret Manager secret containing the Slack signing secret."
+  default     = "qali-slack-signing-secret"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.slack_signing_secret_id))
+    error_message = "slack_signing_secret_id must be a same-project secret ID."
+  }
+}
+
+variable "slack_bot_token_secret_id" {
+  type        = string
+  description = "Pre-provisioned Secret Manager secret containing the Slack bot token."
+  default     = "qali-slack-bot-token"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.slack_bot_token_secret_id))
+    error_message = "slack_bot_token_secret_id must be a same-project secret ID."
+  }
+}
+
+variable "gemini_api_key_secret_id" {
+  type        = string
+  description = "Pre-provisioned Secret Manager secret containing the Gemini Developer API key."
+  default     = "qali-gemini-api-key"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.gemini_api_key_secret_id))
+    error_message = "gemini_api_key_secret_id must be a same-project secret ID."
+  }
+}
+
+variable "target_credential_secret_ids" {
+  type        = list(string)
+  description = "Explicit same-project allowlist of pre-provisioned browser credential secret IDs."
+  default     = []
+
+  validation {
+    condition = (
+      length(var.target_credential_secret_ids) <= 20 &&
+      length(distinct(var.target_credential_secret_ids)) == length(var.target_credential_secret_ids) &&
+      alltrue([
+        for secret_id in var.target_credential_secret_ids :
+        can(regex("^[A-Za-z0-9_-]+$", secret_id))
+      ]) &&
+      !contains(var.target_credential_secret_ids, var.slack_signing_secret_id) &&
+      !contains(var.target_credential_secret_ids, var.slack_bot_token_secret_id) &&
+      !contains(var.target_credential_secret_ids, var.gemini_api_key_secret_id)
+    )
+    error_message = "target_credential_secret_ids must contain at most 20 distinct same-project IDs and must exclude core runtime secrets."
+  }
+}
+
 variable "ingress_sa_roles" {
   description = "Project roles required by the Slack ingress service account."
   type        = list(string)
