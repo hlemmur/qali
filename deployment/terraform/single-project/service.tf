@@ -51,6 +51,26 @@ resource "google_cloud_run_v2_service" "ingress" {
       }
 
       env {
+        name  = "FIRESTORE_DATABASE_ID"
+        value = google_firestore_database.qali.name
+      }
+
+      env {
+        name  = "FIRESTORE_JOBS_COLLECTION"
+        value = "jobs"
+      }
+
+      env {
+        name  = "FIRESTORE_JOB_LOCKS_COLLECTION"
+        value = "job-locks"
+      }
+
+      env {
+        name  = "FIRESTORE_JOB_LEASE_SECONDS"
+        value = "960"
+      }
+
+      env {
         name  = "CLOUD_TASKS_LOCATION"
         value = var.region
       }
@@ -150,6 +170,36 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
+      }
+
+      env {
+        name  = "FIRESTORE_DATABASE_ID"
+        value = google_firestore_database.qali.name
+      }
+
+      env {
+        name  = "FIRESTORE_JOBS_COLLECTION"
+        value = "jobs"
+      }
+
+      env {
+        name  = "FIRESTORE_JOB_LOCKS_COLLECTION"
+        value = "job-locks"
+      }
+
+      env {
+        name  = "FIRESTORE_JOB_LEASE_SECONDS"
+        value = "960"
+      }
+
+      env {
+        name  = "FIRESTORE_PROJECTS_COLLECTION"
+        value = "projects"
+      }
+
+      env {
+        name  = "FIRESTORE_SOURCES_COLLECTION"
+        value = "sources"
       }
 
       env {
