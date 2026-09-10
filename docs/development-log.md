@@ -4461,3 +4461,43 @@ Safety and scope:
 - No secret, version, IAM policy, API, resource, plan, apply, credential, model,
   browser, Slack API, cloud call, or deployment was created or used. Release status
   remains NO-GO.
+
+## 2026-09-10 — Phase 4: artifact lifecycle retention
+
+Isolated slice: added class-specific GCS lifecycle rules for run documents, browser
+evidence, and the reserved temporary-upload namespace without expiring durable project
+knowledge.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2 and its custom Terraform guidance.
+- Pinned Google provider 7.28.0 documentation for live-object lifecycle age,
+  `matches_prefix`, `matches_suffix`, and version-state conditions.
+
+TDD evidence:
+
+- RED/GREEN 1: completed run documents had no retention boundary; controlled request,
+  plan, result, and report suffixes now lifecycle-delete at 90 days.
+- RED/GREEN 2: browser traces and evidence had no shorter boundary; the five controlled
+  evidence suffixes now lifecycle-delete at 30 days.
+- RED/GREEN 3: abandoned staging objects had no cleanup namespace; live objects under
+  the reserved `uploads/` prefix now lifecycle-delete after 24 hours. No current code
+  persists staged uploads.
+- RED/GREEN 4: deployment guidance did not distinguish expiring from durable paths; it
+  now documents that sources, compiled knowledge, feature context, findings, and
+  projections remain until explicit project deletion.
+- Scoped storage, database, queue, Cloud Run, Secret Manager, and release-readiness
+  contracts — `28 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `516 passed, 1 skipped`.
+
+Safety and scope:
+
+- Live retention is limited to controlled suffixes and the reserved top-level upload
+  prefix. The existing seven-day noncurrent-version cleanup and soft-delete recovery
+  remain in place.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No object, bucket, IAM policy, API, resource, plan, apply, credential, model, browser,
+  Slack API, cloud call, or deployment was created or used. Release status remains
+  NO-GO.

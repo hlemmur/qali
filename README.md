@@ -178,6 +178,13 @@ terraform import google_storage_bucket.artifacts PROJECT_ID/BUCKET_NAME
 Do not attempt to recreate an existing bucket. Initialization, import, planning,
 application, and live artifact verification all remain approval-gated.
 
+Run documents expire after 90 days, browser evidence expires after 30 days, and the
+reserved `uploads/` staging prefix expires after 24 hours. Lifecycle-deleted objects
+remain recoverable under the bucket's seven-day soft-delete policy. Current sources,
+compiled knowledge, feature context, findings, and projections use other controlled
+paths and remain until explicit project deletion. The application does not currently
+persist staged uploads; any future staging writer must use the reserved prefix.
+
 ### Secret Manager preflight
 
 Before an approved plan or deployment, provision the three default secret containers

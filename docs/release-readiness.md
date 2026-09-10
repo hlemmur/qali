@@ -72,13 +72,17 @@ secrets into this file.
       access, public-access prevention, versioning, seven-day recovery, and worker-only
       object access. Existing buckets must be imported; this is not live artifact
       evidence.
+- [x] The reviewed bucket lifecycle deletes live run documents after 90 days, browser
+      evidence after 30 days, and reserved staged uploads after 24 hours while leaving
+      sources, compiled knowledge, context, findings, and projections outside live-age
+      deletion. This is offline configuration evidence, not live policy verification.
 - [x] The reviewed Terraform resolves only pre-provisioned Secret Manager containers,
       injects the signing secret only into ingress, injects the Slack bot token and
       Gemini key only into the worker, and gives target credentials an empty-by-default
       worker-only allowlist. No secret versions or values are Terraform-managed; this
       is not live secret-access evidence.
-- [ ] Job/source lifecycle retention, ingress invocation policy, and budget controls
-      are verified in the complete reviewed plan.
+- [ ] Deterministic project/source deletion and audit cleanup, ingress invocation
+      policy, and budget controls are verified in the complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and
