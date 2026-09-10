@@ -89,6 +89,10 @@ secrets into this file.
       current-spend thresholds at 50%, 90%, and 100% plus a forecasted 100% threshold.
       Default billing recipients and project owners remain enabled. This is an alert,
       not a spending cap, and is offline configuration evidence only.
+- [x] The project-artifact cleanup adapter deterministically validates and deletes all
+      live and noncurrent object generations under one exact project prefix, uses
+      generation preconditions, tolerates retry races, and has in-memory parity. The
+      seven-day bucket recovery window still applies.
 - [ ] Deterministic project/source deletion and audit cleanup are verified in the
       complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test

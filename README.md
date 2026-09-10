@@ -187,6 +187,15 @@ compiled knowledge, feature context, findings, and projections use other control
 paths and remain until explicit project deletion. The application does not currently
 persist staged uploads; any future staging writer must use the reserved prefix.
 
+The internal project-artifact cleaner enumerates all live and noncurrent GCS
+generations under the exact `projects/PROJECT_ID/` prefix, validates the complete
+bounded listing before mutation, and uses generation-matched deletes. Retries tolerate
+objects that another attempt already removed, while an in-memory adapter provides the
+same project-isolation and idempotency behavior for local tests. Deleted objects remain
+inside the bucket's seven-day soft-delete recovery window before physical expiry. This
+artifact-only slice does not yet delete Firestore metadata or write the retained
+deletion-audit record, so the complete project-deletion gate remains open.
+
 ### Secret Manager preflight
 
 Before an approved plan or deployment, provision the three default secret containers
