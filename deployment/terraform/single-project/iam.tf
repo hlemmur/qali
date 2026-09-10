@@ -80,3 +80,10 @@ resource "google_cloud_run_v2_service_iam_member" "tasks_worker_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.tasks_sa.email}"
 }
+
+# Only the unified worker reads and writes source, projection, and run artifacts.
+resource "google_storage_bucket_iam_member" "worker_artifact_user" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.worker_sa.email}"
+}

@@ -68,8 +68,12 @@ secrets into this file.
       database, project-level data-user access for only the ingress and worker runtime
       identities, and their existing collection/lease contract. Existing databases
       must be imported; this is not live persistence evidence.
-- [ ] Secret-level access, GCS artifact IAM, lifecycle retention, ingress invocation
-      policy, and budget controls are verified in the complete reviewed plan.
+- [x] The reviewed Terraform defines a protected regional artifact bucket with uniform
+      access, public-access prevention, versioning, seven-day recovery, and worker-only
+      object access. Existing buckets must be imported; this is not live artifact
+      evidence.
+- [ ] Secret-level access, job/source lifecycle retention, ingress invocation policy,
+      and budget controls are verified in the complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and
