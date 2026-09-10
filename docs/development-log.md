@@ -4575,3 +4575,48 @@ Safety and scope:
 - No budget, alert, IAM policy, API, resource, plan, apply, credential, model, browser,
   Slack API, cloud call, or deployment was created or used. Release status remains
   NO-GO.
+
+## 2026-09-11 — Phase 4: deterministic project artifact cleanup
+
+Isolated slice: added production GCS and in-memory adapters that remove one project's
+stored artifact generations without crossing project boundaries.
+
+Required skill and official reference:
+
+- TDD skill with vertical behavior tests through the public cleanup boundary.
+- Google Cloud Storage Python 3.14 client documentation for prefix/version listings,
+  generation-matched deletion, conditional retries, and soft-deleted objects.
+
+TDD evidence:
+
+- RED/GREEN 1: no project cleanup interface existed; the GCS adapter now lists every
+  live and noncurrent generation under the exact project prefix, sorts deterministically,
+  and deletes each with its generation precondition.
+- RED/GREEN 2: a malformed mixed-scope listing could have caused partial deletion; the
+  complete bounded listing now passes scope and generation checks before any mutation.
+- RED/GREEN 3: a concurrent or retried delete could fail on an already-absent version;
+  `NotFound` is now recorded separately while remaining versions continue safely.
+- RED/GREEN 4: local mock mode had no cleanup parity; the in-memory adapter now deletes
+  only the selected project and makes repeated cleanup a no-op.
+- RED/GREEN 5: listing size was unbounded; the adapter reads at most 1,001 records by
+  default and fails before mutation when the 1,000-generation operation limit is
+  exceeded.
+- RED/GREEN 6: an invalid non-positive generation could be discovered only after an
+  earlier delete; every listed generation is now validated before the first mutation.
+- RED/GREEN 7: deployment guidance could imply complete deletion; it now records the
+  seven-day bucket recovery window and keeps Firestore/audit cleanup explicitly open.
+- Scoped cleanup, storage, ingestion, projection, and release contracts — `30 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `527 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Production deletion uses only an exact validated `projects/PROJECT_ID/` prefix and
+  exact generation preconditions. No wildcard or bucket-wide delete is exposed.
+- GCS soft deletion remains enabled, so removed objects are recoverable for seven days
+  before policy-driven physical expiry.
+- This slice does not expose a Slack route or delete Firestore metadata; the full
+  project-deletion workflow and retained redacted audit record remain separate work.
+- No artifact, cloud API, resource, credential, model, browser, Slack API, cloud call,
+  or deployment was created, deleted, or used. Release status remains NO-GO.
