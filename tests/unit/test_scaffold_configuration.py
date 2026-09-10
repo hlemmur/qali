@@ -22,7 +22,7 @@ def test_scaffold_metadata_matches_approved_architecture() -> None:
 
     assert manifest["base_template"] == "adk"
     assert manifest["region"] == "europe-west1"
-    assert manifest["create_params"]["deployment_target"] == "none"
+    assert manifest["create_params"]["deployment_target"] == "cloud_run"
     assert manifest["create_params"]["cicd_runner"] == "skip"
 
 

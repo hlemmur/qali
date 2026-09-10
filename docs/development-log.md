@@ -4165,3 +4165,45 @@ Safety and scope:
   common secret assignment examples.
 - No eval, model, browser, Slack API, storage, cloud resource, deployment, credential,
   or external integration was used. Current release status remains NO-GO.
+
+## 2026-09-10 — Phase 4: secure Cloud Run scaffold baseline
+
+Isolated slice: enhanced the existing Agents CLI project for Cloud Run, then reduced
+the generated Terraform to a reviewable, non-deployed security baseline.
+
+Required skills and official references:
+
+- Agents CLI scaffold and deploy skills, CLI 1.4.2.
+- Cloud Run and generated Terraform deployment references bundled with those skills.
+- `uv run agents-cli info` confirmed project `qali`, agent directory `app`, A2A
+  enabled, region `europe-west1`, and the pre-enhancement deployment target `none`.
+- Ran `uv run agents-cli scaffold enhance . --deployment-target cloud_run
+  --cicd-runner skip`; no infrastructure or deployment command was run.
+
+TDD and review evidence:
+
+- RED: the generated baseline exposed public ingress, kept one warm instance, allowed
+  eight concurrent requests, enabled Vertex AI and BigQuery completion telemetry,
+  captured model content, and granted broad project roles.
+- GREEN: the checked-in baseline is internal-only, scale-to-zero, concurrency one,
+  max instance one, session-affinity disabled, Gemini Developer API only, and no
+  completion-content upload. Broad storage/Vertex roles, default-compute grants, paid
+  APIs, telemetry resources, and obsolete generated weather eval assets were removed.
+- RED/GREEN: repository policy now explicitly ignores Terraform working directories,
+  lock files, state files, and saved plan artifacts.
+- Scoped scaffold/configuration tests — `9 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `488 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The generated placeholder service is a reviewed baseline only. It does not yet
+  implement the separate Slack ingress/browser worker, Cloud Tasks, Firestore, GCS,
+  Secret Manager, retention, alerting, or least-privilege resource IAM required by the
+  committed plan.
+- Terraform/OpenTofu is not installed locally, so this slice relies on static contract
+  tests and does not claim a Terraform validate result.
+- No API was enabled, resource created, plan applied, image built, credential read,
+  model invoked, integration contacted, or deployment performed. Release status
+  remains NO-GO.
