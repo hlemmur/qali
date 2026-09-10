@@ -4367,3 +4367,45 @@ Safety and scope:
 - No database, IAM policy, API, resource, import, plan, apply, credential, model,
   browser, Slack API, cloud call, or deployment was created or used. Release status
   remains NO-GO.
+
+## 2026-09-10 — Phase 4: private artifact store
+
+Isolated slice: added the private GCS bucket used by raw sources, knowledge artifacts,
+project projections, feature context, browser evidence, and run reports.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2 and its custom Terraform/import guidance.
+- Pinned Google provider 7.28.0 documentation for `google_storage_bucket`, bucket IAM,
+  versioning, lifecycle rules, soft deletion, public-access prevention, and import.
+
+TDD evidence:
+
+- RED/GREEN 1: no artifact bucket or Storage API existed; Terraform now defines one
+  regional Standard bucket with uniform access, enforced public-access prevention,
+  versioning, Terraform lifecycle deletion protection, seven-day noncurrent-version
+  cleanup, and seven-day soft-delete recovery. The contract rejects the unsupported
+  provider-level `deletion_policy` argument.
+- RED/GREEN 2: storage access was absent; bucket-level IAM grants only
+  `roles/storage.objectUser` to the unified worker, with no ingress, public, bucket
+  admin, or project-wide storage grant.
+- RED/GREEN 3: the worker lacked its artifact repository settings; it now receives the
+  Terraform-owned bucket name and the existing 60-second storage timeout while the
+  ingress remains storage-blind.
+- RED/GREEN 4: the deployment guide could recreate an existing global bucket; it now
+  requires an existence check and Terraform import before any approved plan/apply.
+- Scoped GCS Terraform contract tests — `4 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `505 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The lifecycle rule explicitly suppresses an implicit zero-day age condition and
+  affects only versions that have already become noncurrent; live evidence has no
+  automatic expiry in this slice.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No bucket, object, IAM policy, API, resource, import, plan, apply, credential, model,
+  browser, Slack API, cloud call, or deployment was created or used. Release status
+  remains NO-GO.

@@ -36,3 +36,8 @@ output "firestore_database_id" {
   description = "Firestore database ID"
   value       = google_firestore_database.qali.name
 }
+
+output "artifacts_bucket_name" {
+  description = "Private artifact bucket name"
+  value       = google_storage_bucket.artifacts.name
+}

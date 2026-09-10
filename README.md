@@ -162,6 +162,21 @@ terraform import google_firestore_database.qali \
 Do not attempt to recreate an existing database. Initialization, import, planning,
 application, and live persistence verification all remain approval-gated.
 
+The private artifact bucket uses the default name
+`PROJECT_ID-qali-artifacts`, regional Standard storage, uniform bucket-level access,
+enforced public-access prevention, versioning, and seven-day recovery windows for
+noncurrent and soft-deleted objects. Only the worker identity receives
+`roles/storage.objectUser`; the ingress has no artifact access. Check whether the
+artifact bucket already exists before any approved infrastructure operation. If it
+does, import it into this Terraform state:
+
+```bash
+terraform import google_storage_bucket.artifacts PROJECT_ID/BUCKET_NAME
+```
+
+Do not attempt to recreate an existing bucket. Initialization, import, planning,
+application, and live artifact verification all remain approval-gated.
+
 ## Observability
 
 The reviewed baseline enables Cloud Trace and Cloud Logging APIs with model-message

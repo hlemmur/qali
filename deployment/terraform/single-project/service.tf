@@ -203,6 +203,16 @@ resource "google_cloud_run_v2_service" "worker" {
       }
 
       env {
+        name  = "GCS_ARTIFACTS_BUCKET"
+        value = google_storage_bucket.artifacts.name
+      }
+
+      env {
+        name  = "GCS_TIMEOUT_SECONDS"
+        value = "60"
+      }
+
+      env {
         name  = "CLOUD_TASKS_QUEUE_ID"
         value = google_cloud_tasks_queue.jobs.name
       }
