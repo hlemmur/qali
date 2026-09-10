@@ -133,14 +133,17 @@ under `deployment/terraform/`. The lightweight Slack ingress accepts internet in
 at the Cloud Run networking layer so Slack can reach the signed-events application;
 its invocation policy is still pending. The unified worker is internal-only,
 scale-to-zero, single-concurrency, and configured for the Gemini Developer API rather
-than Vertex AI. Both services require an approved immutable image digest and use
-separate runtime identities. Generated completion telemetry and content capture are
-disabled.
+than Vertex AI. A single regional Cloud Tasks queue serializes dispatch, permits three
+bounded attempts, and uses a dedicated OIDC identity that can invoke only the worker.
+The ingress identity can enqueue only on that queue and can act as only the task
+identity. Both services require an approved immutable image digest and use separate
+runtime identities. Generated completion telemetry and content capture are disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Cloud Tasks, Firestore, artifact storage, secrets, resource-level IAM and invocation
-policies, retention, and budget controls remain approval-gated work in the committed
-implementation plan. Follow `docs/release-readiness.md`; do not run `terraform apply`,
+Firestore, artifact storage, secrets, the Slack ingress invocation policy, retention,
+and budget controls remain approval-gated work in the committed implementation plan.
+The checked-in Cloud Tasks configuration has not been initialized, planned, applied,
+or live-verified. Follow `docs/release-readiness.md`; do not run `terraform apply`,
 `agents-cli deploy`, or any resource-creating command without the owner's explicit
 approval.
 
