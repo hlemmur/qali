@@ -51,6 +51,16 @@ resource "google_cloud_run_v2_service" "ingress" {
       }
 
       env {
+        name = "SLACK_SIGNING_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.slack_signing.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
         name  = "FIRESTORE_DATABASE_ID"
         value = google_firestore_database.qali.name
       }
@@ -129,7 +139,10 @@ resource "google_cloud_run_v2_service" "ingress" {
     percent = 100
   }
 
-  depends_on = [resource.google_project_service.services]
+  depends_on = [
+    resource.google_project_service.services,
+    google_secret_manager_secret_iam_member.ingress_signing_access,
+  ]
 }
 
 resource "google_cloud_run_v2_service" "worker" {
@@ -170,6 +183,26 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
+      }
+
+      env {
+        name = "SLACK_BOT_TOKEN"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.slack_bot_token.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "GEMINI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.gemini_api_key.secret_id
+            version = "latest"
+          }
+        }
       }
 
       env {
@@ -276,5 +309,9 @@ resource "google_cloud_run_v2_service" "worker" {
     percent = 100
   }
 
-  depends_on = [resource.google_project_service.services]
+  depends_on = [
+    resource.google_project_service.services,
+    google_secret_manager_secret_iam_member.worker_slack_access,
+    google_secret_manager_secret_iam_member.worker_gemini_access,
+  ]
 }

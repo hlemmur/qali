@@ -140,8 +140,9 @@ identity. Both services require an approved immutable image digest and use separ
 runtime identities. Generated completion telemetry and content capture are disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Firestore, artifact storage, secrets, the Slack ingress invocation policy, retention,
-and budget controls remain approval-gated work in the committed implementation plan.
+Firestore, artifact storage, Secret Manager references, the Slack ingress invocation
+policy, retention, and budget controls remain approval-gated work in the committed
+implementation plan.
 The checked-in Cloud Tasks configuration has not been initialized, planned, applied,
 or live-verified. Follow `docs/release-readiness.md`; do not run `terraform apply`,
 `agents-cli deploy`, or any resource-creating command without the owner's explicit
@@ -176,6 +177,21 @@ terraform import google_storage_bucket.artifacts PROJECT_ID/BUCKET_NAME
 
 Do not attempt to recreate an existing bucket. Initialization, import, planning,
 application, and live artifact verification all remain approval-gated.
+
+### Secret Manager preflight
+
+Before an approved plan or deployment, provision the three default secret containers
+(`qali-slack-signing-secret`, `qali-slack-bot-token`, and `qali-gemini-api-key`) and at
+least one active version for each outside Terraform. Override the corresponding secret
+ID variables when the approved names differ. The ingress can access only the Slack
+signing secret; the worker can access only the Slack bot token and Gemini API key.
+
+Browser target credentials remain opt-in. Add only their same-project secret IDs to
+`target_credential_secret_ids`; this grants the worker secret-level accessor permission
+without exposing them to ingress. The default allowlist is empty. Never place secret
+values in Terraform variables, configuration, state, plans, documentation, Slack, or
+browser-agent context. Terraform initialization, planning, application, and live secret
+verification remain approval-gated.
 
 ## Observability
 

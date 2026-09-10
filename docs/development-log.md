@@ -4409,3 +4409,50 @@ Safety and scope:
 - No bucket, object, IAM policy, API, resource, import, plan, apply, credential, model,
   browser, Slack API, cloud call, or deployment was created or used. Release status
   remains NO-GO.
+
+## 2026-09-10 — Phase 4: secret runtime wiring
+
+Isolated slice: wired pre-provisioned Slack and Gemini secrets plus an explicit browser
+credential allowlist into the two-service Cloud Run Terraform baseline.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2 and its Secret Manager, least-privilege IAM, and custom
+  Terraform guidance.
+- Pinned Google provider 7.28.0 documentation for the Secret Manager data source,
+  non-authoritative secret IAM members, and Cloud Run v2 secret environment sources.
+
+TDD evidence:
+
+- RED/GREEN 1: the Secret Manager API and pre-provisioned secret references were
+  absent; Terraform now resolves three configurable same-project secret IDs without
+  defining any secret version or value.
+- RED/GREEN 2: the runtimes had no secret permissions; secret-level IAM gives ingress
+  only the Slack signing secret and the worker only the Slack bot token and Gemini key,
+  with no project-wide or admin grant.
+- RED/GREEN 3: Cloud Run lacked secret-backed environment variables; ingress now gets
+  `SLACK_SIGNING_SECRET`, while the worker gets `SLACK_BOT_TOKEN` and `GEMINI_API_KEY`
+  through `latest` Secret Manager versions and explicit IAM dependencies.
+- RED/GREEN 4: target credential access was not represented; an empty-by-default,
+  same-project allowlist grants the worker access to at most 20 distinct named secrets
+  and never grants ingress access.
+- RED/GREEN 5: deployment guidance did not fail closed on missing versions or secret
+  material in Terraform; the preflight now requires externally provisioned active
+  versions and forbids values in Terraform, documentation, Slack, and agent context.
+- RED/GREEN 6: static secret variables accepted unscoped identifiers; all three now
+  validate same-project Secret Manager IDs.
+- Scoped Secret Manager, Cloud Run, storage, database, queue, and release-readiness
+  contracts — `23 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `511 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Terraform stores only secret IDs. It defines no secret containers, versions, or
+  values, and the target credential allowlist remains empty until explicitly reviewed.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No secret, version, IAM policy, API, resource, plan, apply, credential, model,
+  browser, Slack API, cloud call, or deployment was created or used. Release status
+  remains NO-GO.
