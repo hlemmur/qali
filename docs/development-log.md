@@ -4441,10 +4441,15 @@ TDD evidence:
   versions and forbids values in Terraform, documentation, Slack, and agent context.
 - RED/GREEN 6: static secret variables accepted unscoped identifiers; all three now
   validate same-project Secret Manager IDs.
+- RED/GREEN 7: the target credential allowlist could overlap core runtime secrets and
+  widen worker access to the signing secret; validation now rejects all three core
+  secret IDs from the target allowlist.
+- RED/GREEN 8: a worker rollout could race target-credential IAM creation; the Cloud
+  Run worker now explicitly waits for every configured target-secret binding.
 - Scoped Secret Manager, Cloud Run, storage, database, queue, and release-readiness
-  contracts — `23 passed`.
+  contracts — `24 passed`.
 - Complete credential-free unit/integration/contract gate, excluding only the
-  generated ADC-dependent server E2E probe — `511 passed, 1 skipped`.
+  generated ADC-dependent server E2E probe — `512 passed, 1 skipped`.
 - Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
 
 Safety and scope:

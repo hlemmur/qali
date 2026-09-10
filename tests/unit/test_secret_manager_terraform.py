@@ -88,6 +88,18 @@ def test_target_credentials_require_an_explicit_worker_only_allowlist() -> None:
     secrets = (TERRAFORM_ROOT / "secrets.tf").read_text()
 
     assert 'variable "target_credential_secret_ids"' in variables
+    target_variable = variables.split('variable "target_credential_secret_ids"', 1)[
+        1
+    ].split('variable "ingress_sa_roles"', 1)[0]
+    for core_secret in (
+        "slack_signing_secret_id",
+        "slack_bot_token_secret_id",
+        "gemini_api_key_secret_id",
+    ):
+        assert (
+            f"!contains(var.target_credential_secret_ids, var.{core_secret})"
+            in target_variable
+        )
     target_access = secrets.split(
         'resource "google_secret_manager_secret_iam_member" "worker_target_access"',
         1,
@@ -99,6 +111,13 @@ def test_target_credentials_require_an_explicit_worker_only_allowlist() -> None:
     assert "google_service_account.worker_sa.email" in target_access
     assert "google_service_account.ingress_sa.email" not in target_access
     assert "roles/secretmanager.admin" not in target_access
+
+
+def test_worker_rollout_waits_for_target_credential_access() -> None:
+    service = (TERRAFORM_ROOT / "service.tf").read_text()
+    worker = service.split('resource "google_cloud_run_v2_service" "worker"', 1)[1]
+
+    assert "google_secret_manager_secret_iam_member.worker_target_access" in worker
 
 
 def test_deployment_guide_requires_preprovisioned_versions_without_values() -> None:

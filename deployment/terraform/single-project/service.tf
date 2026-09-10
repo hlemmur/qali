@@ -313,5 +313,6 @@ resource "google_cloud_run_v2_service" "worker" {
     resource.google_project_service.services,
     google_secret_manager_secret_iam_member.worker_slack_access,
     google_secret_manager_secret_iam_member.worker_gemini_access,
+    google_secret_manager_secret_iam_member.worker_target_access,
   ]
 }

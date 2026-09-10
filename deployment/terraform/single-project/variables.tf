@@ -84,9 +84,12 @@ variable "target_credential_secret_ids" {
       alltrue([
         for secret_id in var.target_credential_secret_ids :
         can(regex("^[A-Za-z0-9_-]+$", secret_id))
-      ])
+      ]) &&
+      !contains(var.target_credential_secret_ids, var.slack_signing_secret_id) &&
+      !contains(var.target_credential_secret_ids, var.slack_bot_token_secret_id) &&
+      !contains(var.target_credential_secret_ids, var.gemini_api_key_secret_id)
     )
-    error_message = "target_credential_secret_ids must contain at most 20 distinct same-project secret IDs."
+    error_message = "target_credential_secret_ids must contain at most 20 distinct same-project IDs and must exclude core runtime secrets."
   }
 }
 

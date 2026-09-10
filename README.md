@@ -188,10 +188,11 @@ signing secret; the worker can access only the Slack bot token and Gemini API ke
 
 Browser target credentials remain opt-in. Add only their same-project secret IDs to
 `target_credential_secret_ids`; this grants the worker secret-level accessor permission
-without exposing them to ingress. The default allowlist is empty. Never place secret
-values in Terraform variables, configuration, state, plans, documentation, Slack, or
-browser-agent context. Terraform initialization, planning, application, and live secret
-verification remain approval-gated.
+without exposing them to ingress. The default allowlist is empty, and core Slack and
+Gemini runtime secret IDs are rejected from it. Never place secret values in Terraform
+variables, configuration, state, plans, documentation, Slack, or browser-agent context.
+Terraform initialization, planning, application, and live secret verification remain
+approval-gated.
 
 ## Observability
 
