@@ -8,6 +8,7 @@ def test_generated_cloud_run_baseline_is_private_free_tier_and_scale_to_zero() -
     service = Path("deployment/terraform/single-project/service.tf").read_text()
     apis = Path("deployment/terraform/single-project/apis.tf").read_text()
     iam = Path("deployment/terraform/single-project/iam.tf").read_text()
+    providers = Path("deployment/terraform/single-project/providers.tf").read_text()
 
     assert manifest["region"] == "europe-west1"
     assert manifest["create_params"]["deployment_target"] == "cloud_run"
@@ -40,12 +41,16 @@ def test_generated_cloud_run_baseline_is_private_free_tier_and_scale_to_zero() -
     assert not Path("deployment/terraform/single-project/telemetry.tf").exists()
     assert not Path("tests/eval/datasets/basic-dataset.json").exists()
     assert not Path("tests/eval/response_quality.py").exists()
+    assert 'provider "google" {' in providers
+    assert "alias" not in providers
+    assert "project               = var.project_id" in providers
 
 
 def test_terraform_runtime_artifacts_are_ignored() -> None:
     gitignore = Path(".gitignore").read_text().splitlines()
 
     assert ".terraform/" in gitignore
+    assert ".terraform.lock.hcl" not in gitignore
     assert "*.tfstate" in gitignore
     assert "*.tfstate.*" in gitignore
     assert "*.tfplan" in gitignore

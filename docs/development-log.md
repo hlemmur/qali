@@ -4189,8 +4189,12 @@ TDD and review evidence:
   max instance one, session-affinity disabled, Gemini Developer API only, and no
   completion-content upload. Broad storage/Vertex roles, default-compute grants, paid
   APIs, telemetry resources, and obsolete generated weather eval assets were removed.
-- RED/GREEN: repository policy now explicitly ignores Terraform working directories,
-  lock files, state files, and saved plan artifacts.
+- RED/GREEN: repository policy ignores Terraform working directories, state files,
+  and saved plan artifacts while allowing the generated dependency lock file to be
+  committed after the first validated initialization.
+- Review fix: the generated Google provider is now the configured default provider,
+  so every unqualified Google resource uses the reviewed project, region, and billing
+  override settings.
 - Scoped scaffold/configuration tests — `9 passed`.
 - Complete credential-free unit/integration/contract gate, excluding only the
   generated ADC-dependent server E2E probe — `488 passed, 1 skipped`.

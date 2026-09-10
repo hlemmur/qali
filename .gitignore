@@ -144,7 +144,6 @@ dmypy.json
 
 # User-specific files
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfplan
