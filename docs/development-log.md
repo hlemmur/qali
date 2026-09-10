@@ -4134,3 +4134,34 @@ Safety and scope:
 - Tests use deterministic blocking model doubles. No live Gemini request, API key,
   browser, Slack API, storage, cloud resource, target integration, deployment, or
   secret was used.
+
+## 2026-09-10 — Phase 4: private-MVP release readiness runbook
+
+Isolated slice: added a versioned fail-closed go/no-go checklist, live qualification
+gates, rollback triggers/procedure, and post-deployment verification sequence.
+
+Reason: implementation and mock validation are not release evidence. The committed
+plan requires live Gemini, GCP, Slack, Playwright, SauceDemo, observability, restart,
+and rollback proof, but the repository had no auditable artifact that prevents those
+pending gates from being treated as complete.
+
+TDD and release-readiness evidence:
+
+- RED: the release contract failed because `docs/release-readiness.md` did not exist.
+- GREEN: the runbook now states NO-GO, names the sole decision authority, distinguishes
+  completed offline evidence from pending live evidence, and requires the exact eval,
+  real-browser, Slack, persistence, trace, and failure-path acceptance thresholds.
+- The rollback section defines baseline-relative and critical-safety triggers before
+  deployment, restores an immutable previous revision, preserves evidence, and requires
+  immediate health/read-only smoke verification.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `486 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed. Version 1.5.0 was
+  advertised but not installed during this isolated release-documentation slice.
+
+Safety and scope:
+
+- The runbook contains no credential values or live endpoints and its contract rejects
+  common secret assignment examples.
+- No eval, model, browser, Slack API, storage, cloud resource, deployment, credential,
+  or external integration was used. Current release status remains NO-GO.
