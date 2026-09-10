@@ -4211,3 +4211,38 @@ Safety and scope:
 - No API was enabled, resource created, plan applied, image built, credential read,
   model invoked, integration contacted, or deployment performed. Release status
   remains NO-GO.
+
+## 2026-09-10 — Phase 4: unified worker runtime
+
+Isolated slice: composed onboarding, feature-test, and finding-follow-up HTTP routes
+behind one worker application factory so the deployment topology does not need a
+separate service for each specialist workflow.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2, including its Cloud Run and custom Terraform
+  references. The reference confirms that Cloud Run serves a unified FastAPI app and
+  that custom single-project resources stay under the generated Terraform directory.
+
+TDD evidence:
+
+- RED/GREEN 1: no unified worker module existed; the public composition factory now
+  serves both `/internal/jobs` and `/internal/feature-jobs` plus a content-free health
+  response from one ASGI application.
+- RED/GREEN 2: overlapping method/path registrations were silently order-dependent;
+  composition now rejects a duplicate worker route before serving traffic.
+- RED/GREEN 3: no production factory composed both fail-closed environment runtimes;
+  `create_worker_runtime_from_env` now passes one environment to the onboarding and
+  feature factories and exposes their routes from one live-mode app.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `491 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Existing typed handlers retain their Cloud Tasks provenance checks, lifecycle
+  controls, project serialization, and injected test doubles; this layer only unifies
+  their HTTP surface.
+- No Terraform resource, queue, storage, secret, IAM grant, image, model, browser,
+  Slack API, credential, cloud call, or deployment was created or used. Release status
+  remains NO-GO.
