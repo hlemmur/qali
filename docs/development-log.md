@@ -4501,3 +4501,40 @@ Safety and scope:
 - No object, bucket, IAM policy, API, resource, plan, apply, credential, model, browser,
   Slack API, cloud call, or deployment was created or used. Release status remains
   NO-GO.
+
+## 2026-09-11 — Phase 4: signed Slack ingress invocation policy
+
+Isolated slice: made only the lightweight Slack Events API ingress publicly
+invocable while preserving authenticated, internal-only worker dispatch.
+
+Required skill and official reference:
+
+- Agents CLI deploy skill 1.4.2 and its Cloud Run, least-privilege IAM, and custom
+  Terraform guidance.
+- Pinned Google provider 7.28.0 documentation for the non-authoritative Cloud Run v2
+  service IAM member resource and the `allUsers` principal.
+
+TDD evidence:
+
+- RED/GREEN 1: the internet-facing ingress networking mode had no corresponding
+  invocation permission; a service-scoped `roles/run.invoker` grant now permits
+  `allUsers` only on the Slack ingress service.
+- RED/GREEN 2: deployment guidance described the invocation policy as pending; it now
+  records the public transport boundary and the mandatory Slack signature, timestamp,
+  workspace, channel, and owner checks.
+- Regression guard: the worker's invocation block still excludes public principals
+  and grants only the dedicated Cloud Tasks OIDC service account.
+- Scoped Cloud Run, Cloud Tasks, Secret Manager, Slack ingress, and release-readiness
+  contracts — `37 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `518 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Public invocation ends at the signed Slack ingress. It does not grant artifact,
+  Firestore, Secret Manager, queue, worker, browser, or model access.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No IAM policy, API, resource, plan, apply, credential, model, browser, Slack API,
+  cloud call, or deployment was created or used. Release status remains NO-GO.

@@ -32,6 +32,37 @@ def test_cloud_run_services_use_distinct_runtime_identities() -> None:
     assert 'variable "worker_sa_roles"' in variables
 
 
+def test_only_signed_slack_ingress_is_publicly_invocable() -> None:
+    iam = Path("deployment/terraform/single-project/iam.tf").read_text()
+    public_invoker = iam.split(
+        'resource "google_cloud_run_v2_service_iam_member" "slack_ingress_invoker"',
+        1,
+    )[1].split("}", 1)[0]
+    worker_invoker = iam.split(
+        'resource "google_cloud_run_v2_service_iam_member" "tasks_worker_invoker"',
+        1,
+    )[1].split("}", 1)[0]
+
+    assert "google_cloud_run_v2_service.ingress.name" in public_invoker
+    assert 'role     = "roles/run.invoker"' in public_invoker
+    assert 'member   = "allUsers"' in public_invoker
+    assert "allUsers" not in worker_invoker
+    assert "allAuthenticatedUsers" not in worker_invoker
+
+
+def test_deployment_guide_documents_the_public_ingress_trust_boundary() -> None:
+    readme = " ".join(Path("README.md").read_text().split())
+    readiness = " ".join(Path("docs/release-readiness.md").read_text().split())
+
+    assert "only the Slack ingress service publicly invocable" in readme
+    assert "signature, timestamp, workspace, channel, and owner" in readme
+    assert "worker remains internal-only and requires Cloud Tasks OIDC" in readme
+    assert (
+        "reviewed Terraform makes only the Slack ingress publicly invocable"
+        in readiness
+    )
+
+
 def test_cloud_run_requires_an_immutable_container_digest() -> None:
     variables = Path("deployment/terraform/single-project/variables.tf").read_text()
 

@@ -81,8 +81,12 @@ secrets into this file.
       Gemini key only into the worker, and gives target credentials an empty-by-default
       worker-only allowlist. No secret versions or values are Terraform-managed; this
       is not live secret-access evidence.
-- [ ] Deterministic project/source deletion and audit cleanup, ingress invocation
-      policy, and budget controls are verified in the complete reviewed plan.
+- [x] The reviewed Terraform makes only the Slack ingress publicly invocable. The
+      application still verifies the Slack signature, timestamp, workspace, channel,
+      and owner; the internal-only worker accepts only the dedicated Cloud Tasks OIDC
+      identity. This is offline policy evidence, not live invocation verification.
+- [ ] Deterministic project/source deletion and audit cleanup and budget controls are
+      verified in the complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and

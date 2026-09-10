@@ -72,6 +72,18 @@ resource "google_service_account_iam_member" "ingress_tasks_act_as" {
   member             = "serviceAccount:${google_service_account.ingress_sa.email}"
 }
 
+# Slack cannot mint a Google identity token for Events API delivery. Public
+# invocation ends at the lightweight ingress, whose application boundary still
+# verifies the signing secret, timestamp, workspace, channel, and owner before
+# acknowledging or enqueuing work.
+resource "google_cloud_run_v2_service_iam_member" "slack_ingress_invoker" {
+  project  = google_cloud_run_v2_service.ingress.project
+  location = google_cloud_run_v2_service.ingress.location
+  name     = google_cloud_run_v2_service.ingress.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
 # The task identity can invoke only the private unified worker service.
 resource "google_cloud_run_v2_service_iam_member" "tasks_worker_invoker" {
   project  = google_cloud_run_v2_service.worker.project
