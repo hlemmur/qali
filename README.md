@@ -131,18 +131,20 @@ Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - 
 The repository now contains a reviewed two-service Agents CLI Cloud Run baseline
 under `deployment/terraform/`. The lightweight Slack ingress accepts internet ingress
 at the Cloud Run networking layer so Slack can reach the signed-events application;
-its invocation policy is still pending. The unified worker is internal-only,
-scale-to-zero, single-concurrency, and configured for the Gemini Developer API rather
-than Vertex AI. A single regional Cloud Tasks queue serializes dispatch, permits three
-bounded attempts, and uses a dedicated OIDC identity that can invoke only the worker.
+service-level IAM makes only the Slack ingress service publicly invocable. The
+application still fails closed on the Slack signature, timestamp, workspace, channel,
+and owner before it accepts work. The worker remains internal-only and requires Cloud
+Tasks OIDC; it is scale-to-zero, single-concurrency, and configured for the Gemini
+Developer API rather than Vertex AI. A single regional Cloud Tasks queue serializes
+dispatch, permits three bounded attempts, and uses a dedicated OIDC identity that can
+invoke only the worker.
 The ingress identity can enqueue only on that queue and can act as only the task
 identity. Both services require an approved immutable image digest and use separate
 runtime identities. Generated completion telemetry and content capture are disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Firestore, artifact storage, Secret Manager references, the Slack ingress invocation
-policy, retention, and budget controls remain approval-gated work in the committed
-implementation plan.
+Deterministic deletion and audit cleanup, budget controls, and live qualification
+remain approval-gated work in the committed implementation plan.
 The checked-in Cloud Tasks configuration has not been initialized, planned, applied,
 or live-verified. Follow `docs/release-readiness.md`; do not run `terraform apply`,
 `agents-cli deploy`, or any resource-creating command without the owner's explicit

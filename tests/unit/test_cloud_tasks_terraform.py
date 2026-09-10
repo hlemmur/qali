@@ -24,6 +24,10 @@ def test_cloud_tasks_queue_is_rate_limited_and_has_bounded_retries() -> None:
 
 def test_cloud_tasks_uses_a_dedicated_oidc_identity_and_least_privilege_iam() -> None:
     iam = (TERRAFORM_ROOT / "iam.tf").read_text()
+    worker_invoker = iam.split(
+        'resource "google_cloud_run_v2_service_iam_member" "tasks_worker_invoker"',
+        1,
+    )[1].split("}", 1)[0]
 
     assert 'resource "google_service_account" "tasks_sa"' in iam
     assert 'resource "google_cloud_tasks_queue_iam_member" "ingress_enqueuer"' in iam
@@ -35,11 +39,11 @@ def test_cloud_tasks_uses_a_dedicated_oidc_identity_and_least_privilege_iam() ->
         'resource "google_cloud_run_v2_service_iam_member" "tasks_worker_invoker"'
         in iam
     )
-    assert 'role     = "roles/run.invoker"' in iam
-    assert "google_service_account.tasks_sa.email" in iam
-    assert "google_cloud_run_v2_service.worker.name" in iam
-    assert "allUsers" not in iam
-    assert "allAuthenticatedUsers" not in iam
+    assert 'role     = "roles/run.invoker"' in worker_invoker
+    assert "google_service_account.tasks_sa.email" in worker_invoker
+    assert "google_cloud_run_v2_service.worker.name" in worker_invoker
+    assert "allUsers" not in worker_invoker
+    assert "allAuthenticatedUsers" not in worker_invoker
 
 
 def test_cloud_tasks_runtime_contract_wires_ingress_to_unified_worker() -> None:
