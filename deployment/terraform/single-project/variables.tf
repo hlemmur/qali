@@ -29,6 +29,16 @@ variable "region" {
   default     = "europe-west1"
 }
 
+variable "billing_account_id" {
+  type        = string
+  description = "Billing account ID that owns the Qali project and receives budget alerts."
+
+  validation {
+    condition     = can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", var.billing_account_id))
+    error_message = "billing_account_id must use the 000000-000000-000000 format."
+  }
+}
+
 variable "container_image" {
   type        = string
   description = "Approved immutable container image URI shared by Qali services."

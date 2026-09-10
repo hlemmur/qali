@@ -4538,3 +4538,40 @@ Safety and scope:
   and does not claim initialization or provider-backed validation.
 - No IAM policy, API, resource, plan, apply, credential, model, browser, Slack API,
   cloud call, or deployment was created or used. Release status remains NO-GO.
+
+## 2026-09-11 — Phase 4: project budget alerts
+
+Isolated slice: added the owner-defined 100 SEK monthly alert boundary for the Qali
+GCP project without applying infrastructure.
+
+Required skill and official reference:
+
+- Agents CLI deploy skill 1.4.2 and its custom Terraform guidance.
+- Pinned Google provider 7.28.0 documentation for `google_billing_budget`, recurring
+  project filters, spend thresholds, and default/project-level recipients.
+
+TDD evidence:
+
+- RED/GREEN 1: no Billing Budgets API or budget resource existed; Terraform now defines
+  a recurring monthly 100 SEK budget scoped by Qali's project number, with current
+  alerts at 50%, 90%, and 100% plus a forecasted 100% alert.
+- RED/GREEN 2: the deployment guide did not explain operator access or the difference
+  between an alert and a hard cap; it now requires an untracked billing account input,
+  identifies the needed billing role, and keeps both default recipients and project
+  owners enabled.
+- Scoped budget, Cloud Run, queue, Firestore, storage, Secret Manager, and release
+  contracts — `32 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `520 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The budget emits notifications; it does not disable billing or stop workloads.
+  Scale-to-zero and deterministic workload limits remain the preventive controls.
+- The billing account ID is required at plan time and stays outside committed files.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No budget, alert, IAM policy, API, resource, plan, apply, credential, model, browser,
+  Slack API, cloud call, or deployment was created or used. Release status remains
+  NO-GO.

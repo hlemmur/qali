@@ -85,8 +85,12 @@ secrets into this file.
       application still verifies the Slack signature, timestamp, workspace, channel,
       and owner; the internal-only worker accepts only the dedicated Cloud Tasks OIDC
       identity. This is offline policy evidence, not live invocation verification.
-- [ ] Deterministic project/source deletion and audit cleanup and budget controls are
-      verified in the complete reviewed plan.
+- [x] The reviewed Terraform defines a project-scoped 100 SEK monthly alert with
+      current-spend thresholds at 50%, 90%, and 100% plus a forecasted 100% threshold.
+      Default billing recipients and project owners remain enabled. This is an alert,
+      not a spending cap, and is offline configuration evidence only.
+- [ ] Deterministic project/source deletion and audit cleanup are verified in the
+      complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and
