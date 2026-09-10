@@ -143,8 +143,8 @@ identity. Both services require an approved immutable image digest and use separ
 runtime identities. Generated completion telemetry and content capture are disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Deterministic deletion and audit cleanup, budget controls, and live qualification
-remain approval-gated work in the committed implementation plan.
+Deterministic deletion and audit cleanup and live qualification remain approval-gated
+work in the committed implementation plan.
 The checked-in Cloud Tasks configuration has not been initialized, planned, applied,
 or live-verified. Follow `docs/release-readiness.md`; do not run `terraform apply`,
 `agents-cli deploy`, or any resource-creating command without the owner's explicit
@@ -202,6 +202,22 @@ Gemini runtime secret IDs are rejected from it. Never place secret values in Ter
 variables, configuration, state, plans, documentation, Slack, or browser-agent context.
 Terraform initialization, planning, application, and live secret verification remain
 approval-gated.
+
+### Budget preflight
+
+The Terraform configuration defines a project-scoped recurring monthly budget. Alerts
+fire at 50%, 90%, 100%, and forecasted 100%. The 100 SEK monthly budget is an alert
+boundary, not a spending cap; it does not automatically disable billing or stop
+workloads. Scale-to-zero limits and bounded workload settings remain the preventive
+cost controls.
+
+Before an approved plan, provide `billing_account_id` through an untracked
+`my_env.tfvars` file or a reviewed command-line variable. Do not commit the billing
+account ID. The operator needs Billing Account Administrator or Billing Account Costs
+Manager access on that account, and the account currency must accept the configured SEK
+amount. Alerts retain the default billing-account recipients and also notify project
+owners. Confirm the recipient list before applying. Planning, applying, and live alert
+verification remain approval-gated.
 
 ## Observability
 
