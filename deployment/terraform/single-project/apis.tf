@@ -17,6 +17,7 @@ locals {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudtasks.googleapis.com",
+    "firestore.googleapis.com",
     "run.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",

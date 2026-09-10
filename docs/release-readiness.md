@@ -64,7 +64,11 @@ secrets into this file.
       task-level OIDC, queue-scoped enqueue permission, and a dedicated identity that
       can invoke only the private unified worker. This is offline configuration
       evidence, not a successful plan, apply, or live dispatch.
-- [ ] Secret-level access, durable storage IAM, lifecycle retention, ingress invocation
+- [x] The reviewed Terraform defines the protected Standard `(default)` Firestore
+      database, project-level data-user access for only the ingress and worker runtime
+      identities, and their existing collection/lease contract. Existing databases
+      must be imported; this is not live persistence evidence.
+- [ ] Secret-level access, GCS artifact IAM, lifecycle retention, ingress invocation
       policy, and budget controls are verified in the complete reviewed plan.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.

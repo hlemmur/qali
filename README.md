@@ -147,6 +147,21 @@ or live-verified. Follow `docs/release-readiness.md`; do not run `terraform appl
 `agents-cli deploy`, or any resource-creating command without the owner's explicit
 approval.
 
+The same local Terraform configuration defines the Standard `(default)` Firestore
+database in `europe-west1`, with pessimistic concurrency, App Engine integration and
+paid point-in-time recovery disabled, and deletion protection enabled. Both runtime
+identities receive `roles/datastore.user`; no database owner or import/export role is
+granted. Check whether the `(default)` Firestore database already exists before any
+approved infrastructure operation. If it does, import it into this Terraform state:
+
+```bash
+terraform import google_firestore_database.qali \
+  'projects/PROJECT_ID/databases/(default)'
+```
+
+Do not attempt to recreate an existing database. Initialization, import, planning,
+application, and live persistence verification all remain approval-gated.
+
 ## Observability
 
 The reviewed baseline enables Cloud Trace and Cloud Logging APIs with model-message

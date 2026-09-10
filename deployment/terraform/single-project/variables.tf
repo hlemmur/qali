@@ -44,6 +44,7 @@ variable "ingress_sa_roles" {
   type        = list(string)
   default = [
     "roles/logging.logWriter",
+    "roles/datastore.user",
     "roles/serviceusage.serviceUsageConsumer",
   ]
 }
@@ -54,6 +55,7 @@ variable "worker_sa_roles" {
   default = [
     "roles/logging.logWriter",
     "roles/cloudtrace.agent",
+    "roles/datastore.user",
     "roles/serviceusage.serviceUsageConsumer",
   ]
 }

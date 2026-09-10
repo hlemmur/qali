@@ -4324,3 +4324,46 @@ Safety and scope:
 - No queue, IAM policy, API, resource, image, plan, apply, credential, model, browser,
   Slack API, cloud call, or deployment was created or used. Release status remains
   NO-GO.
+
+## 2026-09-10 — Phase 4: Firestore durability baseline
+
+Isolated slice: added the protected Firestore database and runtime configuration used
+by durable Slack jobs, project bindings, source metadata, and project-level locks.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2 and its custom Terraform/import guidance.
+- Current Google provider documentation for `google_firestore_database`, including
+  Standard edition, Native mode, pessimistic transactions, recovery, deletion
+  protection, and import behavior.
+- Current Firestore location and IAM documentation confirming `europe-west1` support
+  and `roles/datastore.user` as the project-level read/write data role.
+
+TDD evidence:
+
+- RED/GREEN 1: no Firestore database or API existed; Terraform now defines the
+  Standard Native `(default)` database in the configured region with pessimistic
+  concurrency, App Engine integration disabled, paid PITR disabled, and two layers of
+  deletion protection.
+- RED/GREEN 2: neither runtime could read or write durable state; the ingress and
+  worker role sets now include `roles/datastore.user` without owner, admin, or
+  import/export permissions.
+- RED/GREEN 3: Cloud Run lacked the repository configuration contract; both services
+  now receive the database, jobs, lock, and 960-second lease settings, while only the
+  worker receives project and source collection names.
+- RED/GREEN 4: the deployment guide could recreate an existing default database; it
+  now requires an existence check and Terraform import before any approved plan/apply.
+- Scoped Firestore Terraform contract tests — `4 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `501 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The database uses the sole default ID and Standard edition to preserve free-tier
+  eligibility; paid point-in-time recovery is explicitly disabled.
+- Terraform/OpenTofu is not installed locally, so this slice uses static contract tests
+  and does not claim initialization or provider-backed validation.
+- No database, IAM policy, API, resource, import, plan, apply, credential, model,
+  browser, Slack API, cloud call, or deployment was created or used. Release status
+  remains NO-GO.

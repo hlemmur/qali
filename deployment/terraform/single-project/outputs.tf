@@ -31,3 +31,8 @@ output "tasks_queue_name" {
   description = "Cloud Tasks queue name"
   value       = google_cloud_tasks_queue.jobs.name
 }
+
+output "firestore_database_id" {
+  description = "Firestore database ID"
+  value       = google_firestore_database.qali.name
+}
