@@ -57,9 +57,9 @@ secrets into this file.
 
 ## Deployment gate
 
-- [x] The generated single-service Cloud Run/Terraform baseline has been reviewed for
-      the approved project and region without applying it; it is not the complete Qali
-      topology.
+- [x] The generated Cloud Run/Terraform service baseline has been reviewed for the
+      approved project and region without applying it; it defines separate Slack
+      ingress and unified private worker services but is not the complete Qali topology.
 - [ ] Least-privilege service accounts, secret-level access, private worker ingress,
       authenticated Cloud Tasks, lifecycle retention, scale-to-zero, and concurrency
       one are verified in the reviewed plan.

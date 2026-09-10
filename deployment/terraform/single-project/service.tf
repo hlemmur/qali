@@ -12,25 +12,104 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+resource "google_cloud_run_v2_service" "ingress" {
+  name                = "${var.project_name}-ingress"
+  location            = var.region
+  project             = var.project_id
+  deletion_protection = true
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  labels = {
+    "created-by" = "adk"
+    "component"  = "slack-ingress"
+  }
 
-resource "google_cloud_run_v2_service" "app" {
-  name                = var.project_name
+  template {
+    containers {
+      image   = var.container_image
+      command = ["uv", "run", "uvicorn"]
+      args = [
+        "app.slack_app:create_slack_ingress_app_from_env",
+        "--factory",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
+
+      ports {
+        container_port = 8080
+      }
+
+      env {
+        name  = "QALI_MODE"
+        value = "live"
+      }
+
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+    }
+
+    service_account                  = google_service_account.ingress_sa.email
+    max_instance_request_concurrency = 8
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 2
+    }
+
+    session_affinity = false
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  depends_on = [resource.google_project_service.services]
+}
+
+resource "google_cloud_run_v2_service" "worker" {
+  name                = "${var.project_name}-worker"
   location            = var.region
   project             = var.project_id
   deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   labels = {
     "created-by" = "adk"
-    "access"     = "owner-only"
+    "component"  = "worker"
   }
 
   template {
+    timeout = "900s"
+
     containers {
-      image = "us-docker.pkg.dev/cloudrun/container/hello"
+      image   = var.container_image
+      command = ["uv", "run", "uvicorn"]
+      args = [
+        "app.worker_runtime:create_worker_runtime_from_env",
+        "--factory",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
+
+      ports {
+        container_port = 8080
+      }
 
       env {
-        name  = "APP_URL"
-        value = "https://${var.project_name}-${data.google_project.project.number}.${var.region}.run.app"
+        name  = "QALI_MODE"
+        value = "live"
       }
 
       env {
@@ -48,16 +127,9 @@ resource "google_cloud_run_v2_service" "app" {
         value = "false"
       }
 
-      resources {
-        limits = {
-          cpu    = "1"
-          memory = "4Gi"
-        }
-      }
-
       env {
         name  = "OTEL_SERVICE_NAME"
-        value = "qali"
+        value = "qali-worker"
       }
 
       env {
@@ -75,9 +147,15 @@ resource "google_cloud_run_v2_service" "app" {
         value = "gen_ai_latest_experimental"
       }
 
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "4Gi"
+        }
+      }
     }
 
-    service_account = google_service_account.app_sa.email
+    service_account                  = google_service_account.worker_sa.email
     max_instance_request_concurrency = 1
 
     scaling {
@@ -93,16 +171,5 @@ resource "google_cloud_run_v2_service" "app" {
     percent = 100
   }
 
-  # This lifecycle block prevents Terraform from overwriting the container image when it's
-  # updated by Cloud Run deployments outside of Terraform (e.g., via CI/CD pipelines)
-  lifecycle {
-    ignore_changes = [
-      template[0].containers[0].image,
-    ]
-  }
-
-  # Make dependencies conditional to avoid errors.
-  depends_on = [
-    resource.google_project_service.services,
-  ]
+  depends_on = [resource.google_project_service.services]
 }

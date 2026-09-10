@@ -29,11 +29,29 @@ variable "region" {
   default     = "europe-west1"
 }
 
-variable "app_sa_roles" {
-  description = "List of roles to assign to the application service account"
+variable "container_image" {
+  type        = string
+  description = "Approved immutable container image URI shared by Qali services."
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.container_image))
+    error_message = "container_image must use an immutable sha256 digest."
+  }
+}
+
+variable "ingress_sa_roles" {
+  description = "Project roles required by the Slack ingress service account."
   type        = list(string)
   default = [
+    "roles/logging.logWriter",
+    "roles/serviceusage.serviceUsageConsumer",
+  ]
+}
 
+variable "worker_sa_roles" {
+  description = "Project roles required by the unified worker service account."
+  type        = list(string)
+  default = [
     "roles/logging.logWriter",
     "roles/cloudtrace.agent",
     "roles/serviceusage.serviceUsageConsumer",

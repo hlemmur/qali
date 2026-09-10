@@ -4246,3 +4246,41 @@ Safety and scope:
 - No Terraform resource, queue, storage, secret, IAM grant, image, model, browser,
   Slack API, credential, cloud call, or deployment was created or used. Release status
   remains NO-GO.
+
+## 2026-09-10 — Phase 4: two-service Cloud Run topology
+
+Isolated slice: replaced the generated placeholder service with separate Slack ingress
+and unified worker Cloud Run definitions that execute the repository's production
+factories.
+
+Required skill and official references:
+
+- Agents CLI deploy skill 1.4.2, including the Cloud Run scaling/networking and custom
+  Terraform references. The implementation remains inside the generated
+  `deployment/terraform/single-project/` structure.
+
+TDD evidence:
+
+- RED/GREEN 1: Terraform described one placeholder hello service; it now defines the
+  signed Slack ingress and unified worker factories as two independently scaled Cloud
+  Run services sharing one approved container image.
+- RED/GREEN 2: both services used one runtime identity; ingress and worker now have
+  distinct service accounts and separately bounded base role sets.
+- RED/GREEN 3: a mutable or placeholder image could reach the service definitions;
+  the required `container_image` variable now accepts only an immutable sha256 digest.
+- The ingress scales from zero to two instances at concurrency eight. The browser
+  worker is internal-only, scales from zero to one instance, uses concurrency one, and
+  has the existing 15-minute request ceiling.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `494 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- The Slack service has external network ingress because Slack cannot originate from
+  the private worker boundary, but this slice intentionally does not add an invoker
+  policy. The later IAM slice must expose only the signed Slack endpoint and preserve
+  private authenticated worker invocation.
+- No Cloud Tasks queue, database, bucket, secret, service invoker grant, resource-level
+  IAM, image, plan, apply, credential, model, browser, Slack API, cloud call, or
+  deployment was created or used. Release status remains NO-GO.

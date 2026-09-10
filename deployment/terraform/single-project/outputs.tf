@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "app_service_account_email" {
-  description = "Application service account email"
-  value       = google_service_account.app_sa.email
+output "ingress_service_account_email" {
+  description = "Slack ingress service account email"
+  value       = google_service_account.ingress_sa.email
+}
+
+output "worker_service_account_email" {
+  description = "Unified worker service account email"
+  value       = google_service_account.worker_sa.email
 }
