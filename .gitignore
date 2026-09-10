@@ -143,8 +143,10 @@ dmypy.json
 .idea
 
 # User-specific files
-.terraform*
-.Terraform*
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
 
 
 tmp*

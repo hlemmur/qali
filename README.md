@@ -125,17 +125,22 @@ Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - 
 
 ## Deployment
 
-```bash
-gcloud config set project <your-project-id>
-agents-cli deploy
-```
+The repository now contains the reviewed Agents CLI Cloud Run baseline under
+`deployment/terraform/`. It is intentionally internal-only, scale-to-zero,
+single-concurrency, and configured for the Gemini Developer API rather than Vertex
+AI. Generated completion telemetry and content capture are disabled.
 
-To add CI/CD and Terraform, run `agents-cli scaffold enhance`.
-To set up your production infrastructure, run `agents-cli infra cicd`.
+This baseline is not the complete Qali production topology and must not be applied.
+Cloud Tasks, Firestore, artifact storage, secret-level IAM, separate Slack ingress and
+browser-worker services, retention, and budget controls remain approval-gated work in
+the committed implementation plan. Follow `docs/release-readiness.md`; do not run
+`terraform apply`, `agents-cli deploy`, or any resource-creating command without the
+owner's explicit approval.
 
 ## Observability
 
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
+The reviewed baseline enables Cloud Trace and Cloud Logging APIs with model-message
+content capture disabled. BigQuery completion telemetry is not provisioned.
 
 ## A2A Inspector
 
