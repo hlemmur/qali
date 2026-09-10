@@ -64,3 +64,65 @@ def test_artifact_bucket_guidance_requires_importing_an_existing_bucket() -> Non
     assert "Check whether the artifact bucket already exists" in readme
     assert "terraform import google_storage_bucket.artifacts" in readme
     assert "Do not attempt to recreate an existing bucket" in readme
+
+
+def test_live_run_documents_expire_after_ninety_days() -> None:
+    storage = (TERRAFORM_ROOT / "storage.tf").read_text()
+    retention = storage[
+        storage.index("age            = 90") - 180 : storage.index(
+            "age            = 90"
+        )
+        + 480
+    ]
+
+    assert 'type = "Delete"' in retention
+    assert 'with_state     = "LIVE"' in retention
+    assert 'matches_prefix = ["projects/"]' in retention
+    assert '"/request.md"' in retention
+    assert '"/plan.json"' in retention
+    assert '"/result.json"' in retention
+    assert '"/report.md"' in retention
+
+
+def test_live_browser_evidence_expires_after_thirty_days() -> None:
+    storage = (TERRAFORM_ROOT / "storage.tf").read_text()
+    retention = storage[
+        storage.index("age            = 30") - 180 : storage.index(
+            "age            = 30"
+        )
+        + 580
+    ]
+
+    assert 'type = "Delete"' in retention
+    assert 'with_state     = "LIVE"' in retention
+    assert 'matches_prefix = ["projects/"]' in retention
+    assert '"/trace.zip"' in retention
+    assert '"/accessibility.md"' in retention
+    assert '"/console.json"' in retention
+    assert '"/network.json"' in retention
+    assert '"/screenshot.png"' in retention
+
+
+def test_staged_uploads_expire_after_one_day() -> None:
+    storage = (TERRAFORM_ROOT / "storage.tf").read_text()
+    retention = storage[
+        storage.index("age            = 1") - 180 : storage.index("age            = 1")
+        + 260
+    ]
+
+    assert 'type = "Delete"' in retention
+    assert 'with_state     = "LIVE"' in retention
+    assert 'matches_prefix = ["uploads/"]' in retention
+
+
+def test_retention_guide_preserves_project_knowledge_until_deletion() -> None:
+    readme = " ".join(Path("README.md").read_text().split())
+
+    assert "Run documents expire after 90 days" in readme
+    assert "browser evidence expires after 30 days" in readme
+    assert "`uploads/` staging prefix expires after 24 hours" in readme
+    assert (
+        "sources, compiled knowledge, feature context, findings, and projections"
+        in readme
+    )
+    assert "remain until explicit project deletion" in readme

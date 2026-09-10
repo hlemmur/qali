@@ -46,6 +46,55 @@ resource "google_storage_bucket" "artifacts" {
     }
   }
 
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age            = 90
+      with_state     = "LIVE"
+      matches_prefix = ["projects/"]
+      matches_suffix = [
+        "/request.md",
+        "/plan.json",
+        "/result.json",
+        "/report.md",
+      ]
+    }
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age            = 1
+      with_state     = "LIVE"
+      matches_prefix = ["uploads/"]
+    }
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age            = 30
+      with_state     = "LIVE"
+      matches_prefix = ["projects/"]
+      matches_suffix = [
+        "/trace.zip",
+        "/accessibility.md",
+        "/console.json",
+        "/network.json",
+        "/screenshot.png",
+      ]
+    }
+  }
+
   labels = {
     "created-by" = "adk"
     "component"  = "private-artifacts"
