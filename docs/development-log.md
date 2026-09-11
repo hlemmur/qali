@@ -4618,5 +4618,38 @@ Safety and scope:
   before policy-driven physical expiry.
 - This slice does not expose a Slack route or delete Firestore metadata; the full
   project-deletion workflow and retained redacted audit record remain separate work.
+
+## 2026-09-11 — Phase 4: deterministic Firestore metadata cleanup
+
+Isolated slice: added Firestore and in-memory cleanup adapters for one project's
+project/source/job/lock metadata plus a retained, redacted deletion audit.
+
+Required skills and official references:
+
+- TDD skill with public-boundary red/green tests and mock parity.
+- Google Agents CLI deployment skill and the HashiCorp Google provider
+  `google_firestore_field` TTL contract. No Terraform plan/apply or cloud operation ran.
+
+TDD evidence:
+
+- RED/GREEN 1: no metadata cleanup module existed; the adapter now validates every
+  selected record before deleting only the exact project and Slack channel scope.
+- RED/GREEN 2: repeated delivery raised `AlreadyExists`; deterministic audit recovery
+  now resumes pending work or returns the original completed result.
+- RED/GREEN 3: deletion IDs could be reused across requesters; strict audit validation
+  now rejects mismatched or non-redacted records before further deletion.
+- RED/GREEN 4: local mock mode lacked metadata parity; the in-memory adapter preserves
+  other projects and returns the same completed result on retry.
+- RED/GREEN 5: retained audit data lacked enforced expiry; Terraform now configures an
+  `expires_at` Firestore TTL field and disables its unused single-field index.
+
+Safety and scope:
+
+- Audit records retain only opaque deletion/project IDs, a requester digest, bounded
+  counts, status, and timestamps for 90 days; raw workspace/channel IDs are excluded.
+- The operation fails closed on malformed query results, duplicate document paths,
+  reused deletion IDs, or an over-limit plan before its first metadata delete.
+- Artifact cleanup remains a separate adapter; workflow composition and live
+  qualification remain open and approval-gated.
 - No artifact, cloud API, resource, credential, model, browser, Slack API, cloud call,
   or deployment was created, deleted, or used. Release status remains NO-GO.
