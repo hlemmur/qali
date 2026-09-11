@@ -93,8 +93,10 @@ secrets into this file.
       live and noncurrent object generations under one exact project prefix, uses
       generation preconditions, tolerates retry races, and has in-memory parity. The
       seven-day bucket recovery window still applies.
-- [ ] Deterministic project/source deletion and audit cleanup are verified in the
-      complete reviewed plan.
+- [x] The Firestore metadata cleaner validates the full selected scope before deletion,
+      removes project/source/job/lock documents, safely resumes partial retries, and
+      retains only a redacted deletion audit with a 90-day timestamp TTL. The final
+      project-deletion workflow still needs to compose metadata and artifact cleanup.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and

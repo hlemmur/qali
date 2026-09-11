@@ -29,3 +29,13 @@ resource "google_firestore_database" "qali" {
 
   depends_on = [resource.google_project_service.services]
 }
+
+resource "google_firestore_field" "deletion_audit_expiry" {
+  project    = var.project_id
+  database   = google_firestore_database.qali.name
+  collection = "deletion_audit"
+  field      = "expires_at"
+
+  ttl_config {}
+  index_config {}
+}

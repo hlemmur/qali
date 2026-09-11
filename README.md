@@ -143,8 +143,7 @@ identity. Both services require an approved immutable image digest and use separ
 runtime identities. Generated completion telemetry and content capture are disabled.
 
 This baseline is not the complete Qali production topology and must not be applied.
-Deterministic deletion and audit cleanup and live qualification remain approval-gated
-work in the committed implementation plan.
+Live qualification remains approval-gated work in the committed implementation plan.
 The checked-in Cloud Tasks configuration has not been initialized, planned, applied,
 or live-verified. Follow `docs/release-readiness.md`; do not run `terraform apply`,
 `agents-cli deploy`, or any resource-creating command without the owner's explicit
@@ -164,6 +163,14 @@ terraform import google_firestore_database.qali \
 
 Do not attempt to recreate an existing database. Initialization, import, planning,
 application, and live persistence verification all remain approval-gated.
+
+Project metadata cleanup validates the complete selected Firestore scope before its
+first delete, removes the project, source, job, and exact channel-lock documents, and
+is retry-safe through a deterministic deletion record. That audit retains only the
+deletion and project IDs, requester digest, counts, status, and timestamps; it never
+stores raw Slack workspace or channel IDs. Its `expires_at` timestamp has a 90-day
+Firestore TTL policy. Artifact and metadata adapters remain separate boundaries until
+the final project-deletion workflow composes them.
 
 The private artifact bucket uses the default name
 `PROJECT_ID-qali-artifacts`, regional Standard storage, uniform bucket-level access,

@@ -36,6 +36,20 @@ def test_firestore_data_access_is_limited_to_runtime_identities() -> None:
     assert "roles/datastore.importExportAdmin" not in variables
 
 
+def test_firestore_deletion_audit_expires_by_timestamp_ttl() -> None:
+    firestore = (TERRAFORM_ROOT / "firestore.tf").read_text()
+
+    ttl = firestore.split(
+        'resource "google_firestore_field" "deletion_audit_expiry"', 1
+    )[1]
+    assert "project    = var.project_id" in ttl
+    assert "database   = google_firestore_database.qali.name" in ttl
+    assert 'collection = "deletion_audit"' in ttl
+    assert 'field      = "expires_at"' in ttl
+    assert "ttl_config {}" in ttl
+    assert "index_config {}" in ttl
+
+
 def test_firestore_runtime_contract_is_wired_to_both_services() -> None:
     service = (TERRAFORM_ROOT / "service.tf").read_text()
     outputs = (TERRAFORM_ROOT / "outputs.tf").read_text()
