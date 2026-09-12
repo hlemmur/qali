@@ -4651,5 +4651,34 @@ Safety and scope:
   reused deletion IDs, or an over-limit plan before its first metadata delete.
 - Artifact cleanup remains a separate adapter; workflow composition and live
   qualification remain open and approval-gated.
+
+## 2026-09-12 — Phase 4: composed project deletion
+
+Isolated slice: composed the reviewed GCS artifact and Firestore metadata cleanup
+boundaries behind one deterministic project-deletion service.
+
+TDD evidence:
+
+- RED/GREEN 1: no complete deletion boundary existed; the service now removes all
+  artifact generations before metadata and returns combined counts with audit expiry.
+- RED/GREEN 2: an adapter could report another project as successfully removed; the
+  service now rejects mismatched artifact scope before metadata deletion.
+- RED/GREEN 3: a metadata adapter could return the wrong deletion evidence; the service
+  now rejects a mismatched deletion or project ID instead of publishing success.
+- The composed in-memory path preserves other projects and safely repeats completed
+  metadata cleanup while already-removed artifact generations remain a no-op.
+- An artifact-stage exception leaves the metadata adapter uncalled, so the durable
+  project mapping and deletion audit are not falsely finalized.
+- Scoped composition, artifact, metadata, and readiness contracts — `17 passed`.
+- Complete credential-free unit/integration/contract gate, excluding only the
+  generated ADC-dependent server E2E probe — `537 passed, 1 skipped`.
+- Agents CLI 1.4.2 lint (Ruff, format, codespell, and ty) — passed.
+
+Safety and scope:
+
+- Composition uses only the existing bounded, validated production adapters and adds
+  no live integration, secret access, cloud operation, route, or deployment.
+- GCS soft-delete recovery and the 90-day redacted Firestore audit TTL remain unchanged.
+- Live deletion qualification remains part of the explicit-approval deployment gate.
 - No artifact, cloud API, resource, credential, model, browser, Slack API, cloud call,
   or deployment was created, deleted, or used. Release status remains NO-GO.
