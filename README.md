@@ -199,9 +199,11 @@ generations under the exact `projects/PROJECT_ID/` prefix, validates the complet
 bounded listing before mutation, and uses generation-matched deletes. Retries tolerate
 objects that another attempt already removed, while an in-memory adapter provides the
 same project-isolation and idempotency behavior for local tests. Deleted objects remain
-inside the bucket's seven-day soft-delete recovery window before physical expiry. This
-artifact-only slice does not yet delete Firestore metadata or write the retained
-deletion-audit record, so the complete project-deletion gate remains open.
+inside the bucket's seven-day soft-delete recovery window before physical expiry. The
+project-deletion service composes this boundary before Firestore metadata cleanup, so
+an artifact failure cannot remove the project record or finalize its deletion audit.
+It validates both adapters' returned scope and exposes combined deletion counts plus
+the audit expiry. Deployment and live deletion qualification remain approval-gated.
 
 ### Secret Manager preflight
 
