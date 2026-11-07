@@ -95,8 +95,10 @@ secrets into this file.
       seven-day bucket recovery window still applies.
 - [x] The Firestore metadata cleaner validates the full selected scope before deletion,
       removes project/source/job/lock documents, safely resumes partial retries, and
-      retains only a redacted deletion audit with a 90-day timestamp TTL. The final
-      project-deletion workflow still needs to compose metadata and artifact cleanup.
+      retains only a redacted deletion audit with a 90-day timestamp TTL.
+- [x] The project-deletion service composes artifact cleanup before metadata cleanup,
+      fails closed before metadata removal when artifacts fail or return another scope,
+      validates final metadata evidence, and has end-to-end in-memory retry parity.
 - [ ] The owner confirms the deploy window, 100 SEK alert boundary, integration test
       data, rollback operator, and previous known-good revision.
 - [ ] **Explicit owner approval** is recorded immediately before resource changes and

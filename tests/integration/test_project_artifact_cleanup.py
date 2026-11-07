@@ -176,10 +176,11 @@ async def test_project_cleanup_rejects_invalid_generation_before_any_delete() ->
     assert all(blob.deletes == [] for blob in blobs)
 
 
-def test_cleanup_guide_keeps_partial_project_deletion_explicit() -> None:
+def test_cleanup_guide_records_complete_project_deletion_order() -> None:
     readme = " ".join(Path("README.md").read_text().split())
 
     assert "all live and noncurrent GCS generations" in readme
     assert "generation-matched deletes" in readme
     assert "seven-day soft-delete recovery window" in readme
-    assert "does not yet delete Firestore metadata" in readme
+    assert "composes this boundary before Firestore metadata cleanup" in readme
+    assert "an artifact failure cannot remove the project record" in readme
